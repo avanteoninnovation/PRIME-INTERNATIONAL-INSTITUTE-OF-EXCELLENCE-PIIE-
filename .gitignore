@@ -1,0 +1,86 @@
+# Laravel default
+/vendor
+/node_modules
+
+# Laravel environment files
+.env
+.env.*.php
+.env.*.json
+.env.*.yml
+.phpunit.result.cache
+/index.php
+
+# Laravel logs and cache
+/storage/*.key
+/storage/app/public/*
+!/storage/app/public/.gitignore
+/storage/debugbar
+/storage/framework/cache/data
+/storage/framework/sessions
+/storage/framework/testing
+/storage/framework/views
+/storage/logs
+/storage/oauth-private.key
+/storage/oauth-public.key
+/storage/*.log
+
+# Laravel IDE helper
+/_ide_helper.php
+/_ide_helper_models.php
+/.phpstorm.meta.php
+
+# Composer
+composer.lock
+composer.phar
+
+# NPM/Yarn
+npm-debug.log
+yarn-error.log
+pnpm-debug.log
+
+# IDEs and Editors
+.vscode
+.idea
+*.sublime-project
+*.sublime-workspace
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Cache
+.cache
+.phpunit.cache
+.phpunit.result.cache
+
+# Coverage reports
+coverage
+
+# PHPUnit
+.phpunit.result.cache
+
+# Custom
+/public/hot
+/public/storage
+/public/mix-manifest.json
+/public/build
+/public/uploads
+/public/upload
+
+
+
+#More
+/.phpunit.cache
+/storage/pail
+.phpactor.json
+Homestead.json
+Homestead.yaml
+auth.json
+/.fleet
+/.idea
+/.nova
+/.vscode
+/.zed
+
+
+/config/*.php
