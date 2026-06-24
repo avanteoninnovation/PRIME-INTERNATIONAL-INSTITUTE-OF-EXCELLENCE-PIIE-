@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\CommonController;
@@ -8,6 +9,9 @@ use App\Models\Book;
 use App\Models\BookIssue;
 use App\Models\Chat;
 use App\Models\Classes;
+use App\Models\Club;
+use App\Models\ClubMember;
+use App\Models\ClubNotice;
 use App\Models\DailyAttendances;
 use App\Models\Enrollment;
 use App\Models\ExamCategory;
@@ -65,7 +69,6 @@ class StudentController extends Controller
                     ->where('school_id', auth()->user()->school_id)
                     ->where('role_id', 3);
             })->paginate(10);
-
         } else {
             $teachers = User::where('role_id', 3)->where('school_id', auth()->user()->school_id)->paginate(10);
         }
@@ -138,7 +141,6 @@ class StudentController extends Controller
         $number_of_days = date('m', $page_data['attendance_date']) == 2 ? (date('Y', $page_data['attendance_date']) % 4 ? 28 : (date('m', $page_data['attendance_date']) % 100 ? 29 : (date('m', $page_data['attendance_date']) % 400 ? 28 : 29))) : ((date('m', $page_data['attendance_date']) - 1) % 7 % 2 ? 30 : 31);
         for ($i = 1; $i <= $number_of_days; $i++) {
             $csv_content .= ',' . get_phrase($i);
-
         }
 
         $file = "Attendence_report.csv";
@@ -168,7 +170,6 @@ class StudentController extends Controller
                             $csv_content .= "A,";
                         } else {
                             $csv_content .= ",";
-
                         }
 
                         if ($i == $number_of_days) {
@@ -286,7 +287,6 @@ class StudentController extends Controller
                 $query->where('author', 'LIKE', "%{$search}%")
                     ->where('school_id', auth()->user()->school_id);
             })->paginate(10);
-
         } else {
             $books = Book::where('school_id', auth()->user()->school_id)->paginate(10);
         }
@@ -593,7 +593,6 @@ class StudentController extends Controller
             $events = FrontendEvent::where(function ($query) use ($search) {
                 $query->where('title', 'LIKE', "%{$search}%");
             })->paginate(10);
-
         } else {
             $events = FrontendEvent::where('school_id', auth()->user()->school_id)->paginate(10);
         }
@@ -731,7 +730,6 @@ class StudentController extends Controller
             return view('student.message.all_message', ['id' => $msg_trd_id, 'msg_user_details' => $msg_user_details, 'chat_datas' => $chat_datas]);
         }
         return redirect()->back()->with('error', 'You can not add you');
-
     }
 
     public function chat_save(Request $request)
@@ -1211,11 +1209,11 @@ class StudentController extends Controller
         ]);
     }
 
-/**
- * Pay specific month hostel fee.
- *
- * @return \Illuminate\Contracts\Support\Renderable
- */
+    /**
+     * Pay specific month hostel fee.
+     *
+     * @return \Illuminate\Contracts\Support\Renderable
+     */
     public function payMonthlyFee(Request $request, $month, $year)
     {
         $student_id = auth()->user()->id;
@@ -1279,4 +1277,94 @@ class StudentController extends Controller
         return view('student.payment.payment_gateway', compact('fee_details', 'user_info'));
     }
 
+    public function club(Request $request)
+    {
+        $search     = $request->search;
+        $advisorId = $request->advisor_id;
+
+        $clubs = Club::with('advisor')
+            ->when($search, function ($query) use ($search) {
+                $query->where('club_name', 'LIKE', "%{$search}%");
+            })
+            ->when($advisorId, function ($query) use ($advisorId) {
+                $query->where('advisor_id', $advisorId);
+            })
+            ->latest()
+            ->paginate(10)
+            ->withQueryString();
+
+        $teachers = User::where('role_id', 3)
+            ->where('status', 1)
+            ->get();
+
+        return view('student.club.index', compact(
+            'clubs',
+            'search',
+            'advisorId',
+            'teachers'
+        ));
+    }
+
+
+    public function join(Club $club)
+    {
+        $studentId = auth()->id();
+
+        $exists = ClubMember::where('club_id', $club->id)
+            ->where('student_id', $studentId)
+            ->first();
+
+        if ($exists) {
+            return back()->with('error', 'Already requested');
+        }
+
+        ClubMember::create([
+            'club_id' => $club->id,
+            'student_id' => $studentId,
+            'status' => 0 // pending
+        ]);
+
+        return back()->with('success', 'Join request sent');
+    }
+    public function removeRequest(Club $club)
+    {
+        ClubMember::where('club_id', $club->id)
+            ->where('student_id', auth()->id())
+            ->where('status', 0)
+            ->delete();
+
+        return back()->with('success', 'Join request removed');
+    }
+    public function leave(Club $club)
+    {
+        ClubMember::where('club_id', $club->id)
+            ->where('student_id', auth()->id())
+            ->where('status', 1)
+            ->delete();
+
+        return back()->with('success', 'You left the club');
+    }
+    public function notice_index($clubId)
+    {
+        $club = Club::findOrFail($clubId);
+
+        $notices = ClubNotice::where('club_id', $clubId)
+            ->orderBy('notice_date', 'desc')
+            ->get();
+
+        return view('student.club.notice', compact('club', 'notices'));
+    }
+    public function notice_store(Request $request)
+    {
+        $request->validate([
+            'club_id' => 'required',
+            'title' => 'required',
+            'description' => 'required',
+            'notice_date' => 'required|date'
+        ]);
+
+        ClubNotice::create($request->all());
+
+        return redirect()->back()->with('success', 'Notice created successfully');
+    }
 }

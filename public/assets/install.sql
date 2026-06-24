@@ -618,7 +618,7 @@ INSERT INTO `global_settings` (`id`, `key`, `value`) VALUES
 (11, 'payment_settings', '[]'),
 (12, 'footer_text', 'By Creativeitem'),
 (13, 'footer_link', 'http://creativeitem.com/'),
-(14, 'version', '2.4.1'),
+(14, 'version', '2.4.2'),
 (15, 'fax', '1234567890'),
 (16, 'timezone', 'Asia/Dhaka'),
 (17, 'smtp_protocol', ''),
@@ -3219,6 +3219,108 @@ ALTER TABLE `hostel_room_allocations`
 ALTER TABLE `hostel_room_allocations`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
+COMMIT;
+
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+
+
+--
+-- Table structure for table `clubs`
+--
+
+DROP TABLE IF EXISTS `clubs`;
+CREATE TABLE `clubs` (
+  `id` int(11) NOT NULL,
+  `club_name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `description` longtext COLLATE utf8mb4_unicode_ci,
+  `status` tinyint(1) NOT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  `advisor_id` bigint(20) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `club_members`
+--
+
+DROP TABLE IF EXISTS `club_members`;
+CREATE TABLE `club_members` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `club_id` int(10) UNSIGNED NOT NULL,
+  `student_id` int(10) UNSIGNED NOT NULL,
+  `status` tinyint(1) DEFAULT '0' COMMENT '0=Pending,1=Approved,2=Rejected',
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `club_notices`
+--
+
+DROP TABLE IF EXISTS `club_notices`;
+CREATE TABLE `club_notices` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `club_id` bigint(20) UNSIGNED NOT NULL,
+  `admin_id` bigint(20) UNSIGNED DEFAULT NULL,
+  `title` varchar(255) NOT NULL,
+  `description` text NOT NULL,
+  `notice_date` date NOT NULL,
+  `image` varchar(255) DEFAULT NULL,
+  `status` tinyint(1) DEFAULT '1',
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `advisor_id` bigint(20) UNSIGNED DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+--
+-- Indexes for dumped tables
+--
+
+--
+-- Indexes for table `clubs`
+--
+ALTER TABLE `clubs`
+  ADD PRIMARY KEY (`id`);
+
+--
+-- Indexes for table `club_members`
+--
+ALTER TABLE `club_members`
+  ADD PRIMARY KEY (`id`);
+
+--
+-- Indexes for table `club_notices`
+--
+ALTER TABLE `club_notices`
+  ADD PRIMARY KEY (`id`);
+
+--
+-- AUTO_INCREMENT for dumped tables
+--
+
+--
+-- AUTO_INCREMENT for table `clubs`
+--
+ALTER TABLE `clubs`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `club_members`
+--
+ALTER TABLE `club_members`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `club_notices`
+--
+ALTER TABLE `club_notices`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;

@@ -31,6 +31,9 @@ use App\Models\TeacherPermission;
 use App\Models\Feedback;
 use App\Models\MessageThrade;
 use App\Models\Chat;
+use App\Models\Club;
+use App\Models\ClubMember;
+use App\Models\ClubNotice;
 use Illuminate\Foundation\Auth\User as AuthUser;
 use Stripe\Exception\PermissionException;
 
@@ -57,8 +60,8 @@ class TeacherController extends Controller
     {
         $exam_categories = ExamCategory::where('school_id', auth()->user()->school_id)->get();
         $sessions = Session::where('school_id', auth()->user()->school_id)->get();
-        $permissions=TeacherPermission::where('teacher_id', auth()->user()->id)->where('marks', 1)->get()->toArray();
-        $permitted_classes=array();
+        $permissions = TeacherPermission::where('teacher_id', auth()->user()->id)->where('marks', 1)->get()->toArray();
+        $permitted_classes = array();
 
         foreach ($permissions  as  $key => $distinct_class) {
 
@@ -67,7 +70,7 @@ class TeacherController extends Controller
         }
 
         $classes = $permitted_classes;
-        
+
         return view('teacher.marks.index', ['exam_categories' => $exam_categories, 'classes' => $classes, 'sessions' => $sessions]);
     }
 
@@ -91,8 +94,8 @@ class TeacherController extends Controller
             ->get();
 
         $page_data['exam_categories'] = ExamCategory::where('school_id', auth()->user()->school_id)->get();
-        $permissions=TeacherPermission::where('class_id', $data['class_id'])->where('section_id', $data['section_id'])->where('marks', 1)->where('teacher_id',auth()->user()->id)->get()->toArray();
-        $permitted_classes=array();
+        $permissions = TeacherPermission::where('class_id', $data['class_id'])->where('section_id', $data['section_id'])->where('marks', 1)->where('teacher_id', auth()->user()->id)->get()->toArray();
+        $permitted_classes = array();
 
         foreach ($permissions  as  $key => $distinct_class) {
 
@@ -103,12 +106,12 @@ class TeacherController extends Controller
         $page_data['classes'] = $permitted_classes;
 
         $exam = Exam::where('exam_type', 'offline')
-        ->where('class_id', $data['class_id'])
-        ->where('subject_id', $data['subject_id'])
-        ->where('session_id', $data['session_id'])
-        ->where('exam_category_id', $data['exam_category_id'])
-        ->where('school_id', auth()->user()->school_id)
-        ->first();
+            ->where('class_id', $data['class_id'])
+            ->where('subject_id', $data['subject_id'])
+            ->where('session_id', $data['session_id'])
+            ->where('exam_category_id', $data['exam_category_id'])
+            ->where('school_id', auth()->user()->school_id)
+            ->first();
 
         if ($exam) {
             $response = view('teacher.marks.marks_list', ['enroll_students' => $enroll_students, 'page_data' => $page_data])->render();
@@ -197,7 +200,7 @@ class TeacherController extends Controller
             $class_id = '';
         }
 
-        return view('teacher.subject.subject_list', compact('subjects','classes', 'class_id'));
+        return view('teacher.subject.subject_list', compact('subjects', 'classes', 'class_id'));
     }
 
     /**
@@ -252,15 +255,15 @@ class TeacherController extends Controller
         $active_session = get_school_settings(auth()->user()->school_id)->value('running_session');
 
         $subject_wise_mark_list = Gradebook::where(['class_id' => $data['class_id'], 'section_id' => $data['section_id'], 'exam_category_id' => $data['exam_category_id'], 'student_id' => $student_id, 'school_id' => auth()->user()->school_id, 'session_id' => $active_session])->first();
-        
+
         echo view('teacher.gradebook.subject_marks', ['subject_wise_mark_list' => $subject_wise_mark_list]);
     }
 
     public function list_of_syllabus(Request $request)
     {
-        $data=$request->all();
-        $permissions=TeacherPermission::where('teacher_id',auth()->user()->id)->select('class_id')->distinct()->get()->toArray();
-        $permitted_classes=array();
+        $data = $request->all();
+        $permissions = TeacherPermission::where('teacher_id', auth()->user()->id)->select('class_id')->distinct()->get()->toArray();
+        $permitted_classes = array();
 
         foreach ($permissions  as  $key => $distinct_class) {
 
@@ -274,9 +277,9 @@ class TeacherController extends Controller
 
     public function class_wise_section_for_syllabus(Request $request)
     {
-        $data=$request->all();
-        $permissions=TeacherPermission::where('class_id',$data['classId'])->where('teacher_id',auth()->user()->id)->get()->toArray();
-        $permitted_sections=array();
+        $data = $request->all();
+        $permissions = TeacherPermission::where('class_id', $data['classId'])->where('teacher_id', auth()->user()->id)->get()->toArray();
+        $permitted_sections = array();
 
         foreach ($permissions as $key => $distinct_section) {
 
@@ -307,8 +310,8 @@ class TeacherController extends Controller
     {
         $data = $request->all();
 
-        $permissions=TeacherPermission::where('teacher_id',auth()->user()->id)->select('class_id')->distinct()->get()->toArray();
-        $classes=array();
+        $permissions = TeacherPermission::where('teacher_id', auth()->user()->id)->select('class_id')->distinct()->get()->toArray();
+        $classes = array();
 
         foreach ($permissions  as  $key => $distinct_class) {
             $class_details = Classes::where('id', $distinct_class['class_id'])->first()->toArray();
@@ -354,25 +357,27 @@ class TeacherController extends Controller
         return redirect()->back()->with('message', 'You have successfully delete syllabus.');
     }
 
-    function profile(){
+    function profile()
+    {
         return view('teacher.profile.view');
     }
 
-    function profile_update(Request $request){
+    function profile_update(Request $request)
+    {
         $data['name'] = $request->name;
         $data['email'] = $request->email;
         $data['designation'] = $request->designation;
-        
+
         $user_info['birthday'] = strtotime($request->eDefaultDateRange);
         $user_info['gender'] = $request->gender;
         $user_info['phone'] = $request->phone;
         $user_info['address'] = $request->address;
 
 
-        if(empty($request->photo)){
+        if (empty($request->photo)) {
             $user_info['photo'] = $request->old_photo;
-        }else{
-            $file_name = random(10).'.png';
+        } else {
+            $file_name = random(10) . '.png';
             $user_info['photo'] = $file_name;
 
             $request->photo->move(public_path('assets/uploads/user-images/'), $file_name);
@@ -381,31 +386,33 @@ class TeacherController extends Controller
         $data['user_information'] = json_encode($user_info);
 
         User::where('id', auth()->user()->id)->update($data);
-        
+
         return redirect(route('teacher.profile'))->with('message', get_phrase('Profile info updated successfully'));
     }
-    
-    function user_language(Request $request){
+
+    function user_language(Request $request)
+    {
         $data['language'] = $request->language;
         User::where('id', auth()->user()->id)->update($data);
-        
+
         return redirect()->back()->with('message', 'You have successfully transleted language.');
     }
 
-    function password($action_type = null, Request $request){
+    function password($action_type = null, Request $request)
+    {
 
 
 
-        if($action_type == 'update'){
+        if ($action_type == 'update') {
 
-            
 
-            if($request->new_password != $request->confirm_password){
+
+            if ($request->new_password != $request->confirm_password) {
                 return back()->with("error", "Confirm Password Doesn't match!");
             }
 
 
-            if(!Hash::check($request->old_password, auth()->user()->password)){
+            if (!Hash::check($request->old_password, auth()->user()->password)) {
                 return back()->with("error", "Current Password Doesn't match!");
             }
 
@@ -496,12 +503,11 @@ class TeacherController extends Controller
     {
         $search = $request['search'] ?? "";
 
-        if($search != "") {
+        if ($search != "") {
 
-            $events = FrontendEvent::where(function ($query) use($search) {
-                    $query->where('title', 'LIKE', "%{$search}%");
-                })->paginate(10);
-
+            $events = FrontendEvent::where(function ($query) use ($search) {
+                $query->where('title', 'LIKE', "%{$search}%");
+            })->paginate(10);
         } else {
             $events = FrontendEvent::where('school_id', auth()->user()->school_id)->paginate(10);
         }
@@ -518,8 +524,8 @@ class TeacherController extends Controller
 
     public function dailyAttendance()
     {
-        $permissions=TeacherPermission::where('teacher_id', auth()->user()->id)->select('class_id')->distinct()->get()->toArray();
-        $classes=array();
+        $permissions = TeacherPermission::where('teacher_id', auth()->user()->id)->select('class_id')->distinct()->get()->toArray();
+        $classes = array();
 
         foreach ($permissions  as  $key => $distinct_class) {
 
@@ -537,7 +543,7 @@ class TeacherController extends Controller
     {
         $data = $request->all();
 
-        $date = '01 '.$data['month'].' '.$data['year'];
+        $date = '01 ' . $data['month'] . ' ' . $data['year'];
         $first_date = strtotime($date);
         $last_date = date("Y-m-t", strtotime($date));
         $last_date = strtotime($last_date);
@@ -554,8 +560,8 @@ class TeacherController extends Controller
 
         $no_of_users = DailyAttendances::where(['class_id' => $data['class_id'], 'section_id' => $data['section_id'], 'school_id' => auth()->user()->school_id, 'session_id' => $active_session])->distinct()->count('student_id');
 
-        $permissions=TeacherPermission::where('teacher_id', auth()->user()->id)->select('class_id')->distinct()->get()->toArray();
-        $classes=array();
+        $permissions = TeacherPermission::where('teacher_id', auth()->user()->id)->select('class_id')->distinct()->get()->toArray();
+        $classes = array();
 
         foreach ($permissions  as  $key => $distinct_class) {
 
@@ -568,15 +574,15 @@ class TeacherController extends Controller
 
     public function takeAttendance()
     {
-        $permissions=TeacherPermission::where('teacher_id', auth()->user()->id)->select('class_id')->distinct()->get()->toArray();
-        $classes=array();
+        $permissions = TeacherPermission::where('teacher_id', auth()->user()->id)->select('class_id')->distinct()->get()->toArray();
+        $classes = array();
 
         foreach ($permissions  as  $key => $distinct_class) {
 
             $class_details = Classes::where('id', $distinct_class['class_id'])->first()->toArray();
             $classes[$key] = $class_details;
         }
-        
+
         return view('teacher.attendance.take_attendance', ['classes' => $classes]);
     }
 
@@ -605,18 +611,18 @@ class TeacherController extends Controller
         $data['session_id'] = $active_session;
 
         $check_data = DailyAttendances::where(['timestamp' => $data['timestamp'], 'class_id' => $data['class_id'], 'section_id' => $data['section_id'], 'session_id' => $active_session, 'school_id' => auth()->user()->school_id])->get();
-        if(count($check_data) > 0){
-            foreach($students as $key => $student):
-                $data['status'] = $att_data['status-'.$student];
+        if (count($check_data) > 0) {
+            foreach ($students as $key => $student):
+                $data['status'] = $att_data['status-' . $student];
                 $data['student_id'] = $student;
                 $attendance_id = $att_data['attendance_id'];
 
                 DailyAttendances::where('id', $attendance_id[$key])->update($data);
 
             endforeach;
-        }else{
-            foreach($students as $student):
-                $data['status'] = $att_data['status-'.$student];
+        } else {
+            foreach ($students as $student):
+                $data['status'] = $att_data['status-' . $student];
                 $data['student_id'] = $student;
 
                 DailyAttendances::create($data);
@@ -624,7 +630,7 @@ class TeacherController extends Controller
             endforeach;
         }
 
-        return redirect()->back()->with('message','Student attendance updated successfully.');
+        return redirect()->back()->with('message', 'Student attendance updated successfully.');
     }
 
     public function dailyAttendanceFilter_csv(Request $request)
@@ -632,16 +638,16 @@ class TeacherController extends Controller
 
         $data = $request->all();
 
-        $store_get_data=array_keys($data);
+        $store_get_data = array_keys($data);
 
 
-        $data['month']= substr($store_get_data[0],0,3);
-        $data['year']= substr($store_get_data[0],4,4);
-        $data['role_id']=substr($store_get_data[0],9,5);
+        $data['month'] = substr($store_get_data[0], 0, 3);
+        $data['year'] = substr($store_get_data[0], 4, 4);
+        $data['role_id'] = substr($store_get_data[0], 9, 5);
 
         $active_session = get_school_settings(auth()->user()->school_id)->value('running_session');
 
-      
+
         $date = '01 ' . $data['month'] . ' ' . $data['year'];
 
 
@@ -657,14 +663,12 @@ class TeacherController extends Controller
 
         $no_of_users = DailyAttendances::whereBetween('timestamp', [$first_date, $last_date])->where(['school_id' => auth()->user()->school_id,  'session_id' => $active_session])->distinct()->count('student_id');
         $attendance_of_students = DailyAttendances::whereBetween('timestamp', [$first_date, $last_date])->where(['school_id' => auth()->user()->school_id,  'session_id' => $active_session])->get()->toArray();
-       
 
-        $csv_content ="Student"."/".get_phrase('Date');
+
+        $csv_content = "Student" . "/" . get_phrase('Date');
         $number_of_days = date('m', $page_data['attendance_date']) == 2 ? (date('Y', $page_data['attendance_date']) % 4 ? 28 : (date('m', $page_data['attendance_date']) % 100 ? 29 : (date('m', $page_data['attendance_date']) % 400 ? 28 : 29))) : ((date('m', $page_data['attendance_date']) - 1) % 7 % 2 ? 30 : 31);
-        for ($i = 1; $i <= $number_of_days; $i++)
-        {
-            $csv_content .=','.get_phrase($i);
-
+        for ($i = 1; $i <= $number_of_days; $i++) {
+            $csv_content .= ',' . get_phrase($i);
         }
 
 
@@ -674,40 +678,36 @@ class TeacherController extends Controller
         $student_id_count = 0;
 
 
-        foreach(array_slice($attendance_of_students, 0, $no_of_users) as $attendance_of_student ){
+        foreach (array_slice($attendance_of_students, 0, $no_of_users) as $attendance_of_student) {
             $csv_content .= "\n";
 
             $user_details = (new CommonController)->get_user_by_id_from_user_table($attendance_of_student['student_id']);
-            if(date('m', $page_data['attendance_date']) == date('m', $attendance_of_student['timestamp'])) {
+            if (date('m', $page_data['attendance_date']) == date('m', $attendance_of_student['timestamp'])) {
 
-                if($student_id_count != $attendance_of_student['student_id']) {
+                if ($student_id_count != $attendance_of_student['student_id']) {
 
                     $csv_content .= $user_details['name'] . ',';
 
                     for ($i = 1; $i <= $number_of_days; $i++) {
-                        $page_data['date'] = $i.' '.$page_data['month'].' '.$page_data['year'];
+                        $page_data['date'] = $i . ' ' . $page_data['month'] . ' ' . $page_data['year'];
                         $timestamp = strtotime($page_data['date']);
 
-                        $attendance_by_id = DailyAttendances::where([ 'student_id' => $attendance_of_student['student_id'], 'school_id' => auth()->user()->school_id, 'timestamp' => $timestamp])->first();
-                        if(isset($attendance_by_id->status) && $attendance_by_id->status == 1){
+                        $attendance_by_id = DailyAttendances::where(['student_id' => $attendance_of_student['student_id'], 'school_id' => auth()->user()->school_id, 'timestamp' => $timestamp])->first();
+                        if (isset($attendance_by_id->status) && $attendance_by_id->status == 1) {
                             $csv_content .= "P,";
-                        }elseif(isset($attendance_by_id->status) && $attendance_by_id->status == 0){
+                        } elseif (isset($attendance_by_id->status) && $attendance_by_id->status == 0) {
                             $csv_content .= "A,";
-                        }
-                        else
-                        {
+                        } else {
                             $csv_content .= ",";
-
                         }
 
-                        if($i==$number_of_days)
-                        {
-                            $csv_content= substr_replace($csv_content,"", -1);
+                        if ($i == $number_of_days) {
+                            $csv_content = substr_replace($csv_content, "", -1);
                         }
                     }
                 }
 
-                 $student_id_count = $attendance_of_student['student_id'];
+                $student_id_count = $attendance_of_student['student_id'];
             }
         }
 
@@ -737,7 +737,8 @@ class TeacherController extends Controller
         return view('teacher.feedback.create_feedback', ['classes' => $classes]);
     }
 
-    public function upload_feedback(Request $request){
+    public function upload_feedback(Request $request)
+    {
         $data = $request->all();
         $active_session = get_school_settings(auth()->user()->school_id)->value('running_session');
         //$admin_id = auth()->user()->id;
@@ -754,19 +755,19 @@ class TeacherController extends Controller
             'title' => $data['title']
 
         ];
-    
+
         // Create feedback entry
         Feedback::create($feedbackData);
-    
+
         return redirect()->back()->with('message', 'Feedback Sent Successfully');
     }
 
-    public function edit_feedback($id){
+    public function edit_feedback($id)
+    {
 
         $feedback = Feedback::find($id);
         $classes = Classes::get()->where('school_id', auth()->user()->school_id);
         return view('teacher.feedback.edit_feedback', ['classes' => $classes],  ['feedback' => $feedback]);
-
     }
 
     public function update_feedback(Request $request, $id)
@@ -781,17 +782,17 @@ class TeacherController extends Controller
     }
 
     public function delete_feedback($id)
-     {
+    {
         Feedback::where('id', $id)->delete();
-         return redirect()->back()->with('message', 'Delete successfully.');
-     }
+        return redirect()->back()->with('message', 'Delete successfully.');
+    }
 
-        //  Message
+    //  Message
 
     public function allMessage(Request $request, $id)
     {
 
-            $msg_user_details = DB::table('users')
+        $msg_user_details = DB::table('users')
             ->join('message_thrades', function ($join) {
                 // Join where the user is the sender
                 $join->on('users.id', '=', 'message_thrades.sender_id')
@@ -806,11 +807,11 @@ class TeacherController extends Controller
             ->where('users.id', '<>', auth()->user()->id) // Exclude the authenticated user
             ->first();
 
-            
-            
+
+
         if ($request->ajax()) {
             $query = $request->input('query');
-            
+
             // Search users by name or any other criteria
             $users = User::where('name', 'LIKE', "%{$query}%")
                 ->where('school_id', auth()->user()->school_id)
@@ -825,17 +826,17 @@ class TeacherController extends Controller
             }
 
             foreach ($users as $user) {
-                
+
                 if (!empty($user)) {
                     $userInfo = json_decode($user->user_information);
-                    
-                    $user_image = !empty($userInfo->photo) 
-                        ? asset('assets/uploads/user-images/' . $userInfo->photo) 
+
+                    $user_image = !empty($userInfo->photo)
+                        ? asset('assets/uploads/user-images/' . $userInfo->photo)
                         : asset('assets/uploads/user-images/thumbnail.png');
 
                     $html .= '
                         <div class="user-item d-flex align-items-center msg_us_src_list">
-                            <a href="' . route('teacher.message.messagethrades', ['id' => $user->id]).'">
+                            <a href="' . route('teacher.message.messagethrades', ['id' => $user->id]) . '">
                                 <img src="' . $user_image . '" alt="User Image" style="width: 50px; height: 50px; border-radius: 50%;">
                                 <span class="ms-3">' . $user->name . '</span>
                             </a>
@@ -852,52 +853,51 @@ class TeacherController extends Controller
 
         $counter_condition = Chat::where('message_thrade', $id)->orderBy('id', 'desc')->first();
 
-       
-       if($counter_condition->sender_id != auth()->user()->id){
+
+        if ($counter_condition->sender_id != auth()->user()->id) {
             Chat::where('message_thrade', $id)->update(['read_status' => 1]);
         }
-        
+
         return view('teacher.message.all_message', ['msg_user_details' => $msg_user_details], ['chat_datas' => $chat_datas]);
     }
 
-    public function messagethrades($id){
+    public function messagethrades($id)
+    {
 
         $exists = MessageThrade::where('reciver_id', $id)
-                            ->where('sender_id', auth()->user()->id)
-                            ->exists();
-        if( $id != auth()->user()->id){
+            ->where('sender_id', auth()->user()->id)
+            ->exists();
+        if ($id != auth()->user()->id) {
             if (!$exists) {
                 $message_thrades_data = [
                     'reciver_id' => $id,
                     'sender_id' => auth()->user()->id,
                     'school_id' => auth()->user()->school_id,
                 ];
-        
+
                 MessageThrade::create($message_thrades_data);
-        
+
                 //return redirect()->back()->with('message', 'User added successfully');
             }
-    
-            
+
+
             $message_thrades = MessageThrade::where('reciver_id', $id)
-                                         ->where('sender_id', auth()->user()->id)
-                                         ->first();
+                ->where('sender_id', auth()->user()->id)
+                ->first();
             $msg_trd_id = $message_thrades->id;
-            
+
             $msg_user_details = DB::table('users')
                 ->join('message_thrades', 'users.id', '=', 'message_thrades.reciver_id')
                 ->select('users.id as user_id', 'message_thrades.id as thread_id', 'users.*', 'message_thrades.*')
                 ->where('message_thrades.id', $msg_trd_id)
                 ->first();
-    
-                $chat_datas = Chat::where('school_id', auth()->user()->school_id)->get();
-    
-                // Combine all data into a single array
-                return view('teacher.message.all_message', ['id' => $msg_trd_id, 'msg_user_details' => $msg_user_details, 'chat_datas' => $chat_datas,]);
+
+            $chat_datas = Chat::where('school_id', auth()->user()->school_id)->get();
+
+            // Combine all data into a single array
+            return view('teacher.message.all_message', ['id' => $msg_trd_id, 'msg_user_details' => $msg_user_details, 'chat_datas' => $chat_datas,]);
         }
         return redirect()->back()->with('error', 'You can not add you');
-        
-                        
     }
 
 
@@ -913,7 +913,7 @@ class TeacherController extends Controller
             'read_status' => 0,
 
         ];
-    
+
         // Create feedback entry
         Chat::create($chat_data);
 
@@ -938,13 +938,13 @@ class TeacherController extends Controller
 
             foreach ($users as $user) {
                 $userInfo = json_decode($user->user_information);
-                $user_image = !empty($userInfo->photo) 
-                    ? asset('assets/uploads/user-images/' . $userInfo->photo) 
+                $user_image = !empty($userInfo->photo)
+                    ? asset('assets/uploads/user-images/' . $userInfo->photo)
                     : asset('assets/uploads/user-images/thumbnail.png');
 
                 $html .= '
                     <div class="user-item d-flex align-items-center msg_us_src_list">
-                        <a href="' . route('teacher.message.messagethrades', ['id' => $user->id]).'">
+                        <a href="' . route('teacher.message.messagethrades', ['id' => $user->id]) . '">
                             <img src="' . $user_image . '" alt="User Image" style="width: 50px; height: 50px; border-radius: 50%;">
                             <span class="ms-3">' . $user->name . '</span>
                         </a>
@@ -959,5 +959,334 @@ class TeacherController extends Controller
         return view('teacher.message.chat_empty');
     }
 
-    
+
+
+
+
+    public function club(Request $request)
+    {
+        $search     = $request->search;
+        $advisorId = $request->advisor_id;
+
+        $clubs = Club::with('advisor')
+            ->when($search, function ($query) use ($search) {
+                $query->where('club_name', 'LIKE', "%{$search}%");
+            })
+            ->when($advisorId, function ($query) use ($advisorId) {
+                $query->where('advisor_id', $advisorId);
+            })
+            ->latest()
+            ->paginate(10)
+            ->withQueryString();
+
+        $teachers = User::where('role_id', 3)
+            ->where('status', 1)
+            ->get();
+
+        return view('teacher.club.index', compact(
+            'clubs',
+            'search',
+            'advisorId',
+            'teachers'
+        ));
+    }
+
+
+    public function createClub()
+    {
+        $teachers = User::where('role_id', 3)
+            ->where('status', 1)
+            ->get();
+        return view('teacher.club.create_club', compact('teachers'));
+    }
+
+    public function store(Request $request)
+    {
+        $request->validate([
+            'club_name'  => 'required|string|max:255',
+            'advisor_id' => 'nullable|exists:users,id',
+            'status'    => 'nullable|in:0,1',
+        ]);
+        Club::create([
+            'club_name'   => $request->club_name,
+            'advisor_id'  => $request->advisor_id,
+            'description' => $request->description,
+            'status'      => $request->status ?? 1,
+        ]);
+
+        return redirect()->route('teacher.club.list')
+            ->with('success', 'Club created successfully');
+    }
+
+    public function toggleStatus($id)
+    {
+        $club = Club::findOrFail($id);
+        $club->status = !$club->status;
+        $club->save();
+
+        return back()->with('success', 'Club status updated successfully.');
+    }
+
+
+
+    public function editClub($id)
+    {
+        $club = Club::findOrFail($id);
+        $teachers = User::where('role_id', 3)->get();
+        return view('teacher.club.edit_club', compact('club', 'teachers'));
+    }
+
+    public function updateClub(Request $request, $id)
+    {
+        $club = Club::findOrFail($id);
+        $club->update($request->all());
+
+        return redirect()->route('teacher.club.list')
+            ->with('success', 'Club updated successfully');
+    }
+    public function deleteClub($id)
+    {
+        Club::findOrFail($id)->delete();
+        return back()->with('success', 'Club deleted');
+    }
+    public function clubMembers(Request $request, Club $club)
+    {
+        $search     = $request->search;
+        $class_id   = $request->class_id;
+        $section_id = $request->section_id;
+
+        $members = ClubMember::with(['student.enrollment.class', 'student.enrollment.section'])
+            ->where('club_id', $club->id)
+            ->when($search, function ($q) use ($search) {
+                $q->whereHas('student', function ($s) use ($search) {
+                    $s->where('name', 'LIKE', "%{$search}%");
+                });
+            })
+            ->when($class_id, function ($q) use ($class_id) {
+                $q->whereHas('student.enrollment', function ($e) use ($class_id) {
+                    $e->where('class_id', $class_id);
+                });
+            })
+            ->when($section_id, function ($q) use ($section_id) {
+                $q->whereHas('student.enrollment', function ($e) use ($section_id) {
+                    $e->where('section_id', $section_id);
+                });
+            })
+            ->get();
+
+
+        return view('teacher.club.members', compact(
+            'club',
+            'members',
+            'search',
+            'class_id',
+            'section_id'
+        ));
+    }
+    public function addMemberForm(Club $club)
+    {
+        $students = User::where('role_id', 7)
+            ->whereNotIn('id', function ($q) use ($club) {
+                $q->select('student_id')
+                    ->from('club_members')
+                    ->where('club_id', $club->id);
+            })
+            ->get();
+
+        return view('teacher.club.add_member', compact('club', 'students'));
+    }
+
+
+
+    public function storeMember(Request $request)
+    {
+        $request->validate([
+            'club_id'    => 'required|exists:clubs,id',
+            'student_id' => 'required|exists:users,id',
+        ]);
+
+        $member = ClubMember::where('club_id', $request->club_id)
+            ->where('student_id', $request->student_id)
+            ->first();
+
+        if ($member) {
+            return redirect()->back()
+                ->with('warning', 'Student is already a club member');
+        }
+
+        ClubMember::create([
+            'club_id'    => $request->club_id,
+            'student_id' => $request->student_id,
+            'status'     => 1,
+        ]);
+
+        return redirect()->back()
+            ->with('success', 'Member added successfully');
+    }
+    public function searchMembers(Request $request, $clubId)
+    {
+        $search = $request->q ?? '';
+
+        $members = ClubMember::with('student')
+            ->where('club_id', $clubId)
+            ->whereHas('student', function ($q) use ($search) {
+                $q->where('name', 'LIKE', "%{$search}%")
+                    ->orWhere('email', 'LIKE', "%{$search}%");
+            })
+            ->limit(20)
+            ->get();
+
+        return response()->json(
+            $members->map(function ($member) {
+                return [
+                    'id'   => $member->student->id,   // ✅ MUST be student_id
+                    'text' => $member->student->name, // shown text
+                ];
+            })
+        );
+    }
+
+
+    public function searchStudents(Request $request)
+    {
+        $search  = $request->q;
+        $clubId  = $request->club_id;
+
+        $students = User::where('role_id', 7)
+            ->where(function ($query) use ($search) {
+                $query->where('name', 'LIKE', "%{$search}%")
+                    ->orWhere('email', 'LIKE', "%{$search}%");
+            })
+            ->whereNotIn('id', function ($query) use ($clubId) {
+                $query->select('student_id')
+                    ->from('club_members')
+                    ->where('club_id', $clubId);
+            })
+            ->limit(20)
+            ->get();
+
+        return response()->json(
+            $students->map(function ($student) {
+                return [
+                    'id'   => $student->id,
+                    'text' => $student->name . ' (' . $student->email . ')',
+                ];
+            })
+        );
+    }
+    public function approveMember($id)
+    {
+        ClubMember::where('id', $id)->update([
+            'status' => 1,
+        ]);
+
+        return back()->with('success', 'Approved');
+    }
+    public function member_disable($id)
+    {
+        ClubMember::where('id', $id)->update([
+            'status' => 0,
+        ]);
+
+        return back()->with('message', 'Account Disabled Successfully');
+    }
+
+    public function rejectMember($id)
+    {
+        ClubMember::where('id', $id)->update(['status' => 2]);
+        return back()->with('success', 'Rejected');
+    }
+    public function deleteMember($id)
+    {
+        ClubMember::where('id', $id)->delete();
+        return back()->with('success', 'Member removed');
+    }
+
+
+    public function notice1_index(Club $club)
+    {
+        $notices = ClubNotice::where('club_id', $club->id)
+            ->latest()
+            ->get();
+
+        return view('teacher.club.notice.index', compact('notices', 'club'));
+    }
+
+
+    public function notice_create(Club $club)
+    {
+        return view('teacher.club.notice.create', compact('club'));
+    }
+
+    public function notice_store(Request $request)
+    {
+        $data = $request->validate([
+            'club_id' => 'required',
+            'title' => 'required',
+            'description' => 'nullable|required',
+            'notice_date' => 'required',
+            'image' => 'nullable|image',
+            'status' => 'required'
+        ]);
+
+        if (! empty($data['image'])) {
+
+            $imageName = time() . '.' . $data['image']->extension();
+
+            $data['image']->move(public_path('assets/uploads/club/'), $imageName);
+
+            $data['image'] = $imageName;
+        }
+
+
+        $data['club_id'] = $request->club_id;
+
+        if (auth()->user()->role === 'admin') {
+            $data['admin_id'] = auth()->id();
+        } else {
+            $data['advisor_id'] = auth()->id();
+        }
+        ClubNotice::create($data);
+        return back()->with('success', 'Notice created');
+    }
+
+    public function notice_edit(ClubNotice $notice)
+    {
+        return view('teacher.club.notice.edit', compact('notice'));
+    }
+
+
+    public function notice_update(Request $request, $id)
+    {
+        $notice = ClubNotice::findOrFail($id);
+
+        $data = $request->validate([
+            'title' => 'required',
+            'description' => 'required',
+            'notice_date' => 'required',
+            'image' => 'nullable|image',
+            'status' => 'required'
+        ]);
+
+        if ($request->hasFile('image')) {
+
+            if ($notice->image && file_exists(public_path('assets/uploads/club/' . $notice->image))) {
+                unlink(public_path('assets/uploads/club/' . $notice->image));
+            }
+            $imageName = time() . '.' . $request->image->extension();
+            $request->image->move(public_path('assets/uploads/club/'), $imageName);
+
+            $data['image'] = $imageName;
+        }
+
+        $notice->update($data);
+
+        return back()->with('success', 'Notice updated successfully');
+    }
+
+    public function notice_delete($id)
+    {
+        ClubNotice::where('id', $id)->delete();
+        return back()->with('success', 'Notice deleted');
+    }
 }

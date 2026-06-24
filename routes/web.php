@@ -11,6 +11,7 @@ use App\Http\Controllers\StudentController;
 use App\Http\Controllers\SuperAdminController;
 use App\Http\Controllers\TeacherController;
 use App\Http\Controllers\Updater;
+use App\Http\Controllers\WebsiteManagementController;
 use App\Http\Controllers\WardenController;
 use Illuminate\Support\Facades\Route;
 
@@ -49,7 +50,44 @@ Route::controller(HomeController::class)->group(function () {
     Route::get('/', 'home')->name('landingPage');
     Route::post('school/create', 'schoolCreate')->name('school.create');
     Route::get('web_redirect_to_pay_fee', 'webRedirectToPayFee')->name('webRedirectToPayFee');
+});
 
+// Website management routes for Superadmin
+Route::controller(WebsiteManagementController::class)->middleware('auth', 'superAdmin')->group(function () {
+    Route::get('superadmin/website-management', 'superadminIndex')->name('superadmin.website.index');
+    Route::post('superadmin/website-management/page/store', 'storePage')->name('superadmin.website.page.store');
+    Route::post('superadmin/website-management/page/update/{id}', 'updatePage')->name('superadmin.website.page.update');
+    Route::get('superadmin/website-management/page/delete/{id}', 'deletePage')->name('superadmin.website.page.delete');
+
+    Route::post('superadmin/website-management/section/store', 'storeSection')->name('superadmin.website.section.store');
+    Route::post('superadmin/website-management/section/update/{id}', 'updateSection')->name('superadmin.website.section.update');
+    Route::get('superadmin/website-management/section/delete/{id}', 'deleteSection')->name('superadmin.website.section.delete');
+
+    Route::post('superadmin/website-management/item/store', 'storeItem')->name('superadmin.website.item.store');
+    Route::post('superadmin/website-management/item/update/{id}', 'updateItem')->name('superadmin.website.item.update');
+    Route::get('superadmin/website-management/item/delete/{id}', 'deleteItem')->name('superadmin.website.item.delete');
+
+    Route::post('superadmin/website-management/settings/upsert', 'upsertSettings')->name('superadmin.website.settings.upsert');
+    Route::post('superadmin/website-management/seo/upsert', 'upsertSeo')->name('superadmin.website.seo.upsert');
+});
+
+// Website management routes for School Admin
+Route::controller(WebsiteManagementController::class)->middleware('auth', 'admin')->group(function () {
+    Route::get('admin/website-management', 'adminIndex')->name('admin.website.index');
+    Route::post('admin/website-management/page/store', 'storePage')->name('admin.website.page.store');
+    Route::post('admin/website-management/page/update/{id}', 'updatePage')->name('admin.website.page.update');
+    Route::get('admin/website-management/page/delete/{id}', 'deletePage')->name('admin.website.page.delete');
+
+    Route::post('admin/website-management/section/store', 'storeSection')->name('admin.website.section.store');
+    Route::post('admin/website-management/section/update/{id}', 'updateSection')->name('admin.website.section.update');
+    Route::get('admin/website-management/section/delete/{id}', 'deleteSection')->name('admin.website.section.delete');
+
+    Route::post('admin/website-management/item/store', 'storeItem')->name('admin.website.item.store');
+    Route::post('admin/website-management/item/update/{id}', 'updateItem')->name('admin.website.item.update');
+    Route::get('admin/website-management/item/delete/{id}', 'deleteItem')->name('admin.website.item.delete');
+
+    Route::post('admin/website-management/settings/upsert', 'upsertSettings')->name('admin.website.settings.upsert');
+    Route::post('admin/website-management/seo/upsert', 'upsertSeo')->name('admin.website.seo.upsert');
 });
 
 // Account Disable Route
@@ -170,7 +208,6 @@ Route::controller(SuperAdminController::class)->middleware('auth', 'superAdmin')
 
     //Logo update
     Route::post('superadmin/logo/update', 'update_logo')->name('superadmin.logo.update');
-
 });
 //Superadmin routes end here
 
@@ -299,6 +336,17 @@ Route::controller(AdminController::class)->middleware('admin', 'auth')->group(fu
     Route::post('admin/offline_exam/{id}', 'offlineExamUpdate')->name('admin.offline_exam.update');
     Route::get('admin/offline_exam/delete/{id}', 'offlineExamDelete')->name('admin.offline_exam.delete');
     Route::get('admin/exam_list_by_class/{id}', 'classWiseOfflineExam')->name('admin.class_wise_exam_list');
+
+    //Admit Card
+    Route::get('admin/admit-card-list', 'admitCardList')->name('admin.examination.admit_card_list');
+    Route::get('admin/admit-card-create', 'admitCardCreate')->name('admin.examination.admit_card_create');
+    Route::post('admin/admit-card-upload', 'admitCardUpload')->name('admin.examination.admit_card_upload');
+    Route::get('admin/admit-card-edit/{id}', 'admitCardEdit')->name('admin.examination.admit_card_edit');
+    Route::post('admin/admit-card-update/{id}', 'admitCardUpdate')->name('admin.examination.admit_card_update');
+    Route::get('admin/admit-card-delete/{id}', 'admitCardDelete')->name('admin.examination.admit_card_delete');
+
+    Route::get('admin/print-admit-card', 'admitCardPrint')->name('admin.examination.admit_card_print');
+    Route::get('admin/admitCardFilter', 'admitCardFilter')->name('admin.examination.admitCardFilter');
 
     //Attendance routes
     Route::get('admin/attendance', 'dailyAttendance')->name('admin.daily_attendance')->middleware('admin_permission');
@@ -459,6 +507,41 @@ Route::controller(AdminController::class)->middleware('admin', 'auth')->group(fu
     Route::post('admin/events/{id}', 'eventUpdate')->name('admin.event.update');
     Route::get('admin/events/delete/{id}', 'eventDelete')->name('admin.events.delete');
 
+
+    // Club Management
+    Route::get('admin/club/list', 'clubList')->name('admin.club.index')->middleware('admin_permission');
+    Route::get('admin/club/create', 'createClub')->name('admin.club.create');
+    Route::post('admin/club/store', 'store')->name('admin.club.store');
+    Route::post('admin/club/toggle-status/{id}', 'toggleStatus')->name('admin.club.toggle_status');
+    Route::get('admin/club/edit/{id}', 'editClub')->name('admin.club.edit');
+    Route::post('admin/club/update/{id}', 'updateClub')->name('admin.club.update');
+    Route::get('admin/club/delete/{id}', 'deleteClub')->name('admin.club.delete');
+    Route::get('admin/club/members/{club}', 'clubMembers')->name('admin.club.members');
+    Route::get('admin/club/member/approve/{id}', 'approveMember')->name('admin.club.member.approve');
+    Route::get('admin/club/member/disable/{id}', 'member_disable')->name('admin.club.member.disable');
+    Route::post('admin/club/member/reject/{id}', 'rejectMember')->name('admin.club.member.reject');
+    Route::get('admin/club/member/delete/{id}', 'deleteMember')->name('admin.club.member.delete');
+    Route::get('admin/club/member/add/{club}', 'addMemberForm')->name('admin.club.add_member');
+    Route::post('admin/club/member/store', 'storeMember')->name('admin.club.member.store');
+    Route::get('admin/club/{club}/members/search', 'searchMembers')->name('admin.club.members.search');
+    Route::get('admin/club/students/search', 'searchStudents')->name('admin.club.students.search');
+
+
+    // Club Notice
+    Route::get('admin/club/notice/{club}', 'notice1_index')->name('admin.club.notice');
+    Route::get('admin/club/notice/create/{club}', 'notice_create')->name('admin.club.notice.create');
+    Route::post('admin/club/notice/store', 'notice_store')->name('admin.club.notice.store');
+    Route::get('admin/club/notice/edit/{id}', 'notice_edit')->name('admin.club.notice.edit');
+    Route::post('admin/club/notice/update/{id}', 'notice_update')->name('admin.club.notice.update');
+    Route::get('admin/club/notice/delete/{id}', 'notice_delete')->name('admin.club.notice.delete');
+
+
+
+
+
+
+
+
     //Complain List routes
     Route::get('admin/complain/complainList', 'complainList')->name('admin.complain.complainList');
 
@@ -595,6 +678,33 @@ Route::controller(TeacherController::class)->middleware('teacher', 'auth')->grou
     //Event routes
     Route::get('teacher/events/list', 'eventList')->name('teacher.events.list');
 
+    // Club Management
+    Route::get('teacher/club/list', 'club')->name('teacher.club.list');
+    Route::get('teacher/club/create', 'createClub')->name('teacher.club.create');
+    Route::post('teacher/club/store', 'store')->name('teacher.club.store');
+    Route::post('teacher/club/toggle-status/{id}', 'toggleStatus')->name('teacher.club.toggle_status');
+    Route::get('teacher/club/edit/{id}', 'editClub')->name('teacher.club.edit');
+    Route::post('teacher/club/update/{id}', 'updateClub')->name('teacher.club.update');
+    Route::get('teacher/club/delete/{id}', 'deleteClub')->name('teacher.club.delete');
+    Route::get('teacher/club/members/{club}', 'clubMembers')->name('teacher.club.members');
+    Route::get('teacher/club/member/approve/{id}', 'approveMember')->name('teacher.club.member.approve');
+    Route::get('teacher/club/member/disable/{id}', 'member_disable')->name('teacher.club.member.disable');
+    Route::post('teacher/club/member/reject/{id}', 'rejectMember')->name('teacher.club.member.reject');
+    Route::get('teacher/club/member/delete/{id}', 'deleteMember')->name('teacher.club.member.delete');
+    Route::get('teacher/club/member/add/{club}', 'addMemberForm')->name('teacher.club.add_member');
+    Route::post('teacher/club/member/store', 'storeMember')->name('teacher.club.member.store');
+    Route::get('teacher/club/{club}/members/search', 'searchMembers')->name('teacher.club.members.search');
+    Route::get('teacher/club/students/search', 'searchStudents')->name('teacher.club.students.search');
+
+    // club Notice
+    Route::get('teacher/club/notice/{club}', 'notice1_index')->name('teacher.club.notice');
+    Route::get('teacher/club/{club}/notice/create', 'notice_create')->name('teacher.club.notice.create');
+    Route::post('teacher/club/notice/store', 'notice_store')->name('teacher.club.notice.store');
+    Route::get('teacher/club/notice/edit/{notice}', 'notice_edit')->name('teacher.club.notice.edit');
+    Route::post('teacher/club/notice/update/{notice}', 'notice_update')->name('teacher.club.notice.update');
+    Route::get('teacher/club/notice/delete/{notice}', 'notice_delete')->name('teacher.club.notice.delete');
+
+
     //Profile
     Route::get('teacher/profile', 'profile')->name('teacher.profile');
     Route::post('teacher/profile/update', 'profile_update')->name('teacher.profile.update');
@@ -614,7 +724,6 @@ Route::controller(TeacherController::class)->middleware('teacher', 'auth')->grou
     Route::get('teacher/message/message-thrades/{id}', 'messagethrades')->name('teacher.message.messagethrades');
     Route::post('teacher/message/single-chat/save', 'chat_save')->name('teacher.message.chat_save');
     Route::get('teacher/message/chat_empty', 'chat_empty')->name('teacher.message.chat_empty');
-
 });
 //Teacher routes end here
 
@@ -687,7 +796,6 @@ Route::controller(ParentController::class)->middleware('parent', 'auth')->group(
     Route::get('parent/message/message-thrades/{id}', 'messagethrades')->name('parent.message.messagethrades');
     Route::post('parent/message/single-chat/save', 'chat_save')->name('parent.message.chat_save');
     Route::get('parent/message/chat_empty', 'chat_empty')->name('parent.message.chat_empty');
-
 });
 //Parent routes end here
 
@@ -778,6 +886,13 @@ Route::controller(StudentController::class)->middleware('student', 'auth')->grou
     Route::get('student/hostel_fee/invoice/{id}', 'hostelFeeInvoice')->name('student.hostel_fee.invoice');
     Route::get('student/hostel_fee/pay/{month}/{year}', 'payMonthlyFee')->name('student.hostel_fee.pay_monthly');
 
+    // Club Management
+    Route::get('student/club/list', 'club')->name('student.club.list');
+    Route::post('student/club/toggle-status/{id}', 'toggleStatus')->name('student.club.toggle_status');
+    Route::get('student/club/join/{club}', 'join')->name('club.join');
+    Route::get('student/club/remove-request/{club}', 'removeRequest')->name('club.removeRequest');
+    Route::get('student/club/leave/{club}', 'leave')->name('club.leave');
+    Route::get('student/club/notices/{club}', 'notice_index')->name('student.club.notice');
 });
 //Student routes end here
 
@@ -796,7 +911,6 @@ Route::controller(CommonController::class)->middleware('auth')->group(function (
     Route::get('mark/update', 'markUpdate')->name('update.mark');
 
     Route::get('user/{id}', 'idWiseUserName')->name('id_wise_user_name');
-
 });
 //Common routes end here
 
@@ -855,7 +969,6 @@ Route::controller(AccountantController::class)->middleware('accountant', 'auth')
     Route::get('accountant/message/message-thrades/{id}', 'messagethrades')->name('accountant.message.messagethrades');
     Route::post('accountant/message/single-chat/save', 'chat_save')->name('accountant.message.chat_save');
     Route::get('accountant/message/chat_empty', 'chat_empty')->name('accountant.message.chat_empty');
-
 });
 //Warden routes are here
 Route::controller(WardenController::class)->middleware('warden', 'auth')->group(function () {
@@ -905,7 +1018,6 @@ Route::controller(WardenController::class)->middleware('warden', 'auth')->group(
     Route::get('warden/message/message-thrades/{id}', 'messagethrades')->name('warden.message.messagethrades');
     Route::post('warden/message/single-chat/save', 'chat_save')->name('warden.message.chat_save');
     Route::get('warden/message/chat_empty', 'chat_empty')->name('warden.message.chat_empty');
-
 });
 //Accountant routes end here
 
@@ -944,7 +1056,6 @@ Route::controller(LibrarianController::class)->middleware('librarian', 'auth')->
     Route::any('librarian/password/{action_type}', 'password')->name('librarian.password');
     Route::post('librarian/language', 'user_language')->name('librarian.language');
     Route::get('librarian/message/chat_empty', 'chat_empty')->name('librarian.message.chat_empty');
-
 });
 //Librarian routes end here
 
@@ -954,14 +1065,11 @@ Route::controller(Updater::class)->middleware('superAdmin', 'auth')->group(funct
     Route::post('superadmin/addon/create', 'update')->name('superadmin.addon.create');
     Route::post('superadmin/addon/update', 'update')->name('superadmin.addon.update');
     Route::post('superadmin/product/update', 'update')->name('superadmin.product.update');
-
 });
 //Updater routes end here
 
 //Installation routes are here
-Route::controller(InstallController::class)->group(function () {
-
-    Route::get('/', 'index');
+Route::controller(InstallController::class)->middleware('is_installed')->group(function () {
 
     Route::get('install/step0', 'step0')->name('step0');
     Route::get('install/step1', 'step1')->name('step1');
@@ -973,6 +1081,5 @@ Route::controller(InstallController::class)->group(function () {
     Route::post('install/validate', 'validatePurchaseCode')->name('install.validate');
     Route::any('install/finalizing_setup', 'finalizingSetup')->name('finalizing_setup');
     Route::get('install/success', 'success')->name('success');
-
 });
 //Installation routes end here

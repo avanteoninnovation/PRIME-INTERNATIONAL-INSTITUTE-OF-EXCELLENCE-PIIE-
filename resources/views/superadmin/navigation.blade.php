@@ -209,7 +209,7 @@
 				</div>
 			</li>
 
-			<li class="nav-links-li {{ request()->is('superadmin/settings/system*') || request()->is('superadmin/settings/website*') || request()->is('superadmin/settings/faq*') || request()->is('superadmin/payment/settings*') || request()->is('superadmin/settings/language*') || request()->is('superadmin/settings/smtp*') || request()->is('superadmin/settings/about*') ? 'showMenu':'' }}">
+      <li class="nav-links-li {{ request()->is('superadmin/settings/system*') || request()->is('superadmin/settings/website*') || request()->is('superadmin/settings/faq*') || request()->is('superadmin/payment/settings*') || request()->is('superadmin/settings/language*') || request()->is('superadmin/settings/smtp*') || request()->is('superadmin/settings/about*') || request()->is('superadmin/website-management*') ? 'showMenu':'' }}">
 				<div class="iocn-link">
 					<a href="#">
 						<div class="sidebar_icon">
@@ -241,6 +241,7 @@
 				<ul class="sub-menu">
 					<li><a class="{{ (request()->is('superadmin/settings/system*')) ? 'active' : '' }}" href="{{ route('superadmin.system_settings') }}"><span>{{ get_phrase('System Settings') }}</span></a></li>
           <li><a class="{{ (request()->is('superadmin/settings/website*')) ? 'active' : '' }}" href="{{ route('superadmin.website_settings') }}"><span>{{ get_phrase('Website Settings') }}</span></a></li>
+              <li><a class="{{ (request()->is('superadmin/website-management*')) ? 'active' : '' }}" href="{{ route('superadmin.website.index') }}"><span>{{ get_phrase('Website Management') }}</span></a></li>
           <li><a class="{{ (request()->is('superadmin/settings/faq*')) ? 'active' : '' }}" href="{{ route('superadmin.faq_views') }}"><span>{{ get_phrase('Manage Faq') }}</span></a></li>
 					<li><a class="{{ (request()->is('superadmin/payment/settings*')) ? 'active' : '' }}" href="{{ route('superadmin.payment_settings') }}"><span>{{ get_phrase('Payment Settings') }}</span></a></li>
           <li><a class="{{ (request()->is('superadmin/settings/language*')) ? 'active' : '' }}" href="{{ route('superadmin.language.manage') }}"><span>{{ get_phrase('Language Settings') }}</span></a></li>
@@ -279,7 +280,7 @@
             @if(get_settings('frontend_view') == '1')
             <div class="col float-left">
               <div class="sidebar_menu_icon">
-                <a href="{{ route('landingPage') }}" target="" class="btn btn-outline-primary ml-3 d-none d-md-inline-block"><?php echo get_phrase('Visit Website'); ?></a>
+                <a href="{{ url('/') }}" target="" class="btn btn-outline-primary ml-3 d-none d-md-inline-block"><?php echo get_phrase('Visit Website'); ?></a>
               </div>
             </div>
             @endif

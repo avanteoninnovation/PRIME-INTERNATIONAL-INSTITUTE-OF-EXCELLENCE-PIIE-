@@ -20,7 +20,22 @@ class User extends Authenticatable
     protected $table = 'users';
 
     protected $fillable = [
-        'name', 'email', 'password', 'role_id', 'parent_id', 'school_id', 'code', 'user_information', 'student_info', 'documents', 'status', 'department_id', 'designation', 'language', 'school_role', 'account_status'
+        'name',
+        'email',
+        'password',
+        'role_id',
+        'parent_id',
+        'school_id',
+        'code',
+        'user_information',
+        'student_info',
+        'documents',
+        'status',
+        'department_id',
+        'designation',
+        'language',
+        'school_role',
+        'account_status'
     ];
 
     /**
@@ -29,7 +44,8 @@ class User extends Authenticatable
      * @var array
      */
     protected $hidden = [
-        'password', 'remember_token',
+        'password',
+        'remember_token',
     ];
 
     /**
@@ -41,13 +57,23 @@ class User extends Authenticatable
         'email_verified_at' => 'datetime',
     ];
 
-    public function checkEnrollment(){
-        return $this->hasMany(Enrollment::class,'user_id');
-    }
-
-
-     public function getTomoNameAttribute()
+    public function checkEnrollment()
     {
-        return $this->checkEnrollment()->class_id;  
+        return $this->hasMany(Enrollment::class, 'user_id');
     }
+    public function getTomoNameAttribute()
+    {
+        return $this->checkEnrollment()->class_id;
+    }
+
+    public function joinedClubs()
+    {
+        return $this->hasMany(ClubMember::class, 'student_id');
+    }
+    public function enrollment()
+{
+    return $this->hasOne(Enrollment::class, 'user_id');
+}
+
+
 }

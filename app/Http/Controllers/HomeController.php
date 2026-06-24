@@ -8,10 +8,15 @@ use App\Models\User;
 use App\Models\Session;
 use App\Models\School;
 use App\Models\Faq;
+use App\Models\WebsiteItem;
+use App\Models\WebsiteSection;
+use App\Models\WebsiteSetting;
+use App\Models\WebsiteSeoSetting;
 use Mail;
 use App\Mail\SchoolEmail;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
 
 class HomeController extends Controller
 {
@@ -30,7 +35,47 @@ class HomeController extends Controller
             $frontendFeatures = ($request->has('see_all')) 
             ? FrontendFeature::all() 
             : FrontendFeature::limit(8)->get();
-            return view('frontend.landing_page', ['packages' => $packages, 'faqs' => $faqs, 'users' => $users,'schools' => $schools, 'frontendFeatures' => $frontendFeatures]);
+
+            $websiteSections = collect();
+            $websiteItems = collect();
+            $websiteSettings = collect();
+            $seo = null;
+
+            if (
+                Schema::hasTable('website_sections') &&
+                Schema::hasTable('website_items') &&
+                Schema::hasTable('website_settings') &&
+                Schema::hasTable('website_seo_settings')
+            ) {
+                $websiteSections = WebsiteSection::where('status', 1)
+                    ->orderBy('sort_order')
+                    ->orderBy('id')
+                    ->get()
+                    ->keyBy('section_key');
+
+                $websiteItems = WebsiteItem::where('status', 1)
+                    ->orderBy('sort_order')
+                    ->orderBy('id')
+                    ->get()
+                    ->groupBy('section_key');
+
+                $websiteSettings = WebsiteSetting::where('status', 1)
+                    ->pluck('value', 'key');
+
+                $seo = WebsiteSeoSetting::where('page_key', 'home')->where('status', 1)->first();
+            }
+
+            return view('frontend.landing_page', [
+                'packages' => $packages,
+                'faqs' => $faqs,
+                'users' => $users,
+                'schools' => $schools,
+                'frontendFeatures' => $frontendFeatures,
+                'websiteSections' => $websiteSections,
+                'websiteItems' => $websiteItems,
+                'websiteSettings' => $websiteSettings,
+                'websiteSeo' => $seo,
+            ]);
         } else {
             return redirect(route('login'));
         }

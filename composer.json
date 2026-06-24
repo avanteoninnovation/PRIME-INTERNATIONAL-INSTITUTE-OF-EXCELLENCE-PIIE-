@@ -68,12 +68,16 @@
     },
     "config": {
         "optimize-autoloader": true,
+        "platform-check": false,
         "preferred-install": "dist",
+        "platform": {
+            "php": "8.1.25"
+        },
         "sort-packages": true,
         "allow-plugins": {
             "php-http/discovery": true
         }
     },
-    "minimum-stability": "dev",
+    "minimum-stability": "stable",
     "prefer-stable": true
 }

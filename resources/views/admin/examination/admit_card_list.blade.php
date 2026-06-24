@@ -61,7 +61,7 @@
                         </th>
                         <td>
                             <div class="dAdmin_profile_name">
-                                <h4>{{ $admit_card->template }}</h4>
+                                <h6>{{ $admit_card->template }}</h6>
                             </div>
                         </td>
                         <td>

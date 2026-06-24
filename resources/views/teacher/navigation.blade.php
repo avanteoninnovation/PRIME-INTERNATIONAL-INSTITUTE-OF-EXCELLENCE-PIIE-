@@ -310,7 +310,7 @@
 
             @endif
 
-            <li class="nav-links-li {{ request()->is('teacher/noticeboard*') || request()->is('teacher/events/list*') || request()->is('teacher/feedback-list*')  ? 'showMenu':'' }}">
+            <li class="nav-links-li {{ request()->is('teacher/noticeboard*') || request()->is('teacher/events/list*') || request()->is('teacher/club/list*')|| request()->is('teacher/club/members*')|| request()->is('teacher/club/notice*')|| request()->is('teacher/feedback-list*')  ? 'showMenu':'' }}">
 	            <div class="iocn-link">
 	                <a href="#">
 	                    <div class="sidebar_icon">
@@ -345,6 +345,11 @@
 	                <li>
 	                    <a class="{{ (request()->is('teacher/events/list*')) ? 'active' : '' }}" href="{{ route('teacher.events.list') }}">
 	                    	<span>{{ get_phrase('Events') }}</span>
+	                    </a>
+	                </li>
+                  <li>
+	                    <a class="{{ (request()->is('teacher/club/list*')) || request()->is('teacher/club/members*') || request()->is('teacher/club/notice*') ? 'active' : '' }}" href="{{ route('teacher.club.list') }}">
+	                    	<span>{{ get_phrase('Club') }}</span>
 	                    </a>
 	                </li>
                   <li>

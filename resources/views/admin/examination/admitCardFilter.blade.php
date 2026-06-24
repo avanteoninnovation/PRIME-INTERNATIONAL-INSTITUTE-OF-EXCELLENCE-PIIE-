@@ -25,6 +25,11 @@ use App\Http\Controllers\CommonController;
         bottom: 0;
         z-index: 0;
     }
+
+        .admitCardPrintBtn {
+   
+    right: 0 !important;
+}
 </style>
 
 <div class="mainSection-title">
