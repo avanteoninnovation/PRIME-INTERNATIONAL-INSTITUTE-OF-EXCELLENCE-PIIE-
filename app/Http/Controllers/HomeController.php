@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Models\Session;
 use App\Models\School;
 use App\Models\Faq;
+use App\Models\WebsitePage;
 use App\Models\WebsiteItem;
 use App\Models\WebsiteSection;
 use App\Models\WebsiteSetting;
@@ -82,6 +83,74 @@ class HomeController extends Controller
     }
 
     /**
+     * Show website page by slug
+     */
+    public function websitePage($slug)
+    {
+        if(get_settings('frontend_view') != '1') {
+            return redirect(route('login'));
+        }
+
+        $websitePage = null;
+        $websiteSections = collect();
+        $websiteItems = collect();
+        $websiteSettings = collect();
+        $allPages = collect();
+        $websiteSeo = null;
+
+        if (
+            Schema::hasTable('website_pages') &&
+            Schema::hasTable('website_sections') &&
+            Schema::hasTable('website_items') &&
+            Schema::hasTable('website_settings') &&
+            Schema::hasTable('website_seo_settings')
+        ) {
+            $websitePage = \App\Models\WebsitePage::where('slug', $slug)
+                ->where('status', 1)
+                ->first();
+
+            if (!$websitePage) {
+                abort(404);
+            }
+
+            $allPages = \App\Models\WebsitePage::where('status', 1)
+                ->orderBy('display_order')
+                ->orderBy('sort_order')
+                ->orderBy('id')
+                ->get();
+
+            $websiteSections = WebsiteSection::where('page_key', $websitePage->page_key)
+                ->where('status', 1)
+                ->orderBy('sort_order')
+                ->orderBy('id')
+                ->get()
+                ->keyBy('section_key');
+
+            $websiteItems = WebsiteItem::where('status', 1)
+                ->orderBy('sort_order')
+                ->orderBy('id')
+                ->get()
+                ->groupBy('section_key');
+
+            $websiteSettings = WebsiteSetting::where('status', 1)
+                ->pluck('value', 'key');
+
+            $websiteSeo = WebsiteSeoSetting::where('page_key', $websitePage->page_key)
+                ->where('status', 1)
+                ->first();
+        }
+
+        return view('frontend.website_page', [
+            'websitePage' => $websitePage,
+            'websiteSections' => $websiteSections,
+            'websiteItems' => $websiteItems,
+            'websiteSettings' => $websiteSettings,
+            'allPages' => $allPages,
+            'websiteSeo' => $websiteSeo,
+        ]);
+    }
+
+    /**
      * Show the application dashboard.
      *
      * @return \Illuminate\Contracts\Support\Renderable
@@ -90,12 +159,6 @@ class HomeController extends Controller
     {
         return view('superadminHome');
     }
-
-    /**
-     * Show the application dashboard.
-     *
-     * @return \Illuminate\Contracts\Support\Renderable
-     */
     public function adminDashboard()
     {
         return view('admin.dashboard');
@@ -273,5 +336,19 @@ class HomeController extends Controller
                 'email' => 'Token expired!',
             ]);
         }
+    }
+
+    /**
+     * Download the institutional brochure
+     */
+    public function downloadBrochure()
+    {
+        $filePath = public_path('assets/uploads/documents/PRIME INTERNATIONAL INSTITUTE BROCHURE.pdf');
+        
+        if (!file_exists($filePath)) {
+            abort(404, 'Brochure file not found');
+        }
+        
+        return response()->download($filePath, 'PRIME INTERNATIONAL INSTITUTE BROCHURE.pdf');
     }
 }

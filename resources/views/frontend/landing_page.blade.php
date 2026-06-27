@@ -622,6 +622,13 @@
                     <li class="nav-item"><a class="nav-link" href="#team">Team</a></li>
                     <li class="nav-item"><a class="nav-link" href="#affiliations">Affiliations</a></li>
                     <li class="nav-item"><a class="nav-link" href="#contact">Contact</a></li>
+                    <li class="nav-item" style="margin-left: 10px;">
+                        <a href="{{ route('download.brochure') }}" 
+                           class="nav-link" 
+                           style="background: linear-gradient(135deg, #e87722 0%, #d96912 100%); color: #fff !important; padding: 10px 16px !important; border-radius: 4px; display: flex; align-items: center; gap: 6px; font-weight: 600;">
+                            <i class="fa-solid fa-download"></i> Brochure
+                        </a>
+                    </li>
                 </ul>
             </nav>
             <!-- Right Actions -->
@@ -684,6 +691,11 @@
                 @else
                     <a class="btn-login" href="{{ route('login') }}">Login</a>
                     <a class="btn-apply d-none d-lg-inline-block" href="#admissions">Apply Now</a>
+                    <a href="{{ route('download.brochure') }}" 
+                       class="d-none d-lg-inline-block"
+                       style="padding: 10px 16px; background: linear-gradient(135deg, #e87722 0%, #d96912 100%); color: #fff; border-radius: 4px; text-decoration: none; font-weight: 600; display: flex; align-items: center; gap: 6px; font-size: 13px;">
+                        <i class="fa-solid fa-download"></i> Brochure
+                    </a>
                 @endif
                 <button class="hamburger-icon d-xl-none" onclick="toggleMobileMenu()" aria-label="Menu">
                     <i class="fa-solid fa-bars"></i>

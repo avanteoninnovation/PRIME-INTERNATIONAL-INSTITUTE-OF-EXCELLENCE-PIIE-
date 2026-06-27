@@ -48,6 +48,8 @@ Auth::routes();
 Route::controller(HomeController::class)->group(function () {
 
     Route::get('/', 'home')->name('landingPage');
+    Route::get('website/{slug}', 'websitePage')->name('website.page');
+    Route::get('download-brochure', 'downloadBrochure')->name('download.brochure');
     Route::post('school/create', 'schoolCreate')->name('school.create');
     Route::get('web_redirect_to_pay_fee', 'webRedirectToPayFee')->name('webRedirectToPayFee');
 });
