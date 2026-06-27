@@ -6,7 +6,7 @@
 }
 </style>
 <div class="mark_report_content mark_report " id="mark_history">
-    <h4 style="font-size: 16px; font-weight: 600; line-height: 26px; color: #181c32; margin-left:45%; margin-bottom:15px; margin-top:17px;">{{ get_phrase('Exam Mark') }}</h4>
+    <h4 style="font-size: 16px; font-weight: 600; line-height: 26px; color: #1466AF; margin-left:45%; margin-bottom:15px; margin-top:17px;">{{ get_phrase('Exam Mark') }}</h4>
 
     <table class="table eTable eTable-2 table-bordered" >
         <thead>

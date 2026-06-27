@@ -5,18 +5,18 @@
 
 :root {
     /* Primary Colors */
-    --primary-color: #1a3a6b;
-    --primary-light: #2d5a9e;
-    --primary-dark: #0f1f3d;
+    --primary-color: #1466AF;
+    --primary-light: #2d7ec9;
+    --primary-dark: #0d3a5c;
     
     /* Secondary Colors */
-    --secondary-color: #4a90e2;
-    --secondary-light: #6ba3eb;
-    --secondary-dark: #3570c4;
+    --secondary-color: #F15F23;
+    --secondary-light: #f5885a;
+    --secondary-dark: #d64a0e;
     
     /* Accent Colors */
-    --accent-color: #f39c12;
-    --accent-light: #f8ad4f;
+    --accent-color: #7CA7CD;
+    --accent-light: #a8c1da;
     --success-color: #27ae60;
     --danger-color: #e74c3c;
     --warning-color: #f39c12;

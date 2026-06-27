@@ -1259,7 +1259,7 @@
                                                                 transform="translate(-1368.531 -147.15)">
                                                                 <g id="Ellipse_1" data-name="Ellipse 1"
                                                                     transform="translate(1370.609 147.15)"
-                                                                    fill="none" stroke="#181c32" stroke-width="2">
+                                                                    fill="none" stroke="#1466AF" stroke-width="2">
                                                                     <ellipse cx="4.576" cy="4.435"
                                                                         rx="4.576" ry="4.435"
                                                                         stroke="none" />
@@ -1270,7 +1270,7 @@
                                                                 <path id="Path_41" data-name="Path 41"
                                                                     d="M1485.186,311.087a5.818,5.818,0,0,1,5.856-4.283,5.534,5.534,0,0,1,5.466,4.283"
                                                                     transform="translate(-115.686 -149.241)"
-                                                                    fill="none" stroke="#181c32"
+                                                                    fill="none" stroke="#1466AF"
                                                                     stroke-width="2" />
                                                             </g>
                                                         </svg>

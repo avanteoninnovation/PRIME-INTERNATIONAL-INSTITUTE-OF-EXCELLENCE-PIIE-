@@ -7,17 +7,17 @@
         padding: 10px 20px;
         border: 1px solid transparent;
         border-radius: 5px;
-        background-color: #EFF2EF;
+        background-color: #f0f5fa;
         font-size: 13px;
         font-weight: 500;
-        color: #6B708A;
+        color: #1466AF;
         transition: all 0.3s;
     }
 
     .inport_btn:hover {
         background-color: transparent;
-        border-color: #DFDFE7;
-        color: #6B708A;
+        border-color: #7CA7CD;
+        color: #1466AF;
     }
 </style>
 <?php use App\Models\Section; ?>

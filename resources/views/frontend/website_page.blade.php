@@ -37,9 +37,9 @@
                 <span style="color:#bbb; padding:18px 20px; font-size:12px;">No pages available</span>
             @endforelse
             <a href="{{ route('download.brochure') }}" 
-               style="padding:18px 20px; color:#fff; background:linear-gradient(135deg, #4a90e2 0%, #357abd 100%); border-radius:4px; font-size:14px; font-weight:600; display:flex; align-items:center; gap:8px; transition:all 0.3s ease; margin-left:10px;"
-               onmouseover="this.style.background='linear-gradient(135deg, #357abd 0%, #2a5a9e 100%); transform:translateY(-2px);'"
-               onmouseout="this.style.background='linear-gradient(135deg, #4a90e2 0%, #357abd 100%);'"
+               style="padding:18px 20px; color:#fff; background:linear-gradient(135deg, #F15F23 0%, #d64a0e 100%); border-radius:4px; font-size:14px; font-weight:600; display:flex; align-items:center; gap:8px; transition:all 0.3s ease; margin-left:10px;"
+               onmouseover="this.style.background='linear-gradient(135deg, #d64a0e 0%, #b93908 100%); transform:translateY(-2px);'"
+               onmouseout="this.style.background='linear-gradient(135deg, #F15F23 0%, #d64a0e 100%);'"
                title="Download our institutional brochure">
                 <i class="fas fa-download"></i> Download Brochure
             </a>

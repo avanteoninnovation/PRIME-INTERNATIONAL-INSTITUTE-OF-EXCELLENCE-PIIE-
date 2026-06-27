@@ -26,9 +26,9 @@
 <style>
 /* ===== TDIIBT Custom Styles ===== */
 :root {
-    --primary-color: #1a3a6b;
-    --secondary-color: #e87722;
-    --accent-color: #2c5f9e;
+    --primary-color: #1466AF;
+    --secondary-color: #F15F23;
+    --accent-color: #7CA7CD;
     --light-bg: #f4f7fb;
     --text-muted: #6c757d;
 }

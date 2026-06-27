@@ -48,7 +48,7 @@
                                     <svg xmlns="http://www.w3.org/2000/svg" width="12.31" height="10.77" viewBox="0 0 10.771 12.31">
                                         <path id="arrow-right-from-bracket-solid"
                                             d="M3.847,1.539H2.308a.769.769,0,0,0-.769.769V8.463a.769.769,0,0,0,.769.769H3.847a.769.769,0,0,1,0,1.539H2.308A2.308,2.308,0,0,1,0,8.463V2.308A2.308,2.308,0,0,1,2.308,0H3.847a.769.769,0,1,1,0,1.539Zm8.237,4.39L9.007,9.007A.769.769,0,0,1,7.919,7.919L9.685,6.155H4.616a.769.769,0,0,1,0-1.539H9.685L7.92,2.852A.769.769,0,0,1,9.008,1.764l3.078,3.078A.77.77,0,0,1,12.084,5.929Z"
-                                            transform="translate(0 12.31) rotate(-90)" fill="#00a3ff" />
+                                            transform="translate(0 12.31) rotate(-90)" fill="#F15F23" />
                                     </svg>
                                 </span>
                                 {{ get_phrase('Export') }}
@@ -174,7 +174,7 @@
     @if (count($wardens) > 0)
         <!-- Table -->
         <div class="table-responsive warden_list display-none-view" id="warden_list">
-            <h4 class="" style="font-size: 16px; font-weight: 600; line-height: 26px; color: #181c32; margin-left:45%; margin-bottom:15px; margin-top:17px;">{{ get_phrase('Wardens List') }}</h4>
+            <h4 class="" style="font-size: 16px; font-weight: 600; line-height: 26px; color: #1466AF; margin-left:45%; margin-bottom:15px; margin-top:17px;">{{ get_phrase('Wardens List') }}</h4>
             <table class="table eTable eTable-2">
                 <thead>
                     <tr>

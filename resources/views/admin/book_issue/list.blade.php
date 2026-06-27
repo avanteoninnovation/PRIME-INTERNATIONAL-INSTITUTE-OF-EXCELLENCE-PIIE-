@@ -90,7 +90,7 @@ use App\Models\Book;
 
 @if(count($book_issues) > 0)
 <div class="table-responsive display-none-view" id="book_issue_report">
-    <h4 class="" style="font-size: 16px; font-weight: 600; line-height: 26px; color: #181c32; margin-left:45%; margin-bottom:15px; margin-top:17px;">{{ get_phrase('Book issue list') }}</h4>
+    <h4 class="" style="font-size: 16px; font-weight: 600; line-height: 26px; color: #1466AF; margin-left:45%; margin-bottom:15px; margin-top:17px;">{{ get_phrase('Book issue list') }}</h4>
     <table id="basic-datatable" class="table eTable">
         <thead>
             <tr>

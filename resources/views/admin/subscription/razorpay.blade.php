@@ -54,7 +54,7 @@ $razorpay=get_settings('razorpay');
             padding: 12px 18px;
             border: 1px solid transparent;
             border-radius: 5px;
-            background-color: #00a3ff;
+            background-color: #F15F23;
             font-size: 13px;
             font-weight: 500;
             color: #fff;
