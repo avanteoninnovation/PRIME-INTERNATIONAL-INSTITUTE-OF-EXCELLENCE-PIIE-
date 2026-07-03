@@ -15,6 +15,6 @@ class Grade extends Model
      * @var array
      */
     protected $fillable = [
-        'name', 'grade_point', 'mark_from', 'mark_upto', 'total_marks', 'school_id'
+        'name', 'grade_point', 'gpa_points', 'classification', 'mark_from', 'mark_upto', 'total_marks', 'school_id'
     ];
 }

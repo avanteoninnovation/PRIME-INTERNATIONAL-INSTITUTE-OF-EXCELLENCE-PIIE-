@@ -17,4 +17,9 @@ class DailyAttendances extends Model
     protected $fillable = [
         'class_id', 'section_id', 'student_id', 'status', 'session_id', 'school_id', 'timestamp'
     ];
+
+    public function student()
+    {
+        return $this->belongsTo(User::class, 'student_id');
+    }
 }

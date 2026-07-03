@@ -83,6 +83,11 @@ class AdminController extends Controller
 
     public function check_subscription_status($school_id = "")
     {
+        // Skip subscription enforcement when bypass flag is set or in local environment
+        if (config('app.bypass_subscription', false) || app()->environment('local')) {
+            return;
+        }
+
         $current_route       = Route::currentRouteName();
         $has_subscription    = Subscription::where('school_id', $school_id)->where('status', 1)->get()->count();
         $active_subscription = Subscription::where('school_id', $school_id)->where('active', 1)->first();
@@ -145,6 +150,22 @@ class AdminController extends Controller
     {
         $account_status = auth()->user()->account_status;
         if (auth()->user()->role_id != "") {
+            $roleId = (int) auth()->user()->role_id;
+            // Role-specific dashboards for new HEI roles
+            $roleDashboards = [
+                14 => 'admin.dashboard_director',
+                15 => 'admin.dashboard_hr',
+                16 => 'admin.dashboard_procurement',
+                17 => 'admin.dashboard_storekeeper',
+                18 => 'admin.dashboard_receptionist',
+                19 => 'admin.dashboard_examinations',
+            ];
+            if (isset($roleDashboards[$roleId])) {
+                $viewName = $roleDashboards[$roleId];
+                if (view()->exists($viewName)) {
+                    return view($viewName);
+                }
+            }
             return view('admin.dashboard');
         } else {
             redirect()->route('login')

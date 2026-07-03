@@ -39,6 +39,8 @@ class RedirectIfAuthenticated
                     return redirect('/student/dashboard');
                 }elseif(auth()->user()->role_id =='9'){
                     return redirect('/alumni/dashboard');
+                }elseif(in_array(auth()->user()->role_id, [10, 11, 12, 13, 14, 15, 16, 17, 18, 19])){
+                    return redirect('/admin/dashboard');
                 }
             }
 

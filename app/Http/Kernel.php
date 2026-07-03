@@ -74,5 +74,16 @@ class Kernel extends HttpKernel
         'is_installed'     => \App\Http\Middleware\IsInstalled::class,
         'alumni'           => \App\Http\Middleware\AlumniMiddleware::class,
         'admin_permission' => \App\Http\Middleware\AdminPermission::class,
+        'registrar'        => \App\Http\Middleware\RegistrarMiddleware::class,
+        'bursar'           => \App\Http\Middleware\BursarMiddleware::class,
+        'hod'              => \App\Http\Middleware\HodMiddleware::class,
+        'admissions_staff' => \App\Http\Middleware\AdmissionsMiddleware::class,
+        'director'         => \App\Http\Middleware\DirectorMiddleware::class,
+        'hr_manager'       => \App\Http\Middleware\HrManagerMiddleware::class,
+        'procurement'      => \App\Http\Middleware\ProcurementMiddleware::class,
+        'store_keeper'     => \App\Http\Middleware\StoreKeeperMiddleware::class,
+        'receptionist'     => \App\Http\Middleware\ReceptionistMiddleware::class,
+        'examinations'     => \App\Http\Middleware\ExaminationsMiddleware::class,
+        'staff'            => \App\Http\Middleware\MultiStaffMiddleware::class,
     ];
 }

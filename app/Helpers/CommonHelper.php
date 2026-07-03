@@ -456,3 +456,56 @@ if (!function_exists('subscription_check')) {
         }
     }
 }
+
+if (!function_exists('get_role_nav_permissions')) {
+    /**
+     * Returns the list of nav section keys this role is allowed to see.
+     * 'all' means no filtering (show everything).
+     */
+    function get_role_nav_permissions(int $role_id): array
+    {
+        $map = [
+            1  => ['all'], // Super Admin
+            2  => ['all'], // Institution Admin
+            3  => ['dashboard', 'students', 'attendance', 'assignments', 'online_exams', 'live_classes',
+                   'gradebook', 'routine', 'noticeboard', 'chat', 'academic_calendar', 'question_bank'],
+            4  => ['dashboard', 'fees', 'expenses', 'payments', 'payroll', 'salary_structures',
+                   'fee_structures', 'hostel_fee', 'reports'],
+            5  => ['dashboard', 'library', 'noticeboard', 'chat'],
+            10 => ['dashboard', 'students', 'admissions', 'hei_admissions', 'intake_sessions',
+                   'admissions_agents', 'programmes', 'enrolment', 'transcripts', 'graduation',
+                   'noticeboard', 'reports'],
+            11 => ['dashboard', 'fees', 'expenses', 'payments', 'payroll', 'fee_structures',
+                   'hostel_fee', 'reports', 'noticeboard'],
+            12 => ['dashboard', 'students', 'attendance', 'assignments', 'online_exams',
+                   'gradebook', 'question_bank', 'routine', 'academic_calendar',
+                   'departments', 'noticeboard', 'chat', 'reports'],
+            13 => ['dashboard', 'students', 'admissions', 'hei_admissions', 'intake_sessions',
+                   'admissions_agents', 'programmes', 'noticeboard', 'chat'],
+            14 => ['dashboard', 'reports', 'transcripts', 'graduation', 'programmes',
+                   'students', 'staff', 'payroll', 'expenses', 'procurement', 'assets',
+                   'noticeboard', 'settings'],
+            15 => ['dashboard', 'staff', 'leave', 'leave_types', 'appraisal', 'payroll',
+                   'salary_structures', 'attendance', 'departments', 'noticeboard', 'reports'],
+            16 => ['dashboard', 'procurement', 'assets', 'asset_categories', 'noticeboard'],
+            17 => ['dashboard', 'assets', 'asset_categories', 'inventory', 'noticeboard'],
+            18 => ['dashboard', 'students', 'fees', 'payments', 'admissions',
+                   'noticeboard', 'chat'],
+            19 => ['dashboard', 'online_exams', 'exams', 'question_bank', 'gradebook',
+                   'transcripts', 'results', 'noticeboard'],
+        ];
+
+        return $map[$role_id] ?? [];
+    }
+}
+
+if (!function_exists('role_can_see')) {
+    /**
+     * Quick check: can the given role see a navigation section?
+     */
+    function role_can_see(int $role_id, string $section): bool
+    {
+        $perms = get_role_nav_permissions($role_id);
+        return in_array('all', $perms) || in_array($section, $perms);
+    }
+}

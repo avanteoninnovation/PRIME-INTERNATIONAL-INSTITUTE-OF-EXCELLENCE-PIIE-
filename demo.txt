@@ -1,0 +1,1732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>TDIIBT HEMS — Higher Education Management System</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--navy:#1a3a6b;--gold:#c8860a;--sw:260px;--bg:#f0f4f8;--card:#fff;--bd:#dee2e6;--tx:#212529;--mu:#6c757d;--danger:#dc3545;--success:#198754;--warn:#ffc107;--r:8px;--sh:0 1px 3px rgba(0,0,0,.12)}
+body{font-family:'Segoe UI',Arial,sans-serif;background:var(--bg);color:var(--tx);min-height:100vh;font-size:14px}
+/* LOGIN */
+#lp{position:fixed;inset:0;background:linear-gradient(135deg,#1a3a6b,#0d1f3c);display:flex;align-items:center;justify-content:center;z-index:9999}
+.lb{background:#fff;border-radius:16px;padding:36px;width:100%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.lb h2{color:var(--navy);font-size:18px;font-weight:700;text-align:center;margin-bottom:4px}
+.lb p{color:var(--mu);font-size:12px;text-align:center;margin-bottom:20px}
+.lg-badge{width:64px;height:64px;border-radius:50%;background:var(--navy);color:#fff;font-weight:800;font-size:16px;display:flex;align-items:center;justify-content:center;margin:0 auto 10px}
+.rc{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 16px}
+.rchip{padding:4px 10px;border-radius:20px;font-size:11px;cursor:pointer;border:1px solid var(--bd);transition:.2s}
+.rchip:hover,.rchip.sel{background:var(--navy);color:#fff;border-color:var(--navy)}
+/* SIDEBAR */
+#sb{width:var(--sw);background:var(--navy);color:#fff;height:100vh;position:fixed;top:0;left:0;overflow-y:auto;transition:.3s;z-index:100;display:flex;flex-direction:column}
+#sb.col{width:60px}
+.sb-logo{padding:14px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.1);background:rgba(0,0,0,.2);flex-shrink:0}
+.sb-badge{width:34px;height:34px;border-radius:50%;background:var(--gold);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;color:#fff;flex-shrink:0}
+.sb-title{font-weight:700;font-size:12px;line-height:1.3}
+.sb-title span{color:var(--gold);font-size:10px;font-weight:400;display:block}
+#sb.col .sb-title{display:none}
+.nl{font-size:9px;text-transform:uppercase;color:rgba(255,255,255,.35);padding:6px 16px 2px;letter-spacing:.8px;white-space:nowrap}
+#sb.col .nl{opacity:0}
+.ni{display:flex;align-items:center;gap:10px;padding:9px 16px;cursor:pointer;color:rgba(255,255,255,.72);transition:.2s;border-left:3px solid transparent;overflow:hidden}
+.ni:hover{background:rgba(255,255,255,.07);color:#fff}
+.ni.act{background:rgba(255,255,255,.11);color:#fff;border-left-color:var(--gold)}
+.ni i{width:16px;text-align:center;flex-shrink:0;font-size:14px}
+.ni .nt{font-size:12px;white-space:nowrap}
+#sb.col .nt{display:none}
+.sb-foot{margin-top:auto;border-top:1px solid rgba(255,255,255,.1)}
+/* TOPBAR */
+#tb{position:fixed;top:0;left:var(--sw);right:0;height:52px;background:var(--card);border-bottom:1px solid var(--bd);display:flex;align-items:center;padding:0 18px;gap:10px;z-index:90;transition:.3s}
+#sb.col~#tb{left:60px}
+.tb-title{font-weight:600;font-size:14px;color:var(--navy)}
+.sp{flex:1}
+.tb-btn{border:none;background:none;cursor:pointer;padding:5px 9px;border-radius:var(--r);color:var(--mu);font-size:15px;position:relative}
+.tb-btn:hover{background:var(--bg)}
+.bdot{position:absolute;top:3px;right:5px;width:7px;height:7px;background:var(--danger);border-radius:50%;border:2px solid #fff}
+.uc{display:flex;align-items:center;gap:8px;cursor:pointer;padding:4px 8px;border-radius:var(--r)}
+.uc:hover{background:var(--bg)}
+.ua{width:30px;height:30px;border-radius:50%;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:11px;flex-shrink:0}
+.ui{font-size:11px;line-height:1.3}
+.ui strong{display:block}
+.ui span{color:var(--mu)}
+/* MAIN */
+#main{margin-left:var(--sw);padding-top:52px;transition:.3s;min-height:100vh}
+#sb.col~#main{margin-left:60px}
+.pg{display:none;padding:18px;animation:fi .18s}
+.pg.act{display:block}
+@keyframes fi{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+/* COMMON */
+.bc{font-size:11px;color:var(--mu);margin-bottom:12px;display:flex;align-items:center;gap:5px}
+.bc a{color:var(--navy);text-decoration:none;cursor:pointer}
+.ph{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:8px}
+.ptitle{font-size:19px;font-weight:700;color:var(--navy)}
+.pa{display:flex;gap:7px;flex-wrap:wrap}
+.card{background:var(--card);border-radius:var(--r);border:1px solid var(--bd);box-shadow:var(--sh)}
+.cb{padding:14px 18px}
+.ch{padding:10px 18px;border-bottom:1px solid var(--bd);font-weight:600;display:flex;align-items:center;justify-content:space-between;font-size:13px}
+/* STATS */
+.sg{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:18px}
+.sc{background:var(--card);border-radius:var(--r);border:1px solid var(--bd);padding:14px 18px;position:relative;overflow:hidden}
+.sc::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+.sc.bl::before{background:var(--navy)} .sc.gd::before{background:var(--gold)}
+.sc.gr::before{background:var(--success)} .sc.rd::before{background:var(--danger)}
+.sc.pu::before{background:#6f42c1} .sc.tl::before{background:#20c997}
+.sv{font-size:24px;font-weight:700;color:var(--navy)}
+.sl{font-size:11px;color:var(--mu);margin-top:2px}
+.si{position:absolute;right:14px;top:50%;transform:translateY(-50%);font-size:28px;opacity:.07;color:var(--navy)}
+/* BTN */
+.btn{display:inline-flex;align-items:center;gap:5px;padding:6px 13px;border-radius:var(--r);border:1px solid transparent;cursor:pointer;font-size:12px;font-weight:500;transition:.15s;text-decoration:none;white-space:nowrap;font-family:inherit}
+.btn:hover{opacity:.87}
+.bp{background:var(--navy);color:#fff;border-color:var(--navy)}
+.bs{background:var(--success);color:#fff}
+.bd2{background:var(--danger);color:#fff}
+.bo{background:none;color:var(--navy);border-color:var(--navy)}
+.bod{background:none;color:var(--danger);border-color:var(--danger)}
+.bsm{padding:4px 9px;font-size:11px}
+.bxs{padding:2px 6px;font-size:10px}
+/* TABLE */
+.tw{overflow-x:auto}
+table.dt{width:100%;border-collapse:collapse;font-size:12px}
+table.dt th{background:#f8f9fa;padding:9px 11px;text-align:left;font-weight:600;color:var(--navy);border-bottom:2px solid var(--bd);white-space:nowrap}
+table.dt td{padding:8px 11px;border-bottom:1px solid var(--bd);vertical-align:middle}
+table.dt tr:hover td{background:#f9fafb}
+table.dt tr:last-child td{border-bottom:none}
+/* BADGE */
+.bg{display:inline-flex;align-items:center;padding:2px 7px;border-radius:20px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.4px}
+.bgs{background:#d1f5e0;color:#0f5132} .bgd{background:#fce4e4;color:#842029}
+.bgw{background:#fff3cd;color:#664d03} .bgi{background:#cff4fc;color:#055160}
+.bgn{background:#e7edf7;color:var(--navy)} .bgm{background:#e9ecef;color:#495057}
+.bgg{background:#fef3d8;color:#7a4d00} .bgp{background:#ede3f8;color:#4a1580}
+/* FORM */
+.fg{margin-bottom:12px}
+.fl{display:block;font-size:11px;font-weight:600;color:var(--mu);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px}
+.fc,.fs,.ft{width:100%;padding:7px 11px;border:1px solid var(--bd);border-radius:var(--r);font-size:12px;background:var(--card);color:var(--tx);transition:.2s;font-family:inherit}
+.fc:focus,.fs:focus,.ft:focus{outline:none;border-color:var(--navy);box-shadow:0 0 0 3px rgba(26,58,107,.1)}
+.ft{resize:vertical;min-height:70px}
+/* SEARCH */
+.sb2{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center}
+.sw{position:relative;flex:1;min-width:180px}
+.sw i{position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--mu);font-size:13px}
+.sw input{padding-left:30px;width:100%}
+/* MODAL */
+.mo{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:999;display:flex;align-items:center;justify-content:center;padding:16px}
+.md{background:var(--card);border-radius:12px;width:100%;max-width:620px;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.28)}
+.mh{padding:14px 18px;border-bottom:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.mt{font-size:15px;font-weight:700;color:var(--navy)}
+.mc{border:none;background:none;cursor:pointer;font-size:20px;color:var(--mu);padding:2px 5px;border-radius:4px}
+.mc:hover{background:var(--bg)}
+.mb{padding:18px;overflow-y:auto;flex:1}
+.mf{padding:12px 18px;border-bottom:1px solid var(--bd);border-top:1px solid var(--bd);display:flex;gap:7px;justify-content:flex-end;flex-shrink:0}
+/* LAYOUT */
+.row{display:flex;gap:14px;flex-wrap:wrap}
+.c6{flex:0 0 calc(50% - 7px)} .c4{flex:0 0 calc(33.33% - 10px)} .c8{flex:0 0 calc(66.66% - 7px)}
+@media(max-width:700px){.c6,.c4,.c8{flex:0 0 100%}}
+/* MISC */
+.alert{padding:9px 13px;border-radius:var(--r);font-size:12px;margin-bottom:12px;border-left:3px solid}
+.ai{background:#e7f3ff;border-color:var(--navy);color:#0c3a7a}
+.as{background:#d1f5e0;border-color:var(--success);color:#0f5132}
+.ad{background:#fce4e4;border-color:var(--danger);color:#842029}
+.aw{background:#fff3cd;border-color:var(--warn);color:#664d03}
+.tg{position:relative;display:inline-block;width:34px;height:18px;cursor:pointer}
+.tg input{opacity:0;width:0;height:0}
+.sl2{position:absolute;inset:0;background:#ccc;border-radius:9px;transition:.3s}
+.sl2::before{content:'';position:absolute;width:12px;height:12px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.3s}
+input:checked+.sl2{background:var(--navy)}
+input:checked+.sl2::before{transform:translateX(16px)}
+.tbn{display:flex;border-bottom:2px solid var(--bd);margin-bottom:18px;flex-wrap:wrap}
+.tbt{padding:8px 16px;border:none;background:none;cursor:pointer;font-size:12px;font-weight:500;color:var(--mu);border-bottom:2px solid transparent;margin-bottom:-2px;transition:.2s;white-space:nowrap}
+.tbt.act{color:var(--navy);border-bottom-color:var(--navy)}
+.tp{display:none} .tp.act{display:block}
+.av{width:32px;height:32px;border-radius:50%;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;flex-shrink:0}
+.cc{background:var(--card);border:1px solid var(--bd);border-radius:var(--r);padding:14px 18px}
+.ct{font-size:12px;font-weight:600;color:var(--navy);margin-bottom:10px}
+.ch2{position:relative;height:200px}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-thumb{background:#ccc;border-radius:3px}
+#toast{position:fixed;bottom:18px;right:18px;z-index:9999;display:none}
+#tmsg{background:#333;color:#fff;padding:9px 16px;border-radius:8px;font-size:12px;box-shadow:0 4px 16px rgba(0,0,0,.28)}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="lp">
+  <div class="lb">
+    <div class="lg-badge">TDI</div>
+    <h2>TDIIBT HEMS</h2>
+    <p>Higher Education Management System</p>
+    <div class="fg"><label class="fl">Email</label><input class="fc" id="lemail" value="director@tdiibt.ac.ug" onkeydown="if(event.key==='Enter')doLogin()"></div>
+    <div class="fg"><label class="fl">Password</label><input class="fc" id="lpwd" type="password" value="password" onkeydown="if(event.key==='Enter')doLogin()"></div>
+    <p style="font-size:11px;color:var(--mu)">Quick login as:</p>
+    <div class="rc" id="rchips">
+      <div class="rchip sel" onclick="setRole(this,'director','Director','director@tdiibt.ac.ug')">Director</div>
+      <div class="rchip" onclick="setRole(this,'superadmin','Super Admin','superadmin@tdiibt.ac.ug')">Super Admin</div>
+      <div class="rchip" onclick="setRole(this,'registrar','Registrar','registrar@tdiibt.ac.ug')">Registrar</div>
+      <div class="rchip" onclick="setRole(this,'bursar','Bursar','bursar@tdiibt.ac.ug')">Bursar</div>
+      <div class="rchip" onclick="setRole(this,'hod','HOD','hod.business@tdiibt.ac.ug')">HOD</div>
+      <div class="rchip" onclick="setRole(this,'lecturer','Lecturer','lecturer01@tdiibt.ac.ug')">Lecturer</div>
+      <div class="rchip" onclick="setRole(this,'student','Student','std.bsc001@tdiibt.ac.ug')">Student</div>
+    </div>
+    <button class="btn bp" onclick="doLogin()" style="width:100%;justify-content:center;padding:10px;font-size:13px"><i class="fas fa-sign-in-alt"></i> Sign In</button>
+    <p style="text-align:center;font-size:10px;color:var(--mu);margin-top:12px">Powered by <strong>AshFLAC Tech Solutions</strong></p>
+  </div>
+</div>
+
+<!-- SIDEBAR -->
+<div id="sb">
+  <div class="sb-logo">
+    <div class="sb-badge">TDI</div>
+    <div class="sb-title">TDIIBT<span>HEMS Portal</span></div>
+  </div>
+  <div id="sbnav" style="flex:1;overflow-y:auto"></div>
+  <div class="sb-foot">
+    <div class="ni" onclick="nav('profile')"><i class="fas fa-user"></i><span class="nt">My Profile</span></div>
+    <div class="ni" onclick="logout()"><i class="fas fa-sign-out-alt"></i><span class="nt">Logout</span></div>
+  </div>
+</div>
+
+<!-- TOPBAR -->
+<div id="tb">
+  <button class="tb-btn" onclick="toggleSB()"><i class="fas fa-bars"></i></button>
+  <div class="tb-title" id="tbtitle">Dashboard</div>
+  <div class="sp"></div>
+  <div class="sw" style="max-width:220px">
+    <i class="fas fa-search"></i>
+    <input class="fc" id="gsearch" placeholder="Search…" oninput="gSearch(this.value)" style="padding-left:28px;font-size:12px">
+  </div>
+  <button class="tb-btn" title="Notices"><i class="fas fa-bell"></i><span class="bdot"></span></button>
+  <button class="tb-btn" onclick="nav('settings')"><i class="fas fa-cog"></i></button>
+  <div class="uc" onclick="nav('profile')">
+    <div class="ua" id="tua">TN</div>
+    <div class="ui"><strong id="tun">Twinamatsiko Naboth</strong><span id="tur">Director</span></div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div id="main">
+
+<!-- DASHBOARD -->
+<div class="pg act" id="pg-dashboard">
+  <div class="bc"><i class="fas fa-home"></i> Home</div>
+  <div class="ph">
+    <div class="ptitle">Welcome back, <span id="dname">Twinamatsiko</span> 👋</div>
+    <div class="pa">
+      <button class="btn bo bsm" onclick="nav('calendar')"><i class="fas fa-calendar"></i> Calendar</button>
+      <button class="btn bp bsm" onclick="nav('students')"><i class="fas fa-plus"></i> Add Student</button>
+    </div>
+  </div>
+  <div class="sg" id="dstats"></div>
+  <div class="row">
+    <div class="c8">
+      <div class="cc"><div class="ct"><i class="fas fa-chart-bar" style="color:var(--navy);margin-right:5px"></i>Enrollment by Programme</div><div class="ch2"><canvas id="cEnroll"></canvas></div></div>
+    </div>
+    <div class="c4" style="min-width:0">
+      <div class="cc" style="height:100%"><div class="ct"><i class="fas fa-chart-pie" style="color:var(--gold);margin-right:5px"></i>Students by Level</div><div class="ch2"><canvas id="cLevels"></canvas></div></div>
+    </div>
+  </div>
+  <div class="row" style="margin-top:14px">
+    <div class="c6"><div class="card"><div class="ch"><i class="fas fa-clock" style="color:var(--navy);margin-right:5px"></i>Recent Activity</div><div id="dact" style="padding:6px 14px"></div></div></div>
+    <div class="c6"><div class="card"><div class="ch"><i class="fas fa-calendar-alt" style="color:var(--gold);margin-right:5px"></i>Upcoming Events</div><div id="devt" style="padding:6px 14px"></div></div></div>
+  </div>
+  <div class="row" style="margin-top:14px">
+    <div class="c6"><div class="card"><div class="ch"><i class="fas fa-exclamation-triangle" style="color:var(--warn);margin-right:5px"></i>Fee Alerts</div><div id="dfa" style="padding:6px 14px"></div></div></div>
+    <div class="c6"><div class="card"><div class="ch"><i class="fas fa-bolt" style="color:var(--navy);margin-right:5px"></i>Quick Actions</div><div class="cb"><div style="display:grid;grid-template-columns:1fr 1fr;gap:7px" id="dqa"></div></div></div></div>
+  </div>
+</div>
+
+<!-- STUDENTS -->
+<div class="pg" id="pg-students">
+  <div class="bc"><a onclick="nav('dashboard')">Home</a> / Students</div>
+  <div class="ph">
+    <div class="ptitle"><i class="fas fa-user-graduate" style="color:var(--navy);margin-right:7px"></i>Students</div>
+    <div class="pa">
+      <button class="btn bo bsm" onclick="doExport('students')"><i class="fas fa-download"></i> Export CSV</button>
+      <button class="btn bo bsm" onclick="openBulkImport()"><i class="fas fa-upload"></i> Bulk Import</button>
+      <button class="btn bp bsm" onclick="openStudentModal()"><i class="fas fa-plus"></i> Add Student</button>
+    </div>
+  </div>
+  <div class="card"><div class="cb">
+    <div class="sb2">
+      <div class="sw" style="flex:2"><i class="fas fa-search"></i><input class="fc" id="ssearch" placeholder="Name, reg number, email…" oninput="filterStu()"></div>
+      <select class="fs" id="sprog" onchange="filterStu()" style="flex:1;min-width:150px"><option value="">All Programmes</option></select>
+      <select class="fs" id="sstat" onchange="filterStu()" style="flex:1;min-width:110px"><option value="">All Status</option><option>active</option><option>suspended</option><option>graduated</option><option>withdrawn</option></select>
+    </div>
+    <div class="tw"><table class="dt"><thead><tr><th>#</th><th>Reg Number</th><th>Name</th><th>Programme</th><th>Phone</th><th>Year</th><th>Status</th><th>Actions</th></tr></thead><tbody id="stb"></tbody></table></div>
+    <div id="scnt" style="padding-top:6px;font-size:11px;color:var(--mu)"></div>
+  </div></div>
+</div>
+
+<!-- STAFF -->
+<div class="pg" id="pg-staff">
+  <div class="bc"><a onclick="nav('dashboard')">Home</a> / Staff</div>
+  <div class="ph">
+    <div class="ptitle"><i class="fas fa-users" style="color:var(--navy);margin-right:7px"></i>Staff Management</div>
+    <div class="pa">
+      <button class="btn bo bsm" onclick="doExport('staff')"><i class="fas fa-download"></i> Export</button>
+      <button class="btn bp bsm" onclick="openStaffModal()"><i class="fas fa-plus"></i> Add Staff</button>
+    </div>
+  </div>
+  <div class="card"><div class="cb">
+    <div class="sb2">
+      <div class="sw"><i class="fas fa-search"></i><input class="fc" id="stsearch" placeholder="Search staff…" oninput="filterStaff()"></div>
+      <select class="fs" id="stdept" onchange="filterStaff()" style="min-width:140px"><option value="">All Departments</option></select>
+      <select class="fs" id="ststat" onchange="filterStaff()" style="min-width:110px"><option value="">All Status</option><option>active</option><option>inactive</option></select>
+    </div>
+    <div class="tw"><table class="dt"><thead><tr><th>#</th><th>Staff No.</th><th>Name</th><th>Designation</th><th>Department</th><th>Email</th><th>Type</th><th>Status</th><th>Actions</th></tr></thead><tbody id="stftb"></tbody></table></div>
+  </div></div>
+</div>
+
+<!-- PROGRAMMES -->
+<div class="pg" id="pg-programmes">
+  <div class="bc"><a onclick="nav('dashboard')">Home</a> / Programmes</div>
+  <div class="ph">
+    <div class="ptitle"><i class="fas fa-graduation-cap" style="color:var(--navy);margin-right:7px"></i>Programmes</div>
+    <div class="pa"><button class="btn bp bsm" onclick="openProgModal()"><i class="fas fa-plus"></i> Add Programme</button></div>
+  </div>
+  <div class="card"><div class="cb">
+    <div class="sb2"><div class="sw"><i class="fas fa-search"></i><input class="fc" placeholder="Search programmes…" oninput="filterProgs(this.value)"></div><select class="fs" style="min-width:130px"><option>All Levels</option><option>Bachelors</option><option>Masters</option><option>Diploma</option><option>Certificate</option><option>Short Course</option></select></div>
+    <div class="tw"><table class="dt"><thead><tr><th>#</th><th>Code</th><th>Name</th><th>Level</th><th>Duration</th><th>Mode</th><th>Tuition/Sem (UGX)</th><th>Students</th><th>Status</th><th>Actions</th></tr></thead><tbody id="prgtb"></tbody></table></div>
+  </div></div>
+</div>
+
+<!-- COURSES -->
+<div class="pg" id="pg-courses">
+  <div class="bc"><a onclick="nav('dashboard')">Home</a> / Courses</div>
+  <div class="ph">
+    <div class="ptitle"><i class="fas fa-book" style="color:var(--navy);margin-right:7px"></i>Courses</div>
+    <div class="pa"><button class="btn bp bsm" onclick="openCourseModal()"><i class="fas fa-plus"></i> Add Course</button></div>
+  </div>
+  <div class="card"><div class="cb">
+    <div class="sb2"><div class="sw"><i class="fas fa-search"></i><input class="fc" placeholder="Search courses…" oninput="filterCourses(this.value)"></div><select class="fs" style="min-width:120px"><option>All Types</option><option>compulsory</option><option>elective</option><option>general</option><option>dissertation</option></select></div>
+    <div class="tw"><table class="dt"><thead><tr><th>#</th><th>Code</th><th>Name</th><th>Credits</th><th>Type</th><th>Level</th><th>CAT</th><th>Exam</th><th>Pass</th><th>Actions</th></tr></thead><tbody id="crstb"></tbody></table></div>
+  </div></div>
+</div>
+
+<!-- MARKS -->
+<div class="pg" id="pg-marks">
+  <div class="bc"><a onclick="nav('dashboard')">Home</a> / Marks &amp; Results</div>
+  <div class="ph">
+    <div class="ptitle"><i class="fas fa-chart-line" style="color:var(--navy);margin-right:7px"></i>Marks &amp; Results</div>
+    <div class="pa">
+      <button class="btn bs bsm" onclick="toast('Results published to all students')"><i class="fas fa-check"></i> Publish Results</button>
+      <button class="btn bp bsm" onclick="openMarksModal()"><i class="fas fa-edit"></i> Enter Marks</button>
+    </div>
+  </div>
+  <div class="alert ai"><i class="fas fa-info-circle"></i> Semester: <strong>May Intake 2026</strong> — Results published</div>
+  <div class="card"><div class="cb">
+    <div class="sb2">
+      <select class="fs" style="min-width:200px"><option>BBA — Year 2 Sem 3</option><option>MBA — Year 1 Sem 3</option></select>
+      <select class="fs" style="min-width:170px"><option>All Courses</option><option>BUS101 — Principles of Mgmt</option><option>BUS102 — Business Comm.</option><option>ACC101 — Financial Accounting</option></select>
+    </div>
+    <div class="tw"><table class="dt"><thead><tr><th>Student</th><th>Reg No.</th><th>Course</th><th>CAT /40</th><th>Exam /60</th><th>Total</th><th>Grade</th><th>GPA</th><th>Status</th><th>Actions</th></tr></thead><tbody id="mktb"></tbody></table></div>
+  </div></div>
+</div>
+
+<!-- ATTENDANCE -->
+<div class="pg" id="pg-attendance">
+  <div class="bc"><a onclick="nav('dashboard')">Home</a> / Attendance</div>
+  <div class="ph">
+    <div class="ptitle"><i class="fas fa-clipboard-list" style="color:var(--navy);margin-right:7px"></i>Attendance</div>
+    <div class="pa"><button class="btn bo bsm"><i class="fas fa-download"></i> Export Report</button></div>
+  </div>
+  <div class="row">
+    <div class="c6"><div class="card"><div class="ch">Take Attendance</div><div class="cb">
+      <div class="fg"><label class="fl">Programme &amp; Course</label><select class="fs"><option>BBA Yr2 — BUS102 Business Communication</option><option>MBA Yr1 — MBA501 Research Methods</option><option>BSc CS Yr1 — ICT102 Programming</option></select></div>
+      <div class="fg"><label class="fl">Date</label><input class="fc" type="date" value="2026-06-29"></div>
+      <div class="fg"><label class="fl">Session Type</label><select class="fs"><option>Lecture</option><option>Tutorial</option><option>Practical</option><option>Live Class</option></select></div>
+      <div id="attlist" style="margin-top:10px"></div>
+      <button class="btn bp" style="margin-top:10px" onclick="toast('Attendance saved for 2 students')"><i class="fas fa-save"></i> Save Attendance</button>
+    </div></div></div>
+    <div class="c6"><div class="card"><div class="ch">Attendance Summary — BUS102</div><div class="cb" id="attsum"></div></div></div>
+  </div>
+</div>
+
+<!-- FINANCE -->
+<div class="pg" id="pg-finance">
+  <div class="bc"><a onclick="nav('dashboard')">Home</a> / Finance</div>
+  <div class="ph">
+    <div class="ptitle"><i class="fas fa-coins" style="color:var(--navy);margin-right:7px"></i>Finance</div>
+    <div class="pa">
+      <button class="btn bo bsm"><i class="fas fa-download"></i> Export</button>
+      <button class="btn bp bsm" onclick="openInvModal()"><i class="fas fa-file-invoice"></i> Generate Invoice</button>
+    </div>
+  </div>
+  <div class="tbn">
+    <button class="tbt act" onclick="showTab('fin','inv',this)">Invoices</button>
+    <button class="tbt" onclick="showTab('fin','pay',this)">Payments</button>
+    <button class="tbt" onclick="showTab('fin','prl',this)">Payroll</button>
+    <button class="tbt" onclick="showTab('fin','exp',this)">Expenses</button>
+    <button class="tbt" onclick="showTab('fin','fee',this)">Fee Structure</button>
+    <button class="tbt" onclick="showTab('fin','gwy',this)">Payment Gateways</button>
+  </div>
+  <div class="tp act" id="fin-inv">
+    <div class="sg" id="finstats"></div>
+    <div class="card"><div class="cb"><div class="tw"><table class="dt"><thead><tr><th>Invoice #</th><th>Student</th><th>Amount</th><th>Paid</th><th>Balance</th><th>Status</th><th>Due Date</th><th>Actions</th></tr></thead><tbody id="invtb"></tbody></table></div></div></div>
+  </div>
+  <div class="tp" id="fin-pay">
+    <div class="card"><div class="cb"><div class="tw"><table class="dt"><thead><tr><th>Receipt #</th><th>Student</th><th>Amount (UGX)</th><th>Method</th><th>Date</th><th>For</th><th>Verified</th><th>Actions</th></tr></thead><tbody id="paytb"></tbody></table></div></div></div>
+  </div>
+  <div class="tp" id="fin-prl">
+    <div class="card"><div class="cb">
+      <button class="btn bp bsm" style="margin-bottom:12px"><i class="fas fa-plus"></i> Process Payroll</button>
+      <div class="tw"><table class="dt"><thead><tr><th>Staff</th><th>Month</th><th>Basic</th><th>Allowances</th><th>NSSF</th><th>Net Pay</th><th>Method</th><th>Status</th><th>Actions</th></tr></thead><tbody id="prltb"></tbody></table></div>
+    </div></div>
+  </div>
+  <div class="tp" id="fin-exp">
+    <div class="card"><div class="cb">
+      <button class="btn bp bsm" style="margin-bottom:12px" onclick="openExpModal()"><i class="fas fa-plus"></i> Record Expense</button>
+      <div class="alert ai">No expenses recorded. Click "Record Expense" to add one.</div>
+    </div></div>
+  </div>
+  <div class="tp" id="fin-fee">
+    <div class="card"><div class="cb">
+      <button class="btn bp bsm" style="margin-bottom:12px"><i class="fas fa-plus"></i> Add Fee Item</button>
+      <div class="tw"><table class="dt"><thead><tr><th>Name</th><th>Type</th><th>Amount (UGX)</th><th>Mandatory</th><th>Per Sem</th><th>Actions</th></tr></thead><tbody id="feetb"></tbody></table></div>
+    </div></div>
+  </div>
+  <div class="tp" id="fin-gwy">
+    <div class="card"><div class="cb">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px" id="gwylist"></div>
+    </div></div>
+  </div>
+</div>
+
+<!-- ADMISSIONS -->
+<div class="pg" id="pg-admissions">
+  <div class="bc"><a onclick="nav('dashboard')">Home</a> / Admissions</div>
+  <div class="ph">
+    <div class="ptitle"><i class="fas fa-file-alt" style="color:var(--navy);margin-right:7px"></i>Admissions</div>
+    <div class="pa">
+      <button class="btn bo bsm"><i class="fas fa-envelope"></i> Send Acceptance Letters</button>
+      <button class="btn bp bsm"><i class="fas fa-plus"></i> New Application</button>
+    </div>
+  </div>
+  <div class="sg" id="admstats"></div>
+  <div class="tbn">
+    <button class="tbt act" onclick="showTab('adm','apps',this)">Applications</button>
+    <button class="tbt" onclick="showTab('adm','sess',this)">Intake Sessions</button>
+    <button class="tbt" onclick="showTab('adm','agents',this)">Agents</button>
+    <button class="tbt" onclick="showTab('adm','letters',this)">Admission Letters</button>
+  </div>
+  <div class="tp act" id="adm-apps">
+    <div class="card"><div class="cb">
+      <div class="sb2"><div class="sw"><i class="fas fa-search"></i><input class="fc" placeholder="Search applications…"></div><select class="fs" style="min-width:130px"><option>All Status</option><option>submitted</option><option>under_review</option><option>accepted</option><option>enrolled</option><option>rejected</option></select></div>
+      <div class="tw"><table class="dt"><thead><tr><th>App #</th><th>Applicant</th><th>Programme</th><th>Phone</th><th>Prev. Qualification</th><th>Date</th><th>Status</th><th>Actions</th></tr></thead><tbody id="apptb"></tbody></table></div>
+    </div></div>
+  </div>
+  <div class="tp" id="adm-sess">
+    <div class="card"><div class="cb">
+      <button class="btn bp bsm" style="margin-bottom:12px"><i class="fas fa-plus"></i> New Intake Session</button>
+      <div class="tw"><table class="dt"><thead><tr><th>Session Name</th><th>Opens</th><th>Closes</th><th>App Fee</th><th>Status</th><th>Actions</th></tr></thead><tbody id="sesstb"></tbody></table></div>
+    </div></div>
+  </div>
+  <div class="tp" id="adm-agents">
+    <div class="card"><div class="cb"><div class="alert ai">No agents registered. Agents earn commission per enrolled student.</div><button class="btn bp bsm"><i class="fas fa-plus"></i> Register Agent</button></div></div>
+  </div>
+  <div class="tp" id="adm-letters">
+    <div class="card"><div class="cb">
+      <div class="sb2"><div class="sw"><i class="fas fa-search"></i><input class="fc" placeholder="Search student…"></div><button class="btn bp bsm"><i class="fas fa-search"></i> Find</button></div>
+      <div class="alert ai">Search for a student to generate their official admission letter with QR verification code.</div>
+    </div></div>
+  </div>
+</div>
+
+<!-- EXAMS -->
+<div class="pg" id="pg-exams">
+  <div class="bc"><a onclick="nav('dashboard')">Home</a> / Online Exams</div>
+  <div class="ph">
+    <div class="ptitle"><i class="fas fa-laptop" style="color:var(--navy);margin-right:7px"></i>Online Exams (CBT)</div>
+    <div class="pa"><button class="btn bp bsm" onclick="openExamModal()"><i class="fas fa-plus"></i> Create Exam</button></div>
+  </div>
+  <div class="tbn">
+    <button class="tbt act" onclick="showTab('ex','cbt',this)">Online Exams</button>
+    <button class="tbt" onclick="showTab('ex','sched',this)">Exam Schedule</button>
+    <button class="tbt" onclick="showTab('ex','qbank',this)">Question Bank</button>
+    <button class="tbt" onclick="showTab('ex','types',this)">Exam Types</button>
+    <button class="tbt" onclick="showTab('ex','results',this)">Results</button>
+  </div>
+  <div class="tp act" id="ex-cbt">
+    <div class="card"><div class="cb"><div class="tw"><table class="dt"><thead><tr><th>Title</th><th>Course</th><th>Programme</th><th>Type</th><th>Start</th><th>End</th><th>Duration</th><th>Marks</th><th>Published</th><th>Actions</th></tr></thead><tbody id="exttb"></tbody></table></div></div></div>
+  </div>
+  <div class="tp" id="ex-sched">
+    <div class="card"><div class="cb"><div class="tw"><table class="dt"><thead><tr><th>Exam</th><th>Course</th><th>Date</th><th>Time</th><th>Venue</th><th>Duration</th><th>Status</th><th>Actions</th></tr></thead><tbody id="exstb"></tbody></table></div></div></div>
+  </div>
+  <div class="tp" id="ex-qbank">
+    <div class="card"><div class="cb"><div class="tw"><table class="dt"><thead><tr><th>Exam</th><th>Question (preview)</th><th>Type</th><th>Marks</th><th>Actions</th></tr></thead><tbody id="exqtb"></tbody></table></div></div></div>
+  </div>
+  <div class="tp" id="ex-types">
+    <div class="card"><div class="cb"><div id="extypelist"></div></div></div>
+  </div>
+  <div class="tp" id="ex-results">
+    <div class="card"><div class="cb"><div class="alert ai">No exam attempts recorded yet. Students must take published exams first.</div></div></div>
+  </div>
+</div>
+
+<!-- TIMETABLE -->
+<div class="pg" id="pg-timetable">
+  <div class="bc"><a onclick="nav('dashboard')">Home</a> / Timetable</div>
+  <div class="ph">
+    <div class="ptitle"><i class="fas fa-calendar" style="color:var(--navy);margin-right:7px"></i>Class Timetable</div>
+    <div class="pa">
+      <button class="btn bo bsm"><i class="fas fa-print"></i> Print</button>
+      <button class="btn bp bsm"><i class="fas fa-plus"></i> Add Slot</button>
+    </div>
+  </div>
+  <div class="card" style="margin-bottom:14px"><div class="cb" style="padding:10px 16px">
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <select class="fs" style="max-width:250px"><option>BBA — Year 1 &amp; 2</option><option>BSc CS — Year 1 &amp; 2</option><option>MBA — Year 1</option></select>
+      <select class="fs" style="max-width:180px"><option>May Intake 2026</option><option>Sem 2 2025/2026</option></select>
+    </div>
+  </div></div>
+  <div class="card"><div class="cb"><div class="tw" id="ttgrid"></div></div></div>
+</div>
+
+<!-- ASSIGNMENTS -->
+<div class="pg" id="pg-assignments">
+  <div class="bc"><a onclick="nav('dashboard')">Home</a> / Assignments</div>
+  <div class="ph">
+    <div class="ptitle"><i class="fas fa-tasks" style="color:var(--navy);margin-right:7px"></i>Assignments</div>
+    <div class="pa"><button class="btn bp bsm" onclick="openAssignModal()"><i class="fas fa-plus"></i> Create Assignment</button></div>
+  </div>
+  <div class="card"><div class="cb"><div class="tw"><table class="dt"><thead><tr><th>Title</th><th>Course</th><th>Due Date</th><th>Max Marks</th><th>Type</th><th>Submissions</th><th>Actions</th></tr></thead><tbody id="asstb"></tbody></table></div></div></div>
+</div>
+
+<!-- LIVE CLASSES -->
+<div class="pg" id="pg-live-classes">
+  <div class="bc"><a onclick="nav('dashboard')">Home</a> / Live Classes</div>
+  <div class="ph">
+    <div class="ptitle"><i class="fas fa-video" style="color:var(--navy);margin-right:7px"></i>Live Classes</div>
+    <div class="pa"><button class="btn bp bsm"><i class="fas fa-plus"></i> Schedule Class</button></div>
+  </div>
+  <div class="row">
+    <div class="c8">
+      <div class="card"><div class="cb"><div class="tw"><table class="dt"><thead><tr><th>Title</th><th>Course</th><th>Platform</th><th>Date</th><th>Time</th><th>Status</th><th>Join</th></tr></thead><tbody id="lctb"></tbody></table></div></div></div>
+    </div>
+    <div class="c4">
+      <div class="card"><div class="ch">Platform Config</div><div class="cb" id="lcconfig"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- LIBRARY -->
+<div class="pg" id="pg-library">
+  <div class="bc"><a onclick="nav('dashboard')">Home</a> / Library</div>
+  <div class="ph">
+    <div class="ptitle"><i class="fas fa-book" style="color:var(--navy);margin-right:7px"></i>Digital Library</div>
+    <div class="pa"><button class="btn bp bsm"><i class="fas fa-plus"></i> Upload Resource</button></div>
+  </div>
+  <div class="alert ai"><i class="fas fa-info-circle"></i> Library is ready. Upload resources to make them available to students.</div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px" id="libcats"></div>
+</div>
+
+<!-- NOTICES -->
+<div class="pg" id="pg-notices">
+  <div class="bc"><a onclick="nav('dashboard')">Home</a> / Notices</div>
+  <div class="ph">
+    <div class="ptitle"><i class="fas fa-bullhorn" style="color:var(--navy);margin-right:7px"></i>Notices &amp; Announcements</div>
+    <div class="pa"><button class="btn bp bsm" onclick="openNoticeModal()"><i class="fas fa-plus"></i> New Notice</button></div>
+  </div>
+  <div class="card"><div class="cb" id="notlist"></div></div>
+</div>
+
+<!-- CALENDAR -->
+<div class="pg" id="pg-calendar">
+  <div class="bc"><a onclick="nav('dashboard')">Home</a> / Academic Calendar</div>
+  <div class="ph">
+    <div class="ptitle"><i class="fas fa-calendar-alt" style="color:var(--navy);margin-right:7px"></i>Academic Calendar</div>
+    <div class="pa"><button class="btn bp bsm"><i class="fas fa-plus"></i> Add Event</button></div>
+  </div>
+  <div class="card"><div class="cb" id="calcon"></div></div>
+</div>
+
+<!-- TRANSCRIPTS -->
+<div class="pg" id="pg-transcripts">
+  <div class="bc"><a onclick="nav('dashboard')">Home</a> / Transcripts</div>
+  <div class="ph"><div class="ptitle"><i class="fas fa-scroll" style="color:var(--navy);margin-right:7px"></i>Official Transcripts</div></div>
+  <div class="card"><div class="cb">
+    <div class="sb2">
+      <div class="sw" style="flex:2"><i class="fas fa-search"></i><input class="fc" placeholder="Search student by name or reg number…" oninput="searchTranscript(this.value)"></div>
+      <button class="btn bp bsm"><i class="fas fa-search"></i> Generate</button>
+    </div>
+    <div id="transres"></div>
+  </div></div>
+</div>
+
+<!-- GRADUATION -->
+<div class="pg" id="pg-graduation">
+  <div class="bc"><a onclick="nav('dashboard')">Home</a> / Graduation</div>
+  <div class="ph">
+    <div class="ptitle"><i class="fas fa-graduation-cap" style="color:var(--navy);margin-right:7px"></i>Graduation Management</div>
+    <div class="pa"><button class="btn bp bsm"><i class="fas fa-check-circle"></i> Run Clearance Check</button></div>
+  </div>
+  <div class="sg">
+    <div class="sc bl"><div class="sv">0</div><div class="sl">Applications</div><i class="fas fa-graduation-cap si"></i></div>
+    <div class="sc gr"><div class="sv">0</div><div class="sl">Cleared</div><i class="fas fa-check si"></i></div>
+    <div class="sc rd"><div class="sv">0</div><div class="sl">Pending</div><i class="fas fa-clock si"></i></div>
+  </div>
+  <div class="card"><div class="cb"><div class="alert ai">No graduation applications for 2026 ceremony. Students must apply through the portal.</div><div class="tw"><table class="dt"><thead><tr><th>Student</th><th>Programme</th><th>GPA</th><th>Classification</th><th>Fees Cleared</th><th>Academics</th><th>Status</th><th>Actions</th></tr></thead><tbody><tr><td colspan="8" style="text-align:center;color:var(--mu);padding:24px">No graduation applications</td></tr></tbody></table></div></div></div>
+</div>
+
+<!-- HR -->
+<div class="pg" id="pg-hr">
+  <div class="bc"><a onclick="nav('dashboard')">Home</a> / Human Resources</div>
+  <div class="ph"><div class="ptitle"><i class="fas fa-briefcase" style="color:var(--navy);margin-right:7px"></i>Human Resources</div></div>
+  <div class="tbn">
+    <button class="tbt act" onclick="showTab('hr','leave',this)">Leave Management</button>
+    <button class="tbt" onclick="showTab('hr','appraisal',this)">Staff Appraisal</button>
+    <button class="tbt" onclick="showTab('hr','types',this)">Staff Types</button>
+  </div>
+  <div class="tp act" id="hr-leave">
+    <div class="card"><div class="cb">
+      <button class="btn bp bsm" style="margin-bottom:12px"><i class="fas fa-plus"></i> Record Leave</button>
+      <div class="alert ai">No leave records yet. Staff leave requests will appear here.</div>
+    </div></div>
+  </div>
+  <div class="tp" id="hr-appraisal">
+    <div class="card"><div class="cb"><div class="alert ai">Staff appraisal module coming in next update.</div></div></div>
+  </div>
+  <div class="tp" id="hr-types">
+    <div class="card"><div class="cb" id="stftypelist"></div></div>
+  </div>
+</div>
+
+<!-- PROCUREMENT -->
+<div class="pg" id="pg-procurement">
+  <div class="bc"><a onclick="nav('dashboard')">Home</a> / Procurement</div>
+  <div class="ph">
+    <div class="ptitle"><i class="fas fa-shopping-cart" style="color:var(--navy);margin-right:7px"></i>Procurement</div>
+    <div class="pa"><button class="btn bp bsm"><i class="fas fa-plus"></i> Raise Request</button></div>
+  </div>
+  <div class="sg">
+    <div class="sc bl"><div class="sv">0</div><div class="sl">Total Requests</div><i class="fas fa-shopping-bag si"></i></div>
+    <div class="sc gd"><div class="sv">0</div><div class="sl">Pending Approval</div><i class="fas fa-clock si"></i></div>
+    <div class="sc gr"><div class="sv">0</div><div class="sl">Approved</div><i class="fas fa-check si"></i></div>
+    <div class="sc tl"><div class="sv">0</div><div class="sl">Received</div><i class="fas fa-box si"></i></div>
+  </div>
+  <div class="card"><div class="cb"><div class="alert ai">No procurement requests. Raise a request to begin tracking purchases.</div></div></div>
+</div>
+
+<!-- ASSETS -->
+<div class="pg" id="pg-assets">
+  <div class="bc"><a onclick="nav('dashboard')">Home</a> / Asset Register</div>
+  <div class="ph">
+    <div class="ptitle"><i class="fas fa-box" style="color:var(--navy);margin-right:7px"></i>Asset Register</div>
+    <div class="pa"><button class="btn bp bsm" onclick="openAssetModal()"><i class="fas fa-plus"></i> Register Asset</button></div>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:11px;margin-bottom:16px" id="assetcats"></div>
+  <div class="card"><div class="cb"><div class="alert ai">Register institutional assets to track inventory, condition, and custody.</div></div></div>
+</div>
+
+<!-- REPORTS -->
+<div class="pg" id="pg-reports">
+  <div class="bc"><a onclick="nav('dashboard')">Home</a> / Reports</div>
+  <div class="ph"><div class="ptitle"><i class="fas fa-chart-pie" style="color:var(--navy);margin-right:7px"></i>Reports &amp; Analytics</div></div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:13px" id="rptcards"></div>
+</div>
+
+<!-- AUDIT LOG -->
+<div class="pg" id="pg-audit">
+  <div class="bc"><a onclick="nav('dashboard')">Home</a> / Audit Log</div>
+  <div class="ph">
+    <div class="ptitle"><i class="fas fa-history" style="color:var(--navy);margin-right:7px"></i>Audit Log</div>
+    <div class="pa"><button class="btn bo bsm"><i class="fas fa-download"></i> Export</button></div>
+  </div>
+  <div class="card"><div class="cb">
+    <div class="sb2">
+      <div class="sw" style="flex:2"><i class="fas fa-search"></i><input class="fc" placeholder="Search actions, users…" oninput="filterAudit(this.value)"></div>
+      <select class="fs" style="min-width:140px" onchange="filterAudit()"><option value="">All Modules</option><option>finance</option><option>users</option><option>admissions</option><option>settings</option><option>attendance</option><option>marks</option><option>backup</option><option>exam_create</option></select>
+    </div>
+    <div class="tw"><table class="dt"><thead><tr><th>#</th><th>User</th><th>Action</th><th>Module</th><th>Description</th><th>IP Address</th><th>Date/Time</th></tr></thead><tbody id="audtb"></tbody></table></div>
+  </div></div>
+</div>
+
+<!-- SETTINGS -->
+<div class="pg" id="pg-settings">
+  <div class="bc"><a onclick="nav('dashboard')">Home</a> / Settings</div>
+  <div class="ph"><div class="ptitle"><i class="fas fa-cogs" style="color:var(--navy);margin-right:7px"></i>System Settings</div></div>
+  <div class="tbn">
+    <button class="tbt act" onclick="showTab('set','inst',this)">Institution</button>
+    <button class="tbt" onclick="showTab('set','acad',this)">Academic</button>
+    <button class="tbt" onclick="showTab('set','notif',this)">Email/SMS</button>
+    <button class="tbt" onclick="showTab('set','perm',this)">Permissions</button>
+    <button class="tbt" onclick="showTab('set','tmpl',this)">Doc Templates</button>
+    <button class="tbt" onclick="showTab('set','bkp',this)">Backup</button>
+    <button class="tbt" onclick="showTab('set','api',this)">API Keys</button>
+  </div>
+  <div class="tp act" id="set-inst">
+    <div class="row">
+      <div class="c8">
+        <div class="card"><div class="ch">Institution Profile</div><div class="cb">
+          <div class="row">
+            <div class="c6"><div class="fg"><label class="fl">Institution Name</label><input class="fc" value="TWINEHS DIVINE INTEGRATED INSTITUTE OF BUSINESS AND TECHNOLOGY"></div></div>
+            <div class="c6"><div class="fg"><label class="fl">Short Name</label><input class="fc" value="TDIIBT"></div></div>
+            <div class="c6"><div class="fg"><label class="fl">Email</label><input class="fc" value="info@tdiibt.ac.ug"></div></div>
+            <div class="c6"><div class="fg"><label class="fl">Phone</label><input class="fc" value="0788099193"></div></div>
+            <div class="c6"><div class="fg"><label class="fl">Website</label><input class="fc" value="https://www.tdiibt.ac.ug"></div></div>
+            <div class="c6"><div class="fg"><label class="fl">City</label><input class="fc" value="Kampala"></div></div>
+            <div class="c6"><div class="fg"><label class="fl">Country</label><select class="fs"><option selected>Uganda</option><option>Kenya</option><option>Tanzania</option></select></div></div>
+            <div class="c6"><div class="fg"><label class="fl">Currency</label><select class="fs"><option selected>UGX — Uganda Shilling</option><option>KES</option><option>USD</option></select></div></div>
+            <div class="c6"><div class="fg"><label class="fl">Accreditation Body</label><input class="fc" value="NCHE"></div></div>
+            <div class="c6"><div class="fg"><label class="fl">Timezone</label><select class="fs"><option selected>Africa/Kampala</option><option>Africa/Nairobi</option><option>UTC</option></select></div></div>
+          </div>
+          <div class="fg"><label class="fl">Motto</label><input class="fc" value="Learning for Impact"></div>
+          <div class="fg"><label class="fl">Mission</label><textarea class="ft">To provide quality education, training, research, and consultancy through innovative teaching approaches and strategic partnerships.</textarea></div>
+          <button class="btn bp bsm" onclick="toast('Institution details saved successfully')"><i class="fas fa-save"></i> Save Institution Details</button>
+        </div></div>
+      </div>
+      <div class="c4">
+        <div class="card" style="margin-bottom:12px"><div class="ch">Branches</div><div class="cb" id="branchlist"></div></div>
+        <div class="card"><div class="ch">Bank Accounts</div><div class="cb" id="banklist"></div></div>
+      </div>
+    </div>
+  </div>
+  <div class="tp" id="set-acad">
+    <div class="card"><div class="cb">
+      <div class="row">
+        <div class="c6"><div class="fg"><label class="fl">Reg Number Mode</label><select class="fs"><option selected>Auto Generate</option><option>Manual</option></select></div></div>
+        <div class="c6"><div class="fg"><label class="fl">Reg Number Prefix</label><input class="fc" value="TDIIBT"></div></div>
+        <div class="c6"><div class="fg" style="display:flex;align-items:center;gap:10px"><label class="fl" style="margin:0">Results Published</label><label class="tg"><input type="checkbox" checked><span class="sl2"></span></label></div></div>
+        <div class="c6"><div class="fg" style="display:flex;align-items:center;gap:10px"><label class="fl" style="margin:0">Application Portal Open</label><label class="tg"><input type="checkbox" checked><span class="sl2"></span></label></div></div>
+      </div>
+      <div style="margin-top:14px"><strong style="font-size:12px">Grading Scale</strong><div class="tw" style="margin-top:8px"><table class="dt"><thead><tr><th>Grade</th><th>Min Score</th><th>Max Score</th><th>GPA Points</th><th>Description</th></tr></thead><tbody id="gradtb"></tbody></table></div></div>
+      <button class="btn bp bsm" style="margin-top:12px" onclick="toast('Academic settings saved')"><i class="fas fa-save"></i> Save</button>
+    </div></div>
+  </div>
+  <div class="tp" id="set-notif">
+    <div class="card"><div class="cb">
+      <h4 style="font-size:13px;color:var(--navy);margin-bottom:12px"><i class="fas fa-envelope"></i> Email (SMTP)</h4>
+      <div class="row">
+        <div class="c6"><div class="fg"><label class="fl">SMTP Host</label><input class="fc" value="tdiibt.ashflac.com"></div></div>
+        <div class="c6"><div class="fg"><label class="fl">Port</label><input class="fc" value="465"></div></div>
+        <div class="c6"><div class="fg"><label class="fl">Username</label><input class="fc" value="sms@tdiibt.ashflac.com"></div></div>
+        <div class="c6"><div class="fg"><label class="fl">Password</label><input class="fc" type="password" value="••••••••••"></div></div>
+        <div class="c6"><div class="fg"><label class="fl">Encryption</label><select class="fs"><option selected>SSL</option><option>TLS</option><option>None</option></select></div></div>
+        <div class="c6"><div class="fg"><label class="fl">From Name</label><input class="fc" value="TDIIBT Portal"></div></div>
+      </div>
+      <div style="display:flex;gap:7px"><button class="btn bp bsm" onclick="toast('SMTP settings saved')"><i class="fas fa-save"></i> Save SMTP</button><button class="btn bo bsm" onclick="toast('Test email sent to ashukurtech@gmail.com')"><i class="fas fa-paper-plane"></i> Test Email</button></div>
+      <hr style="margin:18px 0;border:none;border-top:1px solid var(--bd)">
+      <h4 style="font-size:13px;color:var(--navy);margin-bottom:12px"><i class="fas fa-sms"></i> SMS (Africa's Talking)</h4>
+      <div class="row">
+        <div class="c6"><div class="fg"><label class="fl">Provider</label><select class="fs"><option selected>Africa's Talking</option><option>Twilio</option><option>Other</option></select></div></div>
+        <div class="c6"><div class="fg"><label class="fl">API Key</label><input class="fc" value="atsk_2789d9adb4da…"></div></div>
+        <div class="c6"><div class="fg"><label class="fl">Sender ID</label><input class="fc" value="TDIIBT"></div></div>
+      </div>
+      <div style="display:flex;gap:7px"><button class="btn bp bsm" onclick="toast('SMS settings saved')"><i class="fas fa-save"></i> Save SMS</button><button class="btn bo bsm" onclick="toast('Test SMS sent to 0788099193')"><i class="fas fa-mobile-alt"></i> Test SMS</button></div>
+    </div></div>
+  </div>
+  <div class="tp" id="set-perm">
+    <div class="card"><div class="cb">
+      <div class="alert ai"><i class="fas fa-shield-alt"></i> Configure what each role can access and do in the system.</div>
+      <div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:14px" id="permroles"></div>
+      <div id="permtable"></div>
+    </div></div>
+  </div>
+  <div class="tp" id="set-tmpl">
+    <div class="card"><div class="cb">
+      <h4 style="font-size:13px;color:var(--navy);margin-bottom:12px">Document Templates</h4>
+      <div id="tmpllist"></div>
+    </div></div>
+  </div>
+  <div class="tp" id="set-bkp">
+    <div class="card"><div class="cb">
+      <div class="row">
+        <div class="c6"><div class="fg"><label class="fl">Backup Email</label><input class="fc" value="sms@tdiibt.ashflac.com"></div></div>
+        <div class="c6"><div class="fg"><label class="fl">Keep Last N Backups</label><input class="fc" type="number" value="14"></div></div>
+      </div>
+      <div style="display:flex;gap:7px"><button class="btn bp bsm" onclick="toast('Backup settings saved')"><i class="fas fa-save"></i> Save</button><button class="btn bs bsm" onclick="toast('Database backup running… will email when complete')"><i class="fas fa-database"></i> Run Backup Now</button></div>
+      <div class="alert as" style="margin-top:12px"><i class="fas fa-check"></i> Last backup: 19 May 2026 18:35 — Success</div>
+    </div></div>
+  </div>
+  <div class="tp" id="set-api">
+    <div class="card"><div class="cb">
+      <button class="btn bp bsm" style="margin-bottom:12px"><i class="fas fa-key"></i> Issue New API Key</button>
+      <div class="alert aw"><i class="fas fa-exclamation-triangle"></i> API keys are shown only once at creation. Store them securely.</div>
+      <div class="tw"><table class="dt"><thead><tr><th>Label</th><th>Key</th><th>Scopes</th><th>Rate Limit</th><th>Last Used</th><th>Status</th><th>Actions</th></tr></thead><tbody><tr><td colspan="7" style="text-align:center;color:var(--mu);padding:20px">No API keys issued yet</td></tr></tbody></table></div>
+    </div></div>
+  </div>
+</div>
+
+<!-- PROFILE -->
+<div class="pg" id="pg-profile">
+  <div class="bc"><a onclick="nav('dashboard')">Home</a> / My Profile</div>
+  <div class="ph"><div class="ptitle"><i class="fas fa-user" style="color:var(--navy);margin-right:7px"></i>My Profile</div></div>
+  <div class="row">
+    <div class="c4">
+      <div class="card"><div class="cb" style="text-align:center">
+        <div style="width:80px;height:80px;border-radius:50%;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700;margin:0 auto 10px" id="profAv">TN</div>
+        <strong style="display:block;font-size:15px" id="profName">Twinamatsiko Naboth</strong>
+        <span style="font-size:11px;color:var(--mu)" id="profRole">Director</span>
+        <br><span class="bg bgs" style="margin-top:8px">Active</span>
+        <div style="margin-top:14px;font-size:12px;text-align:left">
+          <div style="padding:6px 0;border-bottom:1px solid var(--bd)"><i class="fas fa-envelope" style="width:16px;color:var(--navy)"></i> <span id="profEmail">director@tdiibt.ac.ug</span></div>
+          <div style="padding:6px 0;border-bottom:1px solid var(--bd)"><i class="fas fa-phone" style="width:16px;color:var(--navy)"></i> 0707390697</div>
+          <div style="padding:6px 0"><i class="fas fa-map-marker-alt" style="width:16px;color:var(--navy)"></i> Kampala, Uganda</div>
+        </div>
+        <button class="btn bo bsm" style="margin-top:12px"><i class="fas fa-camera"></i> Change Photo</button>
+      </div></div>
+    </div>
+    <div class="c8">
+      <div class="card"><div class="ch">Edit Profile</div><div class="cb">
+        <div class="row">
+          <div class="c6"><div class="fg"><label class="fl">First Name</label><input class="fc" id="pfirst" value="Twinamatsiko"></div></div>
+          <div class="c6"><div class="fg"><label class="fl">Last Name</label><input class="fc" id="plast" value="Naboth"></div></div>
+          <div class="c6"><div class="fg"><label class="fl">Email</label><input class="fc" type="email" id="pemail" value="director@tdiibt.ac.ug"></div></div>
+          <div class="c6"><div class="fg"><label class="fl">Phone</label><input class="fc" value="0707390697"></div></div>
+        </div>
+        <button class="btn bp bsm" onclick="saveProfile()"><i class="fas fa-save"></i> Save Changes</button>
+        <hr style="margin:16px 0;border:none;border-top:1px solid var(--bd)">
+        <h4 style="font-size:12px;font-weight:600;margin-bottom:10px">Change Password</h4>
+        <div class="row">
+          <div class="c6"><div class="fg"><label class="fl">Current Password</label><input class="fc" type="password"></div></div>
+          <div class="c6"><div class="fg"><label class="fl">New Password</label><input class="fc" type="password"></div></div>
+          <div class="c6"><div class="fg"><label class="fl">Confirm Password</label><input class="fc" type="password"></div></div>
+        </div>
+        <button class="btn bo bsm" onclick="toast('Password updated successfully')"><i class="fas fa-lock"></i> Change Password</button>
+      </div></div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /main -->
+
+<!-- MODAL -->
+<div class="mo" id="moverlay" style="display:none" onclick="if(event.target===this)closeModal()">
+  <div class="md">
+    <div class="mh"><div class="mt" id="mtitle">Modal</div><button class="mc" onclick="closeModal()">×</button></div>
+    <div class="mb" id="mbody"></div>
+    <div class="mf" id="mfoot"></div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"><div id="tmsg"></div></div>
+
+<script>
+// ===== DATA =====
+const DB={
+  students:[
+    {id:1,reg:'TDIIBT/BBA/2024/001',first:'Sarah',last:'Namukasa',gender:'female',dob:'2000-03-15',email:'std.bsc001@tdiibt.ac.ug',phone:'0781234567',prog_id:1,year:2,status:'active'},
+    {id:2,reg:'TDIIBT/BBA/2024/002',first:'Moses',last:'Okiria',gender:'male',dob:'1999-07-22',email:'std.bsc002@tdiibt.ac.ug',phone:'0782345678',prog_id:1,year:2,status:'active'},
+    {id:3,reg:'TDIIBT/MBA/2024/001',first:'James',last:'Katende',gender:'male',dob:'1990-11-05',email:'std.msc001@tdiibt.ac.ug',phone:'0783456789',prog_id:7,year:1,status:'active'},
+    {id:4,reg:'TDIIBT/BSC-CS/2026/004',first:'Kizito',last:'Allan',gender:'male',dob:'1990-05-13',email:'ashukurtech@gmail.com',phone:'0789080848',prog_id:6,year:1,status:'active'},
+    {id:5,reg:'TDIIBT/BBA-BUS/2026/001',first:'Test Admission',last:'Student',gender:'male',dob:'1990-05-13',email:'nakabirahnasifah99@gmail.com',phone:'0780875108',prog_id:1,year:1,status:'active'},
+    {id:6,reg:'TDIIBT/MPA/2026/001',first:'Twinamatsiko',last:'Naboth',gender:'male',dob:'1978-11-08',email:'twinamatsikonaboth@gmail.com',phone:'0788099193',prog_id:10,year:1,status:'active'}
+  ],
+  staff:[
+    {id:1,no:'TDIIBT-SA-001',title:'Dr.',first:'Twinamatsiko',last:'Naboth',email:'director@tdiibt.ac.ug',phone:'0707390697',dept_id:1,desig:'Director',type:'fulltime',status:'active'},
+    {id:2,no:'TDIIBT-SA-002',title:'Mr.',first:'Bendaki',last:'Evans',email:'admin@tdiibt.ac.ug',phone:'0392887159',dept_id:1,desig:'Institute Secretary',type:'fulltime',status:'active'},
+    {id:3,no:'TDIIBT-SA-003',title:'Mr.',first:'Atuhaire',last:'Moses',email:'registrar@tdiibt.ac.ug',phone:'0701234567',dept_id:1,desig:'Academic Registrar',type:'fulltime',status:'active'},
+    {id:4,no:'TDIIBT-SA-004',title:'Mr.',first:'Kayiwa',last:'Robert',email:'bursar@tdiibt.ac.ug',phone:'0782345678',dept_id:2,desig:'Bursar',type:'fulltime',status:'active'},
+    {id:5,no:'TDIIBT-SA-005',title:'Mr.',first:'Bbosa',last:'Daniel',email:'hod.business@tdiibt.ac.ug',phone:'0703456789',dept_id:1,desig:'HOD Business',type:'fulltime',status:'active'},
+    {id:6,no:'TDIIBT-SA-006',title:'Ms.',first:'Nakato',last:'Amina',email:'lecturer01@tdiibt.ac.ug',phone:'0704567890',dept_id:1,desig:'Senior Lecturer',type:'fulltime',status:'active'},
+    {id:7,no:'TDIIBT-SA-007',title:'Mr.',first:'Ssebulime',last:'Isaac',email:'lecturer02@tdiibt.ac.ug',phone:'0705678901',dept_id:6,desig:'Lecturer',type:'fulltime',status:'active'},
+    {id:8,no:'TDIIBT-SA-008',title:'Mr.',first:'Mutebi',last:'Frank',email:'admissions@tdiibt.ac.ug',phone:'0706789012',dept_id:1,desig:'Admissions Officer',type:'fulltime',status:'active'},
+    {id:9,no:'TDIIBT-SA-009',title:'Ms.',first:'Nambatya',last:'Grace',email:'accountant@tdiibt.ac.ug',phone:'0707890123',dept_id:2,desig:'Accountant',type:'fulltime',status:'active'},
+    {id:10,no:'TDIIBT-SA-010',title:'Mr.',first:'Kigozi',last:'Paul',email:'superadmin@tdiibt.ac.ug',phone:'0708901234',dept_id:6,desig:'IT Administrator',type:'fulltime',status:'active'}
+  ],
+  programmes:[
+    {id:1,code:'BBA-BUS',name:'Bachelor of Business Administration',level:'Bachelors',dur:'3 years',mode:'online',tuition:1000000,active:1},
+    {id:2,code:'BCOM',name:'Bachelor of Commerce',level:'Bachelors',dur:'3 years',mode:'online',tuition:1000000,active:1},
+    {id:3,code:'BIT',name:'Bachelor of Information Technology',level:'Bachelors',dur:'3 years',mode:'online',tuition:1000000,active:1},
+    {id:4,code:'BSW',name:'Bachelor of Social Work',level:'Bachelors',dur:'3 years',mode:'online',tuition:1000000,active:1},
+    {id:5,code:'BHRM',name:'Bachelor of HRM',level:'Bachelors',dur:'3 years',mode:'online',tuition:1000000,active:1},
+    {id:6,code:'BSc-CS',name:'Bachelor of Science in Computing',level:'Bachelors',dur:'3 years',mode:'online',tuition:1000000,active:1},
+    {id:7,code:'MBA',name:'Master of Business Administration',level:'Masters',dur:'2 years',mode:'online',tuition:1200000,active:1},
+    {id:8,code:'MSc-IT',name:'Master of Science in IT',level:'Masters',dur:'2 years',mode:'online',tuition:1200000,active:1},
+    {id:9,code:'MA-HRM',name:'Master of Arts in HRM',level:'Masters',dur:'2 years',mode:'online',tuition:1200000,active:1},
+    {id:10,code:'MPA',name:'Master of Public Administration',level:'Masters',dur:'2 years',mode:'online',tuition:1200000,active:1},
+    {id:11,code:'PGD-BUS',name:'Postgraduate Diploma in Business',level:'PGD',dur:'1 year',mode:'online',tuition:1200000,active:1},
+    {id:13,code:'DIP-BUS',name:'Diploma in Business Administration',level:'Diploma',dur:'2 years',mode:'online',tuition:650000,active:1},
+    {id:16,code:'CERT-BUS',name:'National Certificate in Business',level:'Certificate',dur:'2 years',mode:'online',tuition:600000,active:1},
+    {id:18,code:'SC-ENTPR',name:'Certificate in Entrepreneurship',level:'Short Course',dur:'6 months',mode:'online',tuition:300000,active:1},
+    {id:19,code:'SC-ACCT',name:'Certificate in Basic Accounting',level:'Short Course',dur:'6 months',mode:'online',tuition:250000,active:1},
+    {id:20,code:'SC-COMP',name:'Certificate in Computer Packages',level:'Short Course',dur:'6 months',mode:'online',tuition:200000,active:1}
+  ],
+  courses:[
+    {id:1,code:'BUS101',name:'Principles of Management',credits:3,type:'compulsory',level:'100',cat:40,exam:60,pass:50},
+    {id:2,code:'BUS102',name:'Business Communication',credits:3,type:'compulsory',level:'100',cat:40,exam:60,pass:50},
+    {id:3,code:'ACC101',name:'Financial Accounting',credits:3,type:'compulsory',level:'100',cat:40,exam:60,pass:50},
+    {id:4,code:'ICT101',name:'Introduction to Computing',credits:3,type:'compulsory',level:'100',cat:40,exam:60,pass:50},
+    {id:5,code:'ICT102',name:'Programming Fundamentals',credits:3,type:'compulsory',level:'100',cat:40,exam:60,pass:50},
+    {id:6,code:'ICT201',name:'Database Management Systems',credits:3,type:'compulsory',level:'200',cat:40,exam:60,pass:50},
+    {id:7,code:'ICT202',name:'Web Technologies',credits:3,type:'compulsory',level:'200',cat:40,exam:60,pass:50},
+    {id:8,code:'ICT301',name:'Cybersecurity Fundamentals',credits:3,type:'compulsory',level:'300',cat:40,exam:60,pass:50},
+    {id:9,code:'BUS201',name:'Strategic Management',credits:3,type:'compulsory',level:'200',cat:40,exam:60,pass:50},
+    {id:10,code:'HRM101',name:'Human Resource Management',credits:3,type:'compulsory',level:'100',cat:40,exam:60,pass:50},
+    {id:11,code:'MKT101',name:'Principles of Marketing',credits:3,type:'compulsory',level:'100',cat:40,exam:60,pass:50},
+    {id:12,code:'ECO101',name:'Economics for Business',credits:3,type:'compulsory',level:'100',cat:40,exam:60,pass:50},
+    {id:13,code:'MBA501',name:'Research Methods',credits:3,type:'compulsory',level:'500',cat:40,exam:60,pass:50},
+    {id:14,code:'MBA502',name:'Advanced Strategic Mgmt.',credits:3,type:'compulsory',level:'500',cat:40,exam:60,pass:50},
+    {id:15,code:'MBA601',name:'Dissertation',credits:6,type:'dissertation',level:'600',cat:40,exam:60,pass:50},
+    {id:16,code:'GEN101',name:'Communication Skills',credits:2,type:'general',level:'100',cat:40,exam:60,pass:50},
+    {id:17,code:'GEN102',name:'Entrepreneurship & Innovation',credits:2,type:'general',level:'100',cat:40,exam:60,pass:50},
+    {id:18,code:'PDPAM8124',name:'POLITICAL SCIENCE AND ADMINISTRATIVE LAW',credits:3,type:'compulsory',level:'100',cat:40,exam:60,pass:50}
+  ],
+  marks:[
+    {id:1,stu_id:1,crs_id:1,cat:35,exam:52,total:87,grade:'B+',gpa:3.5,pub:1},
+    {id:2,stu_id:1,crs_id:2,cat:36,exam:54,total:90,grade:'A',gpa:4.0,pub:1},
+    {id:3,stu_id:1,crs_id:3,cat:32,exam:48,total:80,grade:'B',gpa:3.0,pub:1},
+    {id:4,stu_id:2,crs_id:1,cat:28,exam:42,total:70,grade:'C+',gpa:2.5,pub:1},
+    {id:5,stu_id:2,crs_id:2,cat:30,exam:45,total:75,grade:'C+',gpa:2.5,pub:1},
+    {id:6,stu_id:3,crs_id:13,cat:38,exam:55,total:93,grade:'A',gpa:4.0,pub:1}
+  ],
+  invoices:[
+    {id:1,num:'INV-2026-0001',stu_id:4,total:4370000,paid:4370000,bal:0,status:'paid',due:'2026-05-28'},
+    {id:2,num:'INV-2026-0002',stu_id:2,total:950000,paid:500000,bal:450000,status:'partial',due:'2026-06-12'},
+    {id:3,num:'INV-2026-0003',stu_id:4,total:1200000,paid:100000,bal:1100000,status:'partial',due:'2026-05-27'},
+    {id:4,num:'INV-2026-0004',stu_id:5,total:950000,paid:950000,bal:0,status:'paid',due:'2026-04-13'},
+    {id:7,num:'INV-2026-0005',stu_id:1,total:10000,paid:5000,bal:5000,status:'partial',due:'2026-06-18'}
+  ],
+  payments:[
+    {id:1,ref:'RCP-2026-001',stu_id:1,amount:950000,method:'mobile_money_mtn',date:'2026-03-01',for:'Semester 2 Tuition Fees'},
+    {id:2,ref:'RCP-2026-002',stu_id:2,amount:500000,method:'cash',date:'2026-03-10',for:'Partial Semester 2 Fees'},
+    {id:3,ref:'RCP-2026-003',stu_id:5,amount:950000,method:'mobile_money_airtel',date:'2026-04-01',for:'Semester 2 Tuition Fees'},
+    {id:5,ref:'RCP-2026-0004',stu_id:1,amount:5000,method:'cash',date:'2026-05-19',for:'Tuition Fee'},
+    {id:6,ref:'RCP-2026-0005',stu_id:4,amount:100000,method:'cash',date:'2026-05-19',for:'Tuition Fee'}
+  ],
+  payroll:[{id:1,stu_id:1,month:'2026-05-01',basic:2000000,allow:400000,ded:0,nssf:300000,net:2100000,method:'bank',status:'draft'}],
+  feeStructures:[
+    {id:1,name:'Tuition Fee — Bachelors',type:'tuition',amount:1500000,mandatory:1,per_sem:1},
+    {id:2,name:'Tuition Fee — Masters',type:'tuition',amount:2000000,mandatory:1,per_sem:1},
+    {id:3,name:'Tuition Fee — Diploma',type:'tuition',amount:900000,mandatory:1,per_sem:1},
+    {id:4,name:'Registration Fee',type:'registration',amount:50000,mandatory:1,per_sem:1},
+    {id:5,name:'Examination Fee',type:'examination',amount:100000,mandatory:1,per_sem:1},
+    {id:6,name:'Guild Fee',type:'guild',amount:30000,mandatory:1,per_sem:1},
+    {id:7,name:'Library Fee',type:'library',amount:20000,mandatory:1,per_sem:1}
+  ],
+  applications:[
+    {id:1,num:'APP-2026-0001',prog_id:1,first:'Test Admission',last:'Student',phone:'0780875108',qual:'Diploma',date:'2026-04-30',status:'enrolled'},
+    {id:2,num:'APP-2026-0002',prog_id:10,first:'Twinamatsiko',last:'Naboth',phone:'0788099193',qual:'Bachelors in Public Administration',date:'2026-05-15',status:'enrolled'}
+  ],
+  sessions:[{id:1,name:'August intake 2026',open:'2026-04-01',close:'2026-08-31',fee:50000,is_open:1}],
+  notices:[
+    {id:10,title:'May 2026 Semester Examination Timetable Released',body:'The examination timetable for Semester 2 (2025/2026) has been released. All students must bring their Student ID cards. Exams begin on 15 June 2026.',cat:'exam',urgent:1,pub:1,date:'2026-05-13'},
+    {id:11,title:'Online Learning Platform Update',body:'We have upgraded our live class platform. All lectures will now use Jitsi Meet which requires no downloads. Click "Join Now" at class time.',cat:'academic',urgent:0,pub:1,date:'2026-05-13'},
+    {id:12,title:'Fee Payment Reminder — May 2026 Semester',body:'Reminder to all students who have not cleared semester fees. Payment via MTN MoMo: 0392887159. Deadline: 31 May 2026.',cat:'finance',urgent:1,pub:1,date:'2026-05-13'},
+    {id:13,title:'Student Orientation — New Intake May 2026',body:'New students are invited to online orientation: Saturday 18 May 2026, 10:00 AM via Jitsi Meet. Attendance mandatory.',cat:'event',urgent:0,pub:1,date:'2026-05-13'},
+    {id:14,title:'Assignment Submission Policy',body:'All assignments must be submitted via the student portal before the deadline. Plagiarism results in zero marks.',cat:'academic',urgent:0,pub:1,date:'2026-05-13'},
+    {id:15,title:'Staff Meeting — Academic Calendar Review',body:'All academic staff invited to semester review. Date: Wed 15 May 2026, 2:00 PM via Jitsi: TDIIBT-STAFF-MTG.',cat:'general',urgent:0,pub:1,date:'2026-05-13'}
+  ],
+  calendar:[
+    {id:1,title:'May Intake 2026 — Semester Begins',type:'semester',date:'2026-05-01',color:'#1a3a6b'},
+    {id:2,title:'Student Orientation',type:'orientation',date:'2026-05-05',color:'#198754'},
+    {id:3,title:'Course Registration Deadline',type:'deadline',date:'2026-05-31',color:'#dc3545'},
+    {id:4,title:'Mid-Semester CAT Exams',type:'exam',date:'2026-06-15',color:'#f59e0b'},
+    {id:5,title:'End of Semester Exams Begin',type:'exam',date:'2026-07-15',color:'#7c3aed'},
+    {id:6,title:'End of Semester Exams End',type:'exam',date:'2026-08-10',color:'#7c3aed'},
+    {id:7,title:'Results Publication',type:'activity',date:'2026-08-20',color:'#198754'},
+    {id:8,title:'Semester End',type:'semester',date:'2026-08-31',color:'#1a3a6b'},
+    {id:9,title:'Independence Day (Public Holiday)',type:'holiday',date:'2026-10-09',color:'#dc3545'},
+    {id:10,title:'Christmas Holiday',type:'holiday',date:'2026-12-25',color:'#dc3545'}
+  ],
+  onlineExams:[
+    {id:2,title:'END OF SEMESTER EXAMINATIONS',crs_id:1,prog_id:7,type:'final',start:'2026-05-17 15:30',end:'2026-05-17 18:30',dur:180,marks:150,pass:50,pub:1}
+  ],
+  examSched:[
+    {id:1,name:'BUS101 End of Semester',course:'BUS101',prog:'BBA',date:'2026-06-15',start:'09:00',end:'12:00',venue:'Online — Exam Platform',dur:180,status:'scheduled'},
+    {id:2,name:'BUS102 End of Semester',course:'BUS102',prog:'BBA',date:'2026-06-16',start:'09:00',end:'11:00',venue:'Online — Exam Platform',dur:120,status:'scheduled'},
+    {id:3,name:'ACC101 End of Semester',course:'ACC101',prog:'BBA',date:'2026-06-17',start:'14:00',end:'17:00',venue:'Online — Exam Platform',dur:180,status:'scheduled'},
+    {id:4,name:'BUS201 End of Semester',course:'BUS201',prog:'BBA',date:'2026-06-18',start:'09:00',end:'12:00',venue:'Online — Exam Platform',dur:180,status:'scheduled'},
+    {id:5,name:'ICT102 End of Semester',course:'ICT102',prog:'BSc CS',date:'2026-06-15',start:'14:00',end:'17:00',venue:'Online — Exam Platform',dur:180,status:'scheduled'},
+    {id:6,name:'ICT201 End of Semester',course:'ICT201',prog:'BSc CS',date:'2026-06-16',start:'09:00',end:'12:00',venue:'Online — Exam Platform',dur:180,status:'scheduled'}
+  ],
+  examQ:[
+    {id:1,exam_id:2,text:'Identify the key actors involved in public policymaking in Uganda and briefly describe the role of each. Illustrate with reference to one specific policy.',type:'essay',marks:25},
+    {id:2,exam_id:2,text:'Compare and contrast public sector management and private sector management. Support your answer with examples from Uganda.',type:'essay',marks:25},
+    {id:3,exam_id:2,text:'Select any four principles of good governance and explain how each is applied in Uganda\'s public sector.',type:'essay',marks:25},
+    {id:5,exam_id:2,text:'Select any four of Henri Fayol\'s fourteen principles of management and explain how each can be applied in a Ugandan public institution.',type:'essay',marks:25},
+    {id:6,exam_id:2,text:'Identify and explain the conditions that must be in place for a PPP to succeed in Uganda.',type:'essay',marks:25},
+    {id:7,exam_id:2,text:'Uganda has comprehensive anti-corruption legislation yet corruption remains pervasive. Critically examine the systemic factors using the Inspectorate of Government as a case study.',type:'essay',marks:25}
+  ],
+  examTypes:[
+    {id:19,name:'Written Exam',icon:'fas fa-pen',color:'#1a3a6b',supervised:true,timed:true},
+    {id:20,name:'Online MCQ',icon:'fas fa-laptop',color:'#0d6efd',supervised:true,timed:true},
+    {id:21,name:'Oral / Viva',icon:'fas fa-comments',color:'#198754',supervised:true,timed:true},
+    {id:22,name:'Practical',icon:'fas fa-flask',color:'#c8860a',supervised:true,timed:true},
+    {id:23,name:'Take-Home Exam',icon:'fas fa-home',color:'#6f42c1',supervised:false,timed:true},
+    {id:24,name:'Open Book',icon:'fas fa-book-open',color:'#0dcaf0',supervised:true,timed:true},
+    {id:25,name:'Portfolio',icon:'fas fa-folder-open',color:'#fd7e14',supervised:false,timed:false},
+    {id:26,name:'Presentation',icon:'fas fa-chalkboard',color:'#dc3545',supervised:true,timed:true},
+    {id:27,name:'CAT / Test',icon:'fas fa-clipboard-list',color:'#20c997',supervised:true,timed:true}
+  ],
+  timetable:[
+    {id:1,prog:'BBA',yr:1,course:'BUS101',lec:'Nakato A.',day:'Monday',start:'08:00',end:'10:00',link:'https://meet.jit.si/TDIIBT-BBA-BUS101'},
+    {id:2,prog:'BBA',yr:1,course:'BUS102',lec:'Atuhaire M.',day:'Tuesday',start:'10:00',end:'12:00',link:'https://meet.jit.si/TDIIBT-BBA-BUS102'},
+    {id:3,prog:'BBA',yr:1,course:'ACC101',lec:'Kayiwa R.',day:'Wednesday',start:'14:00',end:'16:00',link:'https://meet.jit.si/TDIIBT-BBA-ACC101'},
+    {id:4,prog:'BBA',yr:2,course:'BUS201',lec:'Ssebulime I.',day:'Thursday',start:'08:00',end:'10:00',link:'https://meet.jit.si/TDIIBT-BBA-BUS201'},
+    {id:5,prog:'BBA',yr:2,course:'HRM101',lec:'Atuhaire M.',day:'Friday',start:'10:00',end:'12:00',link:'https://meet.jit.si/TDIIBT-BBA-HRM101'},
+    {id:6,prog:'BSc CS',yr:1,course:'ICT101',lec:'Ssebulime I.',day:'Monday',start:'14:00',end:'16:00',link:'https://meet.jit.si/TDIIBT-ICT-ICT101'},
+    {id:7,prog:'BSc CS',yr:1,course:'ICT102',lec:'Ssebulime I.',day:'Tuesday',start:'08:00',end:'10:00',link:'https://meet.jit.si/TDIIBT-ICT-ICT102'},
+    {id:8,prog:'BSc CS',yr:2,course:'ICT201',lec:'Ssebulime I.',day:'Wednesday',start:'10:00',end:'12:00',link:'https://meet.jit.si/TDIIBT-ICT-ICT201'}
+  ],
+  assignments:[
+    {id:10,title:'Business Communication Essay',course:'BUS102',due:'2026-05-20',max:40,type:'file'},
+    {id:11,title:'Financial Accounting Assignment 1',course:'ACC101',due:'2026-05-23',max:50,type:'file'},
+    {id:12,title:'Strategic Management Case Study',course:'BUS201',due:'2026-05-27',max:60,type:'text'},
+    {id:13,title:'Python Programming Assignment',course:'ICT102',due:'2026-05-18',max:40,type:'file'},
+    {id:14,title:'Database Design Project',course:'ICT201',due:'2026-05-25',max:70,type:'file'}
+  ],
+  liveClasses:[
+    {id:1,title:'Introduction to communication',course:'BUS102',platform:'Jitsi',date:'2026-04-30',start:'09:00',end:'10:00',status:'ended',url:'https://meet.jit.si/TDIIBT-F3061AC3'},
+    {id:2,title:'Week 14 — Strategic Decision Making',course:'BUS101',platform:'Jitsi',date:'2026-05-18',start:'08:00',end:'10:00',status:'ended',url:'https://meet.jit.si/TDIIBT-BUS101-Week14'},
+    {id:3,title:'Week 14 — Presentation Skills Workshop',course:'BUS102',platform:'Jitsi',date:'2026-05-19',start:'10:00',end:'12:00',status:'scheduled',url:'https://meet.jit.si/TDIIBT-BUS102-Week14'},
+    {id:4,title:'Week 14 — Financial Statements Analysis',course:'ACC101',platform:'Jitsi',date:'2026-05-13',start:'14:00',end:'16:00',status:'scheduled',url:'https://meet.jit.si/TDIIBT-ACC101-Week14'},
+    {id:5,title:'Week 14 — Python Functions and Modules',course:'ICT102',platform:'Jitsi',date:'2026-05-19',start:'08:00',end:'10:00',status:'scheduled',url:'https://meet.jit.si/TDIIBT-ICT102-Week14'}
+  ],
+  activityLog:[
+    {id:79,user:'superadmin',action:'test_email',mod:'settings',desc:'Sent test email to ashukurtech@gmail.com',ip:'41.210.147.228',date:'2026-05-19 18:41'},
+    {id:78,user:'superadmin',action:'save_smtp',mod:'settings',desc:'SMTP config updated',ip:'41.210.147.228',date:'2026-05-19 18:38'},
+    {id:77,user:'superadmin',action:'save_backup_settings',mod:'backup',desc:'Updated backup configuration',ip:'41.210.147.228',date:'2026-05-19 18:35'},
+    {id:75,user:'bursar',action:'record_payment',mod:'finance',desc:'Receipt RCP-2026-0005 — UGX 100,000 by Cash',ip:'41.210.147.228',date:'2026-05-19 17:26'},
+    {id:73,user:'bursar',action:'send_reminder',mod:'finance',desc:'Fee reminder emailed for invoice INV-2026-0003',ip:'41.210.147.228',date:'2026-05-19 17:20'},
+    {id:71,user:'bursar',action:'generate_invoice',mod:'finance',desc:'Invoice INV-2026-0005 for student 1 — UGX 10,000',ip:'41.210.147.228',date:'2026-05-19 16:39'},
+    {id:70,user:'superadmin',action:'edit_staff',mod:'staff',desc:'Edited staff ID: 5',ip:'41.210.147.228',date:'2026-05-19 16:11'},
+    {id:67,user:'superadmin',action:'create_payroll',mod:'payroll',desc:'Created payroll #1',ip:'41.210.146.96',date:'2026-05-18 20:32'},
+    {id:65,user:'superadmin',action:'create_parent',mod:'parent_accounts',desc:'Created parent account for student #6',ip:'41.210.146.96',date:'2026-05-18 00:53'},
+    {id:64,user:'superadmin',action:'enroll_applicant',mod:'admissions',desc:'Enrolled application 2 as TDIIBT/MPA/2026/001',ip:'41.210.146.96',date:'2026-05-18 00:49'},
+    {id:62,user:'superadmin',action:'save_institution',mod:'institution',desc:'Institution details updated',ip:'41.210.146.96',date:'2026-05-17 23:38'},
+    {id:56,user:'superadmin',action:'update_exam',mod:'exam_create',desc:'Updated CBT exam: END OF SEMESTER EXAMINATIONS',ip:'41.210.146.96',date:'2026-05-17 15:34'},
+    {id:39,user:'superadmin',action:'enroll_applicant',mod:'admissions',desc:'Enrolled application 1 as TDIIBT/BBA-BUS/2026/001',ip:'41.210.147.244',date:'2026-05-12 13:27'},
+    {id:32,user:'superadmin',action:'create_live_class',mod:'live_classes',desc:'Created: Introduction to communication',ip:'41.210.159.75',date:'2026-04-30 01:33'},
+    {id:21,user:'superadmin',action:'record_payment',mod:'finance',desc:'Payment RCP-2026-0001 for student 4',ip:'41.210.146.164',date:'2026-04-28 23:27'},
+    {id:10,user:'superadmin',action:'save_marks',mod:'marks',desc:'Saved 2 marks for course 2 semester 1',ip:'41.210.143.211',date:'2026-04-28 18:42'},
+    {id:1,user:'superadmin',action:'save_attendance',mod:'attendance',desc:'Saved 2 records for course 2 on 2026-04-28',ip:'41.210.143.211',date:'2026-04-28 11:59'}
+  ],
+  departments:[
+    {id:1,code:'BUS',name:'Business Administration',faculty:'FBMT'},
+    {id:2,code:'ACC',name:'Accounting & Finance',faculty:'FBMT'},
+    {id:3,code:'MKT',name:'Marketing & Entrepreneurship',faculty:'FBMT'},
+    {id:4,code:'HRM',name:'Human Resource Management',faculty:'FBMT'},
+    {id:5,code:'CS',name:'Computer Science',faculty:'FICT'},
+    {id:6,code:'IT',name:'Information Technology',faculty:'FICT'},
+    {id:7,code:'SWE',name:'Software Engineering',faculty:'FICT'},
+    {id:8,code:'SEC',name:'Cyber Security',faculty:'FICT'}
+  ],
+  grading:[
+    {grade:'A',min:80,max:100,gpa:4.0,desc:'Distinction'},
+    {grade:'B',min:65,max:79.9,gpa:3.0,desc:'Credit'},
+    {grade:'C',min:50,max:64.9,gpa:2.0,desc:'Pass'},
+    {grade:'D',min:40,max:49.9,gpa:1.0,desc:'Marginal Fail'},
+    {grade:'F',min:0,max:39.9,gpa:0.0,desc:'Fail'}
+  ],
+  gateways:[
+    {slug:'mtn_momo',name:'MTN Mobile Money',enabled:true,icon:'fas fa-mobile-alt',color:'#FFCC00',cat:'free'},
+    {slug:'airtel_money',name:'Airtel Money',enabled:true,icon:'fas fa-mobile-alt',color:'#FF0000',cat:'free'},
+    {slug:'flutterwave',name:'Flutterwave',enabled:true,icon:'fas fa-credit-card',color:'#F5A623',cat:'free'},
+    {slug:'schoolpay',name:'SchoolPay Uganda',enabled:true,icon:'fas fa-school',color:'#005B96',cat:'paid'},
+    {slug:'pesapal',name:'Pesapal',enabled:true,icon:'fas fa-credit-card',color:'#00A651',cat:'free'},
+    {slug:'surepay',name:'SurePay',enabled:true,icon:'fas fa-shield-alt',color:'#00A651',cat:'paid'},
+    {slug:'stripe',name:'Stripe',enabled:false,icon:'fab fa-stripe',color:'#6772E5',cat:'free'},
+    {slug:'paypal',name:'PayPal',enabled:false,icon:'fab fa-paypal',color:'#003087',cat:'free'},
+    {slug:'cash',name:'Cash Payment',enabled:false,icon:'fas fa-coins',color:'#c8860a',cat:'free'},
+    {slug:'bank',name:'Bank Transfer',enabled:false,icon:'fas fa-university',color:'#1a3a6b',cat:'free'}
+  ],
+  branches:[
+    {id:1,name:'Main Campus (Online)',code:'MAIN',city:'Kampala',is_main:1,active:1},
+    {id:2,name:'Kampala City Centre',code:'KCC',city:'Kampala',is_main:0,active:1},
+    {id:3,name:'Online Division',code:'ONLINE',city:'Virtual',is_main:0,active:1}
+  ],
+  bankAccounts:[
+    {id:1,name:'Kizito Allan',bank:'Bank of Africa',acc:'0123456789',currency:'UGX',primary:1},
+    {id:2,name:'TDIIBT Education Account',bank:'DFCU Bank',acc:'01212345678901',currency:'UGX',primary:0}
+  ],
+  assetCats:[
+    {id:1,name:'Computers & IT',icon:'fas fa-laptop',color:'#1a3a6b'},
+    {id:2,name:'Furniture & Fittings',icon:'fas fa-chair',color:'#c8860a'},
+    {id:3,name:'Office Equipment',icon:'fas fa-print',color:'#198754'},
+    {id:4,name:'Vehicles',icon:'fas fa-car',color:'#0d6efd'},
+    {id:5,name:'Laboratory Equipment',icon:'fas fa-flask',color:'#6f42c1'},
+    {id:6,name:'Buildings & Land',icon:'fas fa-building',color:'#20c997'},
+    {id:7,name:'Books & Library',icon:'fas fa-book',color:'#fd7e14'},
+    {id:8,name:'Other',icon:'fas fa-box',color:'#6c757d'}
+  ],
+  staffTypes:[
+    {id:1,name:'Academic',icon:'fas fa-chalkboard-teacher',color:'#1a3a6b'},
+    {id:2,name:'Administrative',icon:'fas fa-briefcase',color:'#065f46'},
+    {id:3,name:'Support Staff',icon:'fas fa-tools',color:'#92400e'},
+    {id:4,name:'Management',icon:'fas fa-crown',color:'#6d28d9'}
+  ],
+  roles:[
+    {id:1,name:'Super Admin',slug:'superadmin',level:1},
+    {id:2,name:'Admin',slug:'admin',level:2},
+    {id:3,name:'Director',slug:'director',level:2},
+    {id:4,name:'Registrar',slug:'registrar',level:3},
+    {id:5,name:'Bursar',slug:'bursar',level:3},
+    {id:6,name:'HOD',slug:'hod',level:3},
+    {id:7,name:'Lecturer',slug:'lecturer',level:4},
+    {id:8,name:'Student',slug:'student',level:5},
+    {id:9,name:'Admissions',slug:'admissions',level:3},
+    {id:10,name:'Accountant',slug:'accountant',level:4},
+    {id:11,name:'Librarian',slug:'librarian',level:4},
+    {id:12,name:'Parent/Guardian',slug:'parent',level:6}
+  ]
+};
+
+// ===== STATE =====
+let cRole='director',cUser={name:'Twinamatsiko Naboth',role:'Director',initials:'TN',email:'director@tdiibt.ac.ug'};
+let charts={};
+
+// ===== HELPERS =====
+const fmt=n=>new Intl.NumberFormat('en-UG').format(n);
+const pname=id=>{const p=DB.programmes.find(x=>x.id==id);return p?p.code:'—'};
+const pfull=id=>{const p=DB.programmes.find(x=>x.id==id);return p?p.name:'—'};
+const cname=id=>{const c=DB.courses.find(x=>x.id==id);return c?c.name:'—'};
+const sname=id=>{const s=DB.students.find(x=>x.id==id);return s?s.first+' '+s.last:'—'};
+const dname=id=>{const d=DB.departments.find(x=>x.id==id);return d?d.name:'—'};
+const sbg=(s)=>{const m={active:'bgs',inactive:'bgm',suspended:'bgd',graduated:'bgn',withdrawn:'bgd',enrolled:'bgs',submitted:'bgi',under_review:'bgw',accepted:'bgs',rejected:'bgd',scheduled:'bgn',live:'bgs',ended:'bgm',cancelled:'bgd',paid:'bgs',partial:'bgw',unpaid:'bgd',draft:'bgm',approved:'bgs',fulltime:'bgn',parttime:'bgi',compulsory:'bgn',elective:'bgi',general:'bgm',dissertation:'bgp',file:'bgi',text:'bgm',any:'bgm'};return`<span class="bg ${m[s]||'bgm'}">${s}</span>`};
+const abtn=(icon,cb,cls='bo')=>`<button class="btn ${cls} bxs" onclick="${cb}"><i class="${icon}"></i></button>`;
+let toastT;
+function toast(msg,ms=2800){const t=document.getElementById('toast');document.getElementById('tmsg').textContent=msg;t.style.display='block';clearTimeout(toastT);toastT=setTimeout(()=>t.style.display='none',ms)}
+
+// ===== AUTH =====
+function setRole(el,role,label,email){
+  cRole=role;
+  document.getElementById('lemail').value=email;
+  document.querySelectorAll('.rchip').forEach(c=>c.classList.remove('sel'));
+  el.classList.add('sel');
+}
+function doLogin(){
+  const email=document.getElementById('lemail').value;
+  const users={'director@tdiibt.ac.ug':{name:'Twinamatsiko Naboth',role:'Director',initials:'TN',slug:'director'},'superadmin@tdiibt.ac.ug':{name:'Kigozi Paul',role:'Super Admin',initials:'KP',slug:'superadmin'},'registrar@tdiibt.ac.ug':{name:'Atuhaire Moses',role:'Registrar',initials:'AM',slug:'registrar'},'bursar@tdiibt.ac.ug':{name:'Kayiwa Robert',role:'Bursar',initials:'KR',slug:'bursar'},'hod.business@tdiibt.ac.ug':{name:'Bbosa Daniel',role:'HOD Business',initials:'BD',slug:'hod'},'lecturer01@tdiibt.ac.ug':{name:'Nakato Amina',role:'Lecturer',initials:'NA',slug:'lecturer'},'std.bsc001@tdiibt.ac.ug':{name:'Sarah Namukasa',role:'Student',initials:'SN',slug:'student'},'accountant@tdiibt.ac.ug':{name:'Nambatya Grace',role:'Accountant',initials:'NG',slug:'accountant'},'admissions@tdiibt.ac.ug':{name:'Mutebi Frank',role:'Admissions Officer',initials:'MF',slug:'admissions'}};
+  const u=users[email]||{name:email.split('@')[0],role:'User',initials:'U',slug:'admin'};
+  cUser=u; cRole=u.slug;
+  document.getElementById('tun').textContent=u.name;
+  document.getElementById('tur').textContent=u.role;
+  document.getElementById('tua').textContent=u.initials;
+  document.getElementById('dname').textContent=u.name.split(' ')[0];
+  document.getElementById('profAv').textContent=u.initials;
+  document.getElementById('profName').textContent=u.name;
+  document.getElementById('profRole').textContent=u.role;
+  document.getElementById('profEmail').textContent=u.email||email;
+  document.getElementById('lp').style.display='none';
+  buildSidebar();
+  initDashboard();
+  nav('dashboard');
+}
+function logout(){document.getElementById('lp').style.display='flex'}
+
+// ===== SIDEBAR NAV =====
+const NAVMAP={
+  superadmin:['dashboard','students','staff','programmes','courses','marks','attendance','finance','admissions','exams','timetable','assignments','live-classes','library','notices','calendar','transcripts','graduation','hr','procurement','assets','reports','audit','settings'],
+  director:['dashboard','students','staff','programmes','courses','marks','attendance','finance','admissions','exams','timetable','assignments','live-classes','library','notices','calendar','transcripts','graduation','hr','procurement','assets','reports','audit','settings'],
+  registrar:['dashboard','students','programmes','courses','marks','attendance','exams','timetable','calendar','transcripts','graduation','notices','reports'],
+  bursar:['dashboard','finance','students','reports'],
+  hod:['dashboard','students','courses','marks','attendance','assignments','live-classes','notices'],
+  lecturer:['dashboard','marks','attendance','assignments','live-classes','notices'],
+  student:['dashboard','marks','attendance','library','notices','calendar','transcripts'],
+  admissions:['dashboard','admissions','students','reports'],
+  accountant:['dashboard','finance','reports']
+};
+const NMETA={
+  dashboard:{label:'Dashboard',icon:'fas fa-tachometer-alt',group:'Main'},
+  students:{label:'Students',icon:'fas fa-user-graduate',group:'Academic'},
+  staff:{label:'Staff',icon:'fas fa-users',group:'Academic'},
+  programmes:{label:'Programmes',icon:'fas fa-graduation-cap',group:'Academic'},
+  courses:{label:'Courses',icon:'fas fa-book',group:'Academic'},
+  marks:{label:'Marks & Results',icon:'fas fa-chart-line',group:'Academic'},
+  attendance:{label:'Attendance',icon:'fas fa-clipboard-list',group:'Academic'},
+  exams:{label:'Online Exams',icon:'fas fa-laptop',group:'Academic'},
+  timetable:{label:'Timetable',icon:'fas fa-calendar',group:'Academic'},
+  assignments:{label:'Assignments',icon:'fas fa-tasks',group:'Academic'},
+  'live-classes':{label:'Live Classes',icon:'fas fa-video',group:'Academic'},
+  calendar:{label:'Academic Calendar',icon:'fas fa-calendar-alt',group:'Academic'},
+  transcripts:{label:'Transcripts',icon:'fas fa-scroll',group:'Academic'},
+  graduation:{label:'Graduation',icon:'fas fa-graduation-cap',group:'Academic'},
+  finance:{label:'Finance',icon:'fas fa-coins',group:'Finance'},
+  admissions:{label:'Admissions',icon:'fas fa-file-alt',group:'Admissions'},
+  library:{label:'Library',icon:'fas fa-book-open',group:'Resources'},
+  notices:{label:'Notices',icon:'fas fa-bullhorn',group:'Communication'},
+  hr:{label:'Human Resources',icon:'fas fa-briefcase',group:'Operations'},
+  procurement:{label:'Procurement',icon:'fas fa-shopping-cart',group:'Operations'},
+  assets:{label:'Asset Register',icon:'fas fa-box',group:'Operations'},
+  reports:{label:'Reports',icon:'fas fa-chart-pie',group:'Analytics'},
+  audit:{label:'Audit Log',icon:'fas fa-history',group:'System'},
+  settings:{label:'Settings',icon:'fas fa-cogs',group:'System'}
+};
+function buildSidebar(){
+  const pages=NAVMAP[cRole]||NAVMAP.director;
+  let h='',lastG='';
+  pages.forEach(p=>{
+    const m=NMETA[p];if(!m)return;
+    if(m.group!==lastG){h+=`<div class="nl">${m.group}</div>`;lastG=m.group;}
+    h+=`<div class="ni" id="ni-${p}" onclick="nav('${p}')"><i class="${m.icon}"></i><span class="nt">${m.label}</span></div>`;
+  });
+  document.getElementById('sbnav').innerHTML=h;
+}
+function toggleSB(){document.getElementById('sb').classList.toggle('col')}
+
+// ===== NAVIGATION =====
+function nav(page){
+  document.querySelectorAll('.pg').forEach(p=>p.classList.remove('act'));
+  document.querySelectorAll('.ni').forEach(n=>n.classList.remove('act'));
+  const el=document.getElementById('pg-'+page);if(el)el.classList.add('act');
+  const ni=document.getElementById('ni-'+page);if(ni)ni.classList.add('act');
+  const m=NMETA[page];
+  document.getElementById('tbtitle').textContent=m?m.label:page;
+  // render on demand
+  const renders={students:renderStudents,staff:renderStaff,programmes:renderProgs,courses:renderCourses,marks:renderMarks,finance:renderFinance,admissions:renderAdmissions,exams:renderExams,timetable:renderTimetable,assignments:renderAssignments,'live-classes':renderLiveClasses,library:renderLibrary,notices:renderNotices,calendar:renderCalendar,attendance:renderAttendance,audit:renderAudit,settings:renderSettings,assets:renderAssets,reports:renderReports};
+  if(renders[page])renders[page]();
+}
+
+// ===== DASHBOARD =====
+function initDashboard(){
+  const rev=DB.payments.reduce((s,p)=>s+p.amount,0);
+  const out=DB.invoices.reduce((s,i)=>s+i.bal,0);
+  document.getElementById('dstats').innerHTML=`
+    <div class="sc bl"><div class="sv">${DB.students.length}</div><div class="sl">Total Students</div><i class="fas fa-user-graduate si"></i></div>
+    <div class="sc gd"><div class="sv">${DB.staff.length}</div><div class="sl">Staff Members</div><i class="fas fa-users si"></i></div>
+    <div class="sc gr"><div class="sv">${DB.programmes.length}</div><div class="sl">Programmes</div><i class="fas fa-graduation-cap si"></i></div>
+    <div class="sc pu"><div class="sv">${DB.courses.length}</div><div class="sl">Courses</div><i class="fas fa-book si"></i></div>
+    <div class="sc tl"><div class="sv">UGX ${fmt(rev)}</div><div class="sl">Total Revenue</div><i class="fas fa-coins si"></i></div>
+    <div class="sc rd"><div class="sv">UGX ${fmt(out)}</div><div class="sl">Outstanding Fees</div><i class="fas fa-exclamation si"></i></div>`;
+  document.getElementById('dact').innerHTML=DB.activityLog.slice(0,6).map(a=>`<div style="display:flex;gap:8px;padding:7px 0;border-bottom:1px solid var(--bd);font-size:11px"><span class="bg bgn" style="flex-shrink:0;align-self:start">${a.mod}</span><div><div style="font-weight:500">${a.desc}</div><div style="color:var(--mu)">${a.user} · ${a.date}</div></div></div>`).join('');
+  document.getElementById('devt').innerHTML=DB.calendar.filter(e=>e.date>='2026-06-01').slice(0,5).map(e=>`<div style="display:flex;gap:8px;padding:7px 0;border-bottom:1px solid var(--bd);font-size:11px;align-items:center"><div style="width:9px;height:9px;border-radius:50%;background:${e.color};flex-shrink:0"></div><div><div style="font-weight:500">${e.title}</div><div style="color:var(--mu)">${e.date}</div></div></div>`).join('');
+  document.getElementById('dfa').innerHTML=DB.invoices.filter(i=>i.bal>0).map(i=>`<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--bd);font-size:11px"><div><div style="font-weight:500">${sname(i.stu_id)}</div><div style="color:var(--mu)">${i.num}</div></div><div style="text-align:right"><div style="color:var(--danger);font-weight:600">UGX ${fmt(i.bal)}</div><div style="color:var(--mu)">Due ${i.due}</div></div></div>`).join('');
+  document.getElementById('dqa').innerHTML=`
+    <button class="btn bo bsm" onclick="nav('students');setTimeout(openStudentModal,100)"><i class="fas fa-user-plus"></i> Add Student</button>
+    <button class="btn bo bsm" onclick="nav('admissions')"><i class="fas fa-file-alt"></i> View Applications</button>
+    <button class="btn bo bsm" onclick="nav('finance');setTimeout(openInvModal,100)"><i class="fas fa-file-invoice"></i> Generate Invoice</button>
+    <button class="btn bo bsm" onclick="nav('marks');setTimeout(openMarksModal,100)"><i class="fas fa-edit"></i> Enter Marks</button>
+    <button class="btn bo bsm" onclick="nav('notices');setTimeout(openNoticeModal,100)"><i class="fas fa-bullhorn"></i> Post Notice</button>
+    <button class="btn bo bsm" onclick="nav('reports')"><i class="fas fa-chart-bar"></i> View Reports</button>`;
+  setTimeout(buildCharts,80);
+}
+function buildCharts(){
+  if(charts.enroll)charts.enroll.destroy();
+  if(charts.levels)charts.levels.destroy();
+  const cnt={};DB.students.forEach(s=>cnt[pname(s.prog_id)]=(cnt[pname(s.prog_id)]||0)+1);
+  const lbls=Object.keys(cnt),vals=Object.values(cnt);
+  const c1=document.getElementById('cEnroll');
+  if(c1)charts.enroll=new Chart(c1,{type:'bar',data:{labels:lbls,datasets:[{label:'Students',data:vals,backgroundColor:'#1a3a6b',borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{stepSize:1}}}}});
+  const lvls={};DB.students.forEach(s=>{const p=DB.programmes.find(x=>x.id==s.prog_id);if(p){lvls[p.level]=(lvls[p.level]||0)+1}});
+  const c2=document.getElementById('cLevels');
+  if(c2)charts.levels=new Chart(c2,{type:'doughnut',data:{labels:Object.keys(lvls),datasets:[{data:Object.values(lvls),backgroundColor:['#1a3a6b','#c8860a','#198754','#6f42c1','#0d6efd']}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:{size:10}}}}}});
+}
+
+// ===== STUDENTS =====
+function renderStudents(){
+  const sel=document.getElementById('sprog');
+  if(sel&&sel.options.length<2)DB.programmes.forEach(p=>{const o=new Option(p.name,p.id);sel.add(o)});
+  filterStu();
+}
+function filterStu(){
+  const q=(document.getElementById('ssearch')?.value||'').toLowerCase();
+  const pf=document.getElementById('sprog')?.value||'';
+  const sf=document.getElementById('sstat')?.value||'';
+  const rows=DB.students.filter(s=>{
+    const n=(s.first+' '+s.last+' '+s.reg+' '+s.email).toLowerCase();
+    return(!q||n.includes(q))&&(!pf||s.prog_id==pf)&&(!sf||s.status===sf);
+  });
+  document.getElementById('stb').innerHTML=rows.map((s,i)=>`<tr>
+    <td>${i+1}</td>
+    <td><code style="font-size:10px;background:#f0f4f8;padding:1px 5px;border-radius:3px">${s.reg}</code></td>
+    <td><div style="display:flex;align-items:center;gap:7px"><div class="av" style="width:28px;height:28px;font-size:9px">${s.first[0]}${s.last[0]}</div><div><div style="font-weight:500">${s.first} ${s.last}</div><div style="font-size:10px;color:var(--mu)">${s.email}</div></div></div></td>
+    <td><span class="bg bgn">${pname(s.prog_id)}</span></td>
+    <td style="font-size:11px">${s.phone}</td>
+    <td>Year ${s.year}</td>
+    <td>${sbg(s.status)}</td>
+    <td style="white-space:nowrap">${abtn('fas fa-eye',`viewStudent(${s.id})`)} ${abtn('fas fa-edit',`openStudentModal(${s.id})`)} ${abtn('fas fa-id-card',`toast('Generating ID card for ${s.first}…')`)} ${abtn('fas fa-scroll',`toast('Generating transcript for ${s.first}…')`)} ${abtn('fas fa-trash',`deleteStudent(${s.id})`,'bod')}</td>
+  </tr>`).join('');
+  const cnt=document.getElementById('scnt');
+  if(cnt)cnt.textContent=`Showing ${rows.length} of ${DB.students.length} students`;
+}
+function openStudentModal(id){
+  const s=id?DB.students.find(x=>x.id==id):{};
+  document.getElementById('mtitle').textContent=id?'Edit Student':'Add New Student';
+  document.getElementById('mbody').innerHTML=`
+    <div class="row">
+      <div class="c6"><div class="fg"><label class="fl">First Name *</label><input class="fc" id="sf1" value="${s.first||''}"></div></div>
+      <div class="c6"><div class="fg"><label class="fl">Last Name *</label><input class="fc" id="sf2" value="${s.last||''}"></div></div>
+      <div class="c6"><div class="fg"><label class="fl">Email *</label><input class="fc" type="email" id="sf3" value="${s.email||''}"></div></div>
+      <div class="c6"><div class="fg"><label class="fl">Phone *</label><input class="fc" id="sf4" value="${s.phone||''}"></div></div>
+      <div class="c6"><div class="fg"><label class="fl">Programme *</label><select class="fs" id="sf5">${DB.programmes.map(p=>`<option value="${p.id}"${s.prog_id==p.id?' selected':''}>${p.name}</option>`).join('')}</select></div></div>
+      <div class="c6"><div class="fg"><label class="fl">Gender</label><select class="fs" id="sf6"><option value="male"${s.gender=='male'?' selected':''}>Male</option><option value="female"${s.gender=='female'?' selected':''}>Female</option><option value="other">Other</option></select></div></div>
+      <div class="c6"><div class="fg"><label class="fl">Date of Birth</label><input class="fc" type="date" id="sf7" value="${s.dob||''}"></div></div>
+      <div class="c6"><div class="fg"><label class="fl">Year of Study</label><select class="fs" id="sf8">${[1,2,3,4].map(y=>`<option${s.year==y?' selected':''}>${y}</option>`).join('')}</select></div></div>
+      <div class="c6"><div class="fg"><label class="fl">Nationality</label><input class="fc" id="sf9" value="${s.nationality||'Ugandan'}"></div></div>
+      <div class="c6"><div class="fg"><label class="fl">National ID / Passport</label><input class="fc" id="sf10" value="${s.national_id||''}"></div></div>
+    </div>`;
+  document.getElementById('mfoot').innerHTML=`<button class="btn bo bsm" onclick="closeModal()">Cancel</button><button class="btn bp bsm" onclick="saveStudent(${id||'null'})"><i class="fas fa-save"></i> ${id?'Update Student':'Save & Create Account'}</button>`;
+  document.getElementById('moverlay').style.display='flex';
+}
+function saveStudent(id){
+  const f={first:document.getElementById('sf1').value,last:document.getElementById('sf2').value,email:document.getElementById('sf3').value,phone:document.getElementById('sf4').value,prog_id:+document.getElementById('sf5').value,gender:document.getElementById('sf6').value,dob:document.getElementById('sf7').value,year:+document.getElementById('sf8').value,nationality:document.getElementById('sf9').value,national_id:document.getElementById('sf10').value};
+  if(!f.first||!f.last||!f.email){alert('Fill required fields (marked *)');return;}
+  if(id){Object.assign(DB.students.find(s=>s.id==id),f);toast('Student updated successfully');}
+  else{const p=DB.programmes.find(x=>x.id==f.prog_id);const yr=new Date().getFullYear();const seq=String(DB.students.length+1).padStart(3,'0');f.id=Date.now();f.reg=`TDIIBT/${p?.code||'STD'}/${yr}/${seq}`;f.status='active';DB.students.push(f);toast(`Student added. Reg: ${f.reg}`);}
+  closeModal();filterStu();
+}
+function viewStudent(id){
+  const s=DB.students.find(x=>x.id==id);if(!s)return;
+  const p=DB.programmes.find(x=>x.id==s.prog_id);
+  const mks=DB.marks.filter(m=>m.stu_id==id);
+  const gpa=mks.length?((mks.reduce((a,m)=>a+m.gpa,0)/mks.length).toFixed(2)):'-';
+  document.getElementById('mtitle').textContent='Student Profile';
+  document.getElementById('mbody').innerHTML=`
+    <div style="text-align:center;margin-bottom:14px">
+      <div class="av" style="width:64px;height:64px;font-size:20px;margin:0 auto 8px">${s.first[0]}${s.last[0]}</div>
+      <strong style="font-size:15px">${s.first} ${s.last}</strong><br>
+      <code style="font-size:11px">${s.reg}</code><br>
+      ${sbg(s.status)}
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;font-size:12px">
+      <div><strong style="color:var(--mu)">Programme</strong><div>${p?.name||'—'}</div></div>
+      <div><strong style="color:var(--mu)">Email</strong><div>${s.email}</div></div>
+      <div><strong style="color:var(--mu)">Phone</strong><div>${s.phone||'—'}</div></div>
+      <div><strong style="color:var(--mu)">Gender</strong><div>${s.gender||'—'}</div></div>
+      <div><strong style="color:var(--mu)">Year</strong><div>Year ${s.year}</div></div>
+      <div><strong style="color:var(--mu)">Current GPA</strong><div><strong>${gpa}</strong></div></div>
+      <div><strong style="color:var(--mu)">Nationality</strong><div>${s.nationality||'Ugandan'}</div></div>
+      <div><strong style="color:var(--mu)">Courses Registered</strong><div>${mks.length}</div></div>
+    </div>
+    ${mks.length?`<div style="margin-top:14px"><strong style="font-size:12px">Academic Record</strong><div class="tw" style="margin-top:8px"><table class="dt"><thead><tr><th>Course</th><th>CAT</th><th>Exam</th><th>Total</th><th>Grade</th></tr></thead><tbody>${mks.map(m=>`<tr><td>${cname(m.crs_id)}</td><td>${m.cat}</td><td>${m.exam}</td><td><strong>${m.total}</strong></td><td>${sbg(m.grade)}</td></tr>`).join('')}</tbody></table></div></div>`:''}`;
+  document.getElementById('mfoot').innerHTML=`<button class="btn bo bsm" onclick="closeModal()">Close</button><button class="btn bp bsm" onclick="closeModal();openStudentModal(${id})"><i class="fas fa-edit"></i> Edit</button><button class="btn bo bsm" onclick="toast('Generating admission letter…')"><i class="fas fa-file"></i> Admission Letter</button>`;
+  document.getElementById('moverlay').style.display='flex';
+}
+function deleteStudent(id){if(confirm('Delete this student? This cannot be undone.')){DB.students=DB.students.filter(s=>s.id!=id);filterStu();toast('Student deleted');}}
+function openBulkImport(){
+  document.getElementById('mtitle').textContent='Bulk Import Students';
+  document.getElementById('mbody').innerHTML=`<div class="alert ai"><i class="fas fa-info-circle"></i> Download the CSV template, fill it in with student data, then upload it here. A portal account is created automatically for each student.</div><div style="display:flex;gap:8px;margin-bottom:16px"><button class="btn bo bsm"><i class="fas fa-download"></i> Download Template</button></div><div class="fg"><label class="fl">Upload CSV File</label><input type="file" accept=".csv" style="width:100%;padding:8px;border:1px dashed var(--bd);border-radius:var(--r)"></div>`;
+  document.getElementById('mfoot').innerHTML=`<button class="btn bo bsm" onclick="closeModal()">Cancel</button><button class="btn bp bsm" onclick="closeModal();toast('5 students imported successfully')"><i class="fas fa-upload"></i> Import Students</button>`;
+  document.getElementById('moverlay').style.display='flex';
+}
+
+// ===== STAFF =====
+function renderStaff(){
+  const sel=document.getElementById('stdept');
+  if(sel&&sel.options.length<2)DB.departments.forEach(d=>{const o=new Option(d.name,d.id);sel.add(o)});
+  filterStaff();
+}
+function filterStaff(){
+  const q=(document.getElementById('stsearch')?.value||'').toLowerCase();
+  const df=document.getElementById('stdept')?.value||'';
+  const sf=document.getElementById('ststat')?.value||'';
+  const rows=DB.staff.filter(s=>{
+    const n=(s.first+' '+s.last+' '+s.email+' '+s.desig).toLowerCase();
+    return(!q||n.includes(q))&&(!df||s.dept_id==df)&&(!sf||s.status===sf);
+  });
+  document.getElementById('stftb').innerHTML=rows.map((s,i)=>`<tr>
+    <td>${i+1}</td>
+    <td><code style="font-size:10px">${s.no}</code></td>
+    <td><div style="display:flex;align-items:center;gap:7px"><div class="av" style="width:28px;height:28px;font-size:9px">${s.first[0]}${s.last[0]}</div><div><div style="font-weight:500">${s.title||''} ${s.first} ${s.last}</div><div style="font-size:10px;color:var(--mu)">${s.email}</div></div></div></td>
+    <td>${s.desig}</td>
+    <td style="font-size:11px">${dname(s.dept_id)}</td>
+    <td>${sbg(s.type)}</td>
+    <td>${sbg(s.status)}</td>
+    <td style="white-space:nowrap">${abtn('fas fa-eye',`viewStaff(${s.id})`)} ${abtn('fas fa-edit',`openStaffModal(${s.id})`)} ${abtn('fas fa-key',`toast('Password reset for ${s.first}')`)} ${abtn('fas fa-trash',`deleteStaff(${s.id})`,'bod')}</td>
+  </tr>`).join('');
+}
+function openStaffModal(id){
+  const s=id?DB.staff.find(x=>x.id==id):{};
+  document.getElementById('mtitle').textContent=id?'Edit Staff Member':'Add Staff Member';
+  document.getElementById('mbody').innerHTML=`
+    <div class="row">
+      <div class="c6"><div class="fg"><label class="fl">First Name *</label><input class="fc" id="stf1" value="${s.first||''}"></div></div>
+      <div class="c6"><div class="fg"><label class="fl">Last Name *</label><input class="fc" id="stf2" value="${s.last||''}"></div></div>
+      <div class="c6"><div class="fg"><label class="fl">Email *</label><input class="fc" type="email" id="stf3" value="${s.email||''}"></div></div>
+      <div class="c6"><div class="fg"><label class="fl">Phone</label><input class="fc" id="stf4" value="${s.phone||''}"></div></div>
+      <div class="c6"><div class="fg"><label class="fl">Title</label><select class="fs" id="stf5"><option value="">—</option><option ${s.title=='Mr.'?'selected':''}>Mr.</option><option ${s.title=='Ms.'?'selected':''}>Ms.</option><option ${s.title=='Dr.'?'selected':''}>Dr.</option><option ${s.title=='Prof.'?'selected':''}>Prof.</option></select></div></div>
+      <div class="c6"><div class="fg"><label class="fl">Gender</label><select class="fs" id="stf6"><option value="male" ${s.gender=='male'?'selected':''}>Male</option><option value="female" ${s.gender=='female'?'selected':''}>Female</option></select></div></div>
+      <div class="c6"><div class="fg"><label class="fl">Designation</label><input class="fc" id="stf7" value="${s.desig||''}"></div></div>
+      <div class="c6"><div class="fg"><label class="fl">Department</label><select class="fs" id="stf8">${DB.departments.map(d=>`<option value="${d.id}"${s.dept_id==d.id?' selected':''}>${d.name}</option>`).join('')}</select></div></div>
+      <div class="c6"><div class="fg"><label class="fl">Employment Type</label><select class="fs" id="stf9"><option value="fulltime"${s.type=='fulltime'?' selected':''}>Full Time</option><option value="parttime"${s.type=='parttime'?' selected':''}>Part Time</option><option value="visiting">Visiting</option><option value="contract">Contract</option></select></div></div>
+    </div>`;
+  document.getElementById('mfoot').innerHTML=`<button class="btn bo bsm" onclick="closeModal()">Cancel</button><button class="btn bp bsm" onclick="saveStaff(${id||'null'})"><i class="fas fa-save"></i> ${id?'Update':'Add Staff'}</button>`;
+  document.getElementById('moverlay').style.display='flex';
+}
+function saveStaff(id){
+  const f={first:document.getElementById('stf1').value,last:document.getElementById('stf2').value,email:document.getElementById('stf3').value,phone:document.getElementById('stf4').value,title:document.getElementById('stf5').value,gender:document.getElementById('stf6').value,desig:document.getElementById('stf7').value,dept_id:+document.getElementById('stf8').value,type:document.getElementById('stf9').value};
+  if(!f.first||!f.email){alert('Fill required fields');return;}
+  if(id){Object.assign(DB.staff.find(s=>s.id==id),f);toast('Staff updated');}
+  else{f.id=Date.now();f.no=`TDIIBT-SA-${String(DB.staff.length+1).padStart(3,'0')}`;f.status='active';DB.staff.push(f);toast('Staff added and account created');}
+  closeModal();filterStaff();
+}
+function viewStaff(id){
+  const s=DB.staff.find(x=>x.id==id);if(!s)return;
+  document.getElementById('mtitle').textContent='Staff Profile';
+  document.getElementById('mbody').innerHTML=`<div style="text-align:center;margin-bottom:14px"><div class="av" style="width:64px;height:64px;font-size:20px;margin:0 auto 8px">${s.first[0]}${s.last[0]}</div><strong style="font-size:15px">${s.title||''} ${s.first} ${s.last}</strong><br><code style="font-size:11px">${s.no}</code><br>${sbg(s.status)}</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;font-size:12px"><div><strong style="color:var(--mu)">Designation</strong><div>${s.desig}</div></div><div><strong style="color:var(--mu)">Department</strong><div>${dname(s.dept_id)}</div></div><div><strong style="color:var(--mu)">Email</strong><div>${s.email}</div></div><div><strong style="color:var(--mu)">Phone</strong><div>${s.phone||'—'}</div></div><div><strong style="color:var(--mu)">Employment</strong><div>${sbg(s.type)}</div></div><div><strong style="color:var(--mu)">Gender</strong><div>${s.gender||'—'}</div></div></div>`;
+  document.getElementById('mfoot').innerHTML=`<button class="btn bo bsm" onclick="closeModal()">Close</button><button class="btn bp bsm" onclick="closeModal();openStaffModal(${id})"><i class="fas fa-edit"></i> Edit</button>`;
+  document.getElementById('moverlay').style.display='flex';
+}
+function deleteStaff(id){if(confirm('Delete this staff member?')){DB.staff=DB.staff.filter(s=>s.id!=id);filterStaff();toast('Staff deleted');}}
+
+// ===== PROGRAMMES =====
+function renderProgs(){
+  const cnt={};DB.students.forEach(s=>cnt[s.prog_id]=(cnt[s.prog_id]||0)+1);
+  document.getElementById('prgtb').innerHTML=DB.programmes.map((p,i)=>`<tr>
+    <td>${i+1}</td>
+    <td><code style="font-size:10px;background:#f0f4f8;padding:1px 5px;border-radius:3px">${p.code}</code></td>
+    <td style="font-weight:500">${p.name}</td>
+    <td><span class="bg bgn">${p.level}</span></td>
+    <td>${p.dur}</td>
+    <td><span class="bg bgi">${p.mode}</span></td>
+    <td>UGX ${fmt(p.tuition)}</td>
+    <td><span class="bg ${cnt[p.id]?'bgs':'bgm'}">${cnt[p.id]||0}</span></td>
+    <td><span class="bg ${p.active?'bgs':'bgd'}">${p.active?'Active':'Inactive'}</span></td>
+    <td style="white-space:nowrap">${abtn('fas fa-edit',`openProgModal(${p.id})`)} ${abtn('fas fa-trash','','bod')}</td>
+  </tr>`).join('');
+}
+function filterProgs(q){const query=q.toLowerCase();const rows=DB.programmes.filter(p=>(p.name+p.code+p.level).toLowerCase().includes(query));document.getElementById('prgtb').innerHTML=rows.map((p,i)=>document.getElementById('prgtb').innerHTML).join('');renderProgs();}
+function openProgModal(id){
+  const p=id?DB.programmes.find(x=>x.id==id):{};
+  document.getElementById('mtitle').textContent=id?'Edit Programme':'Add Programme';
+  document.getElementById('mbody').innerHTML=`<div class="row"><div class="c6"><div class="fg"><label class="fl">Code *</label><input class="fc" id="pf1" value="${p.code||''}" placeholder="e.g. BBA"></div></div><div class="c6"><div class="fg"><label class="fl">Name *</label><input class="fc" id="pf2" value="${p.name||''}" placeholder="Full programme name"></div></div><div class="c6"><div class="fg"><label class="fl">Level</label><select class="fs" id="pf3"><option ${p.level=='Bachelors'?'selected':''}>Bachelors</option><option ${p.level=='Masters'?'selected':''}>Masters</option><option ${p.level=='PGD'?'selected':''}>PGD</option><option ${p.level=='Diploma'?'selected':''}>Diploma</option><option ${p.level=='Certificate'?'selected':''}>Certificate</option><option ${p.level=='Short Course'?'selected':''}>Short Course</option></select></div></div><div class="c6"><div class="fg"><label class="fl">Duration (years)</label><input class="fc" type="number" id="pf4" value="${parseFloat(p.dur)||3}"></div></div><div class="c6"><div class="fg"><label class="fl">Tuition/Sem (UGX)</label><input class="fc" type="number" id="pf5" value="${p.tuition||1000000}"></div></div><div class="c6"><div class="fg"><label class="fl">Delivery Mode</label><select class="fs" id="pf6"><option ${p.mode=='online'?'selected':''}>online</option><option ${p.mode=='blended'?'selected':''}>blended</option><option ${p.mode=='physical'?'selected':''}>physical</option></select></div></div></div><div class="fg"><label class="fl">Description</label><textarea class="ft" id="pf7">${p.desc||''}</textarea></div>`;
+  document.getElementById('mfoot').innerHTML=`<button class="btn bo bsm" onclick="closeModal()">Cancel</button><button class="btn bp bsm" onclick="saveProg(${id||'null'})"><i class="fas fa-save"></i> Save</button>`;
+  document.getElementById('moverlay').style.display='flex';
+}
+function saveProg(id){
+  const f={code:document.getElementById('pf1').value,name:document.getElementById('pf2').value,level:document.getElementById('pf3').value,dur:document.getElementById('pf4').value+' years',tuition:+document.getElementById('pf5').value,mode:document.getElementById('pf6').value,active:1};
+  if(!f.code||!f.name){alert('Fill required fields');return;}
+  if(id){Object.assign(DB.programmes.find(p=>p.id==id),f);toast('Programme updated');}
+  else{f.id=Date.now();DB.programmes.push(f);toast('Programme added');}
+  closeModal();renderProgs();
+}
+
+// ===== COURSES =====
+function renderCourses(){
+  document.getElementById('crstb').innerHTML=DB.courses.map((c,i)=>`<tr>
+    <td>${i+1}</td>
+    <td><code style="font-size:10px">${c.code}</code></td>
+    <td>${c.name}</td>
+    <td>${c.credits}</td>
+    <td>${sbg(c.type)}</td>
+    <td><span class="bg bgm">L${c.level}</span></td>
+    <td>${c.cat}</td><td>${c.exam}</td><td>${c.pass}</td>
+    <td>${abtn('fas fa-edit',`openCourseModal(${c.id})`)} ${abtn('fas fa-trash','','bod')}</td>
+  </tr>`).join('');
+}
+function filterCourses(q){renderCourses();}
+function openCourseModal(id){
+  const c=id?DB.courses.find(x=>x.id==id):{};
+  document.getElementById('mtitle').textContent=id?'Edit Course':'Add Course';
+  document.getElementById('mbody').innerHTML=`<div class="row"><div class="c6"><div class="fg"><label class="fl">Code *</label><input class="fc" id="cf1" value="${c.code||''}" placeholder="e.g. BUS101"></div></div><div class="c6"><div class="fg"><label class="fl">Name *</label><input class="fc" id="cf2" value="${c.name||''}"></div></div><div class="c6"><div class="fg"><label class="fl">Credit Units</label><input class="fc" type="number" id="cf3" value="${c.credits||3}"></div></div><div class="c6"><div class="fg"><label class="fl">Type</label><select class="fs" id="cf4"><option ${c.type=='compulsory'?'selected':''}>compulsory</option><option ${c.type=='elective'?'selected':''}>elective</option><option ${c.type=='general'?'selected':''}>general</option><option ${c.type=='dissertation'?'selected':''}>dissertation</option></select></div></div><div class="c6"><div class="fg"><label class="fl">Level</label><select class="fs" id="cf5"><option ${c.level=='100'?'selected':''}>100</option><option ${c.level=='200'?'selected':''}>200</option><option ${c.level=='300'?'selected':''}>300</option><option ${c.level=='400'?'selected':''}>400</option><option ${c.level=='500'?'selected':''}>500</option><option ${c.level=='600'?'selected':''}>600</option></select></div></div><div class="c6"><div class="fg"><label class="fl">CAT Marks</label><input class="fc" type="number" id="cf6" value="${c.cat||40}"></div></div><div class="c6"><div class="fg"><label class="fl">Exam Marks</label><input class="fc" type="number" id="cf7" value="${c.exam||60}"></div></div><div class="c6"><div class="fg"><label class="fl">Pass Mark</label><input class="fc" type="number" id="cf8" value="${c.pass||50}"></div></div></div><div class="fg"><label class="fl">Description</label><textarea class="ft" id="cf9">${c.desc||''}</textarea></div>`;
+  document.getElementById('mfoot').innerHTML=`<button class="btn bo bsm" onclick="closeModal()">Cancel</button><button class="btn bp bsm" onclick="saveCourse(${id||'null'})"><i class="fas fa-save"></i> Save</button>`;
+  document.getElementById('moverlay').style.display='flex';
+}
+function saveCourse(id){
+  const f={code:document.getElementById('cf1').value,name:document.getElementById('cf2').value,credits:+document.getElementById('cf3').value,type:document.getElementById('cf4').value,level:document.getElementById('cf5').value,cat:+document.getElementById('cf6').value,exam:+document.getElementById('cf7').value,pass:+document.getElementById('cf8').value};
+  if(!f.code||!f.name){alert('Fill required fields');return;}
+  if(id){Object.assign(DB.courses.find(c=>c.id==id),f);toast('Course updated');}
+  else{f.id=Date.now();DB.courses.push(f);toast('Course added');}
+  closeModal();renderCourses();
+}
+
+// ===== MARKS =====
+function renderMarks(){
+  document.getElementById('mktb').innerHTML=DB.marks.map(m=>`<tr>
+    <td>${sname(m.stu_id)}</td>
+    <td><code style="font-size:10px">${DB.students.find(s=>s.id==m.stu_id)?.reg||'—'}</code></td>
+    <td style="font-size:11px">${cname(m.crs_id)}</td>
+    <td><strong>${m.cat}</strong></td>
+    <td><strong>${m.exam}</strong></td>
+    <td><strong style="font-size:14px;color:var(--navy)">${m.total}</strong></td>
+    <td><span class="bg ${m.grade.startsWith('A')?'bgs':m.grade==='F'?'bgd':'bgn'}">${m.grade}</span></td>
+    <td>${m.gpa.toFixed(1)}</td>
+    <td>${sbg(m.pub?'published':'draft')}</td>
+    <td>${abtn('fas fa-edit',`openMarkEditModal(${m.id})`)}</td>
+  </tr>`).join('');
+}
+function openMarksModal(){
+  document.getElementById('mtitle').textContent='Enter Marks';
+  document.getElementById('mbody').innerHTML=`<div class="fg"><label class="fl">Programme &amp; Semester</label><select class="fs"><option>BBA — May Intake 2026</option><option>MBA — May Intake 2026</option><option>BSc CS — May Intake 2026</option></select></div><div class="fg"><label class="fl">Course</label><select class="fs">${DB.courses.map(c=>`<option>${c.code} — ${c.name}</option>`).join('')}</select></div><div style="margin-top:14px"><table class="dt"><thead><tr><th>Student</th><th>CAT (0-40)</th><th>Exam (0-60)</th></tr></thead><tbody>${DB.students.slice(0,3).map(s=>`<tr><td>${s.first} ${s.last}</td><td><input class="fc" type="number" min="0" max="40" style="width:70px;padding:4px 7px"></td><td><input class="fc" type="number" min="0" max="60" style="width:70px;padding:4px 7px"></td></tr>`).join('')}</tbody></table></div>`;
+  document.getElementById('mfoot').innerHTML=`<button class="btn bo bsm" onclick="closeModal()">Cancel</button><button class="btn bp bsm" onclick="closeModal();toast('Marks saved and grades auto-calculated')"><i class="fas fa-save"></i> Save Marks</button>`;
+  document.getElementById('moverlay').style.display='flex';
+}
+function openMarkEditModal(id){const m=DB.marks.find(x=>x.id==id);if(!m)return;document.getElementById('mtitle').textContent='Edit Mark';document.getElementById('mbody').innerHTML=`<div class="fg"><label class="fl">CAT Score (max 40)</label><input class="fc" id="mf1" type="number" min="0" max="40" value="${m.cat}"></div><div class="fg"><label class="fl">Exam Score (max 60)</label><input class="fc" id="mf2" type="number" min="0" max="60" value="${m.exam}"></div><div class="fg"><label class="fl">Override Reason</label><textarea class="ft" placeholder="Reason for override if applicable"></textarea></div>`;document.getElementById('mfoot').innerHTML=`<button class="btn bo bsm" onclick="closeModal()">Cancel</button><button class="btn bp bsm" onclick="saveMarkEdit(${id})"><i class="fas fa-save"></i> Update Mark</button>`;document.getElementById('moverlay').style.display='flex';}
+function saveMarkEdit(id){const m=DB.marks.find(x=>x.id==id);if(!m)return;m.cat=+document.getElementById('mf1').value;m.exam=+document.getElementById('mf2').value;m.total=m.cat+m.exam;const gs=DB.grading.find(g=>m.total>=g.min&&m.total<=g.max);if(gs){m.grade=gs.grade;m.gpa=gs.gpa;}closeModal();renderMarks();toast('Mark updated');}
+
+// ===== FINANCE =====
+function renderFinance(){
+  const rev=DB.payments.reduce((s,p)=>s+p.amount,0);
+  const out=DB.invoices.reduce((s,i)=>s+i.bal,0);
+  document.getElementById('finstats').innerHTML=`
+    <div class="sc gr"><div class="sv">UGX ${fmt(rev)}</div><div class="sl">Total Revenue</div><i class="fas fa-coins si"></i></div>
+    <div class="sc rd"><div class="sv">UGX ${fmt(out)}</div><div class="sl">Outstanding</div><i class="fas fa-exclamation si"></i></div>
+    <div class="sc bl"><div class="sv">${DB.invoices.length}</div><div class="sl">Invoices</div><i class="fas fa-file-invoice si"></i></div>
+    <div class="sc gd"><div class="sv">${DB.payments.length}</div><div class="sl">Payments</div><i class="fas fa-receipt si"></i></div>`;
+  document.getElementById('invtb').innerHTML=DB.invoices.map(i=>`<tr>
+    <td><code style="font-size:10px">${i.num}</code></td>
+    <td>${sname(i.stu_id)}</td>
+    <td>UGX ${fmt(i.total)}</td>
+    <td style="color:var(--success)">UGX ${fmt(i.paid)}</td>
+    <td style="${i.bal>0?'color:var(--danger);font-weight:600':''}">UGX ${fmt(i.bal)}</td>
+    <td>${sbg(i.status)}</td>
+    <td>${i.due}</td>
+    <td>${abtn('fas fa-print',`toast('Printing invoice ${i.num}…')`)} ${abtn('fas fa-bell',`toast('Reminder sent for ${i.num}')`)} ${abtn('fas fa-money-bill',`openPayModal(${i.id})`,'bs')}</td>
+  </tr>`).join('');
+  document.getElementById('paytb').innerHTML=DB.payments.map(p=>`<tr>
+    <td><code style="font-size:10px">${p.ref}</code></td>
+    <td>${sname(p.stu_id)}</td>
+    <td style="font-weight:600;color:var(--success)">UGX ${fmt(p.amount)}</td>
+    <td>${sbg(p.method)}</td>
+    <td>${p.date}</td>
+    <td style="font-size:11px">${p.for}</td>
+    <td>${abtn('fas fa-print',`toast('Printing receipt ${p.ref}…')`)}</td>
+  </tr>`).join('');
+  document.getElementById('prltb').innerHTML=DB.payroll.map(p=>`<tr>
+    <td>${sname(p.stu_id)||DB.staff.find(s=>s.id==p.stu_id)?.first||'—'}</td>
+    <td>${p.month}</td>
+    <td>UGX ${fmt(p.basic)}</td>
+    <td>UGX ${fmt(p.allow)}</td>
+    <td>UGX ${fmt(p.nssf)}</td>
+    <td style="font-weight:600;color:var(--success)">UGX ${fmt(p.net)}</td>
+    <td>${p.method}</td>
+    <td>${sbg(p.status)}</td>
+    <td>${abtn('fas fa-check',`toast('Payroll approved')`, 'bs')} ${abtn('fas fa-print',`toast('Printing payslip…')`)}</td>
+  </tr>`).join('');
+  document.getElementById('feetb').innerHTML=DB.feeStructures.map(f=>`<tr>
+    <td>${f.name}</td>
+    <td>${sbg(f.type)}</td>
+    <td style="font-weight:600">UGX ${fmt(f.amount)}</td>
+    <td><span class="bg ${f.mandatory?'bgs':'bgm'}">${f.mandatory?'Yes':'No'}</span></td>
+    <td><span class="bg ${f.per_sem?'bgi':'bgm'}">${f.per_sem?'Yes':'No'}</span></td>
+    <td>${abtn('fas fa-edit',`toast('Edit fee structure…')`)}</td>
+  </tr>`).join('');
+  document.getElementById('gwylist').innerHTML=DB.gateways.map(g=>`<div style="padding:12px 14px;border:1px solid var(--bd);border-radius:var(--r);display:flex;align-items:center;justify-content:space-between"><div style="display:flex;align-items:center;gap:9px"><i class="${g.icon}" style="color:${g.color};font-size:18px"></i><div><div style="font-weight:600;font-size:12px">${g.name}</div><span class="bg ${g.cat==='free'?'bgs':'bgw'}" style="font-size:9px">${g.cat}</span></div></div><label class="tg"><input type="checkbox" ${g.enabled?'checked':''} onchange="g.enabled=this.checked;toast(g.name+' '+(this.checked?'enabled':'disabled'))"><span class="sl2"></span></label></div>`).join('');
+}
+function openInvModal(){
+  document.getElementById('mtitle').textContent='Generate Invoice';
+  document.getElementById('mbody').innerHTML=`<div class="fg"><label class="fl">Student *</label><select class="fs" id="iv1">${DB.students.map(s=>`<option value="${s.id}">${s.first} ${s.last} — ${s.reg}</option>`).join('')}</select></div><div class="fg"><label class="fl">Semester</label><select class="fs"><option>May Intake 2026</option><option>Semester 2 2025/2026</option></select></div><div style="border:1px solid var(--bd);border-radius:var(--r);padding:12px;margin-top:10px"><div style="font-weight:600;font-size:12px;margin-bottom:10px">Fee Items</div>${DB.feeStructures.map(f=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--bd);font-size:12px"><label style="display:flex;align-items:center;gap:7px"><input type="checkbox" checked> ${f.name}</label><span style="font-weight:500">UGX ${fmt(f.amount)}</span></div>`).join('')}</div><div style="display:flex;justify-content:space-between;margin-top:10px;font-weight:700;font-size:13px"><span>Total</span><span>UGX ${fmt(DB.feeStructures.reduce((s,f)=>s+f.amount,0))}</span></div>`;
+  document.getElementById('mfoot').innerHTML=`<button class="btn bo bsm" onclick="closeModal()">Cancel</button><button class="btn bp bsm" onclick="closeModal();toast('Invoice generated and emailed to student')"><i class="fas fa-file-invoice"></i> Generate Invoice</button>`;
+  document.getElementById('moverlay').style.display='flex';
+}
+function openPayModal(invId){
+  const inv=DB.invoices.find(i=>i.id==invId);if(!inv)return;
+  document.getElementById('mtitle').textContent='Record Payment';
+  document.getElementById('mbody').innerHTML=`<div class="alert ai">Invoice: <strong>${inv.num}</strong> — Balance: <strong>UGX ${fmt(inv.bal)}</strong></div><div class="fg"><label class="fl">Amount Received (UGX) *</label><input class="fc" type="number" id="pf1" value="${inv.bal}"></div><div class="fg"><label class="fl">Payment Method</label><select class="fs" id="pf2"><option>cash</option><option>mobile_money_mtn</option><option>mobile_money_airtel</option><option>bank_transfer</option><option>online</option></select></div><div class="fg"><label class="fl">Payment Date</label><input class="fc" type="date" id="pf3" value="2026-06-29"></div><div class="fg"><label class="fl">Reference / Transaction No.</label><input class="fc" id="pf4" placeholder="MTN ref, bank ref, etc."></div><div class="fg"><label class="fl">Notes</label><textarea class="ft" id="pf5" placeholder="Additional notes"></textarea></div>`;
+  document.getElementById('mfoot').innerHTML=`<button class="btn bo bsm" onclick="closeModal()">Cancel</button><button class="btn bp bsm" onclick="savePayment(${invId})"><i class="fas fa-save"></i> Record Payment</button>`;
+  document.getElementById('moverlay').style.display='flex';
+}
+function savePayment(invId){
+  const inv=DB.invoices.find(i=>i.id==invId);if(!inv)return;
+  const amt=+document.getElementById('pf1').value;const ref='RCP-'+new Date().getFullYear()+'-'+(DB.payments.length+1).toString().padStart(4,'0');
+  DB.payments.push({id:Date.now(),ref,stu_id:inv.stu_id,amount:amt,method:document.getElementById('pf2').value,date:document.getElementById('pf3').value,for:'Fees payment'});
+  inv.paid+=amt;inv.bal=Math.max(0,inv.total-inv.paid);
+  if(inv.bal<=0)inv.status='paid';else if(inv.paid>0)inv.status='partial';
+  closeModal();renderFinance();toast(`Payment ${ref} recorded — UGX ${fmt(amt)}`);
+}
+function openExpModal(){document.getElementById('mtitle').textContent='Record Expense';document.getElementById('mbody').innerHTML=`<div class="fg"><label class="fl">Description *</label><input class="fc" placeholder="What was purchased/paid?"></div><div class="fg"><label class="fl">Category</label><select class="fs"><option>Utilities</option><option>Salaries & Wages</option><option>Office Supplies</option><option>Maintenance</option><option>Marketing</option><option>ICT & Software</option><option>Miscellaneous</option></select></div><div class="fg"><label class="fl">Amount (UGX) *</label><input class="fc" type="number"></div><div class="fg"><label class="fl">Date</label><input class="fc" type="date" value="2026-06-29"></div><div class="fg"><label class="fl">Payee</label><input class="fc" placeholder="Who was paid?"></div><div class="fg"><label class="fl">Payment Method</label><select class="fs"><option>cash</option><option>bank_transfer</option><option>mobile_money</option></select></div>`;document.getElementById('mfoot').innerHTML=`<button class="btn bo bsm" onclick="closeModal()">Cancel</button><button class="btn bp bsm" onclick="closeModal();toast('Expense recorded')"><i class="fas fa-save"></i> Record</button>`;document.getElementById('moverlay').style.display='flex';}
+
+// ===== ADMISSIONS =====
+function renderAdmissions(){
+  const enrolled=DB.applications.filter(a=>a.status==='enrolled').length;
+  document.getElementById('admstats').innerHTML=`
+    <div class="sc bl"><div class="sv">${DB.applications.length}</div><div class="sl">Total Applications</div><i class="fas fa-file-alt si"></i></div>
+    <div class="sc gr"><div class="sv">${enrolled}</div><div class="sl">Enrolled</div><i class="fas fa-user-check si"></i></div>
+    <div class="sc gd"><div class="sv">${DB.sessions.length}</div><div class="sl">Active Sessions</div><i class="fas fa-calendar si"></i></div>
+    <div class="sc pu"><div class="sv">0</div><div class="sl">Pending Review</div><i class="fas fa-clock si"></i></div>`;
+  document.getElementById('apptb').innerHTML=DB.applications.map(a=>`<tr>
+    <td><code style="font-size:10px">${a.num}</code></td>
+    <td style="font-weight:500">${a.first} ${a.last}</td>
+    <td>${pfull(a.prog_id)}</td>
+    <td>${a.phone}</td>
+    <td style="font-size:11px">${a.qual}</td>
+    <td>${a.date}</td>
+    <td>${sbg(a.status)}</td>
+    <td>${abtn('fas fa-eye',`toast('View application ${a.num}')`)} ${abtn('fas fa-check',`toast('Status updated')`, 'bs')} ${abtn('fas fa-times','','bod')}</td>
+  </tr>`).join('');
+  document.getElementById('sesstb').innerHTML=DB.sessions.map(s=>`<tr>
+    <td style="font-weight:500">${s.name}</td>
+    <td>${s.open}</td>
+    <td>${s.close}</td>
+    <td>UGX ${fmt(s.fee)}</td>
+    <td><span class="bg ${s.is_open?'bgs':'bgm'}">${s.is_open?'Open':'Closed'}</span></td>
+    <td>${abtn('fas fa-edit',`toast('Edit session…')`)} ${abtn('fas fa-external-link-alt',`window.open('#','_blank')`)}</td>
+  </tr>`).join('');
+}
+
+// ===== EXAMS =====
+function renderExams(){
+  document.getElementById('exttb').innerHTML=DB.onlineExams.map(e=>`<tr>
+    <td style="font-weight:500">${e.title}</td>
+    <td>${cname(e.crs_id)}</td>
+    <td>${pname(e.prog_id)}</td>
+    <td>${sbg(e.type)}</td>
+    <td style="font-size:11px">${e.start}</td>
+    <td style="font-size:11px">${e.end}</td>
+    <td>${e.dur} min</td>
+    <td>${e.marks}</td>
+    <td><span class="bg ${e.pub?'bgs':'bgw'}">${e.pub?'Published':'Draft'}</span></td>
+    <td>${abtn('fas fa-eye',`viewExam(${e.id})`)} ${abtn('fas fa-edit',`toast('Edit exam…')`)} ${abtn('fas fa-question-circle',`toast('Manage questions for exam ${e.id}…')`)} ${abtn('fas fa-trash','','bod')}</td>
+  </tr>`).join('');
+  document.getElementById('exstb').innerHTML=DB.examSched.map(e=>`<tr>
+    <td style="font-weight:500;font-size:12px">${e.name}</td>
+    <td><span class="bg bgn">${e.course}</span></td>
+    <td>${e.date}</td>
+    <td>${e.start}–${e.end}</td>
+    <td style="font-size:11px">${e.venue}</td>
+    <td>${e.dur} min</td>
+    <td>${sbg(e.status)}</td>
+    <td>${abtn('fas fa-edit',`toast('Edit exam schedule…')`)}</td>
+  </tr>`).join('');
+  document.getElementById('exqtb').innerHTML=DB.examQ.map(q=>`<tr>
+    <td>Exam #${q.exam_id}</td>
+    <td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px">${q.text.substring(0,90)}…</td>
+    <td>${sbg(q.type)}</td>
+    <td>${q.marks}</td>
+    <td>${abtn('fas fa-edit',`toast('Edit question…')`)} ${abtn('fas fa-trash','','bod')}</td>
+  </tr>`).join('');
+  document.getElementById('extypelist').innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px">${DB.examTypes.map(t=>`<div class="card" style="border-left:3px solid ${t.color};padding:11px 14px"><div style="display:flex;align-items:center;gap:7px;margin-bottom:5px"><i class="${t.icon}" style="color:${t.color};font-size:16px"></i><strong style="font-size:12px">${t.name}</strong></div><div style="font-size:10px;color:var(--mu)">${t.timed?'Timed':'Open duration'} · ${t.supervised?'Supervised':'Unsupervised'}</div></div>`).join('')}</div>`;
+}
+function openExamModal(){
+  document.getElementById('mtitle').textContent='Create Online CBT Exam';
+  document.getElementById('mbody').innerHTML=`<div class="row"><div class="c6"><div class="fg"><label class="fl">Title *</label><input class="fc" placeholder="e.g. END OF SEMESTER EXAMINATIONS"></div></div><div class="c6"><div class="fg"><label class="fl">Exam Type</label><select class="fs"><option>final</option><option>cat</option><option>quiz</option><option>practice</option></select></div></div><div class="c6"><div class="fg"><label class="fl">Course</label><select class="fs">${DB.courses.map(c=>`<option>${c.code} — ${c.name}</option>`).join('')}</select></div></div><div class="c6"><div class="fg"><label class="fl">Programme</label><select class="fs">${DB.programmes.map(p=>`<option>${p.code}</option>`).join('')}</select></div></div><div class="c6"><div class="fg"><label class="fl">Start Date & Time</label><input class="fc" type="datetime-local"></div></div><div class="c6"><div class="fg"><label class="fl">End Date & Time</label><input class="fc" type="datetime-local"></div></div><div class="c6"><div class="fg"><label class="fl">Duration (minutes)</label><input class="fc" type="number" value="180"></div></div><div class="c6"><div class="fg"><label class="fl">Total Marks</label><input class="fc" type="number" value="100"></div></div><div class="c6"><div class="fg"><label class="fl">Pass Marks</label><input class="fc" type="number" value="50"></div></div><div class="c6"><div class="fg" style="display:flex;align-items:center;gap:8px;margin-top:20px"><label class="fl" style="margin:0">Shuffle Questions</label><label class="tg"><input type="checkbox" checked><span class="sl2"></span></label></div></div></div><div class="fg"><label class="fl">Instructions</label><textarea class="ft" placeholder="Instructions displayed to students before they begin…"></textarea></div>`;
+  document.getElementById('mfoot').innerHTML=`<button class="btn bo bsm" onclick="closeModal()">Cancel</button><button class="btn bp bsm" onclick="closeModal();toast('Exam created — now add questions from the Question Bank tab')"><i class="fas fa-save"></i> Create Exam</button>`;
+  document.getElementById('moverlay').style.display='flex';
+}
+function viewExam(id){const e=DB.onlineExams.find(x=>x.id==id);if(!e)return;const qs=DB.examQ.filter(q=>q.exam_id==id);document.getElementById('mtitle').textContent='Exam Details';document.getElementById('mbody').innerHTML=`<div style="margin-bottom:14px"><strong style="font-size:14px">${e.title}</strong><div style="margin-top:6px;display:flex;gap:7px;flex-wrap:wrap">${sbg(e.type)}<span class="bg bgi">Duration: ${e.dur} min</span><span class="bg bgm">Marks: ${e.marks}</span><span class="bg ${e.pub?'bgs':'bgw'}">${e.pub?'Published':'Draft'}</span></div></div><div style="font-size:12px;margin-bottom:14px"><div><strong>Start:</strong> ${e.start}</div><div><strong>End:</strong> ${e.end}</div></div><strong style="font-size:12px">Questions (${qs.length})</strong><div style="margin-top:8px">${qs.map((q,i)=>`<div style="padding:8px 0;border-bottom:1px solid var(--bd);font-size:11px"><div style="font-weight:600">Q${i+1} — ${q.marks} marks</div><div style="color:var(--mu);margin-top:2px">${q.text.substring(0,120)}…</div></div>`).join('')}</div>`;document.getElementById('mfoot').innerHTML=`<button class="btn bo bsm" onclick="closeModal()">Close</button>`;document.getElementById('moverlay').style.display='flex';}
+
+// ===== TIMETABLE =====
+function renderTimetable(){
+  document.getElementById('ttgrid').innerHTML=`<table class="dt"><thead><tr><th>Programme/Year</th><th>Course</th><th>Lecturer</th><th>Day</th><th>Time</th><th>Venue</th><th>Join Link</th></tr></thead><tbody>${DB.timetable.map(t=>`<tr><td><span class="bg bgn">${t.prog}</span> Yr${t.yr}</td><td><code style="font-size:10px">${t.course}</code></td><td style="font-size:11px">${t.lec}</td><td><span class="bg bgm">${t.day}</span></td><td style="font-size:11px">${t.start}–${t.end}</td><td style="font-size:11px">Online — Jitsi</td><td><a href="${t.link}" target="_blank" style="color:var(--navy);font-size:11px"><i class="fas fa-external-link-alt"></i> Join</a></td></tr>`).join('')}</tbody></table>`;
+}
+
+// ===== ASSIGNMENTS =====
+function renderAssignments(){
+  document.getElementById('asstb').innerHTML=DB.assignments.map(a=>`<tr>
+    <td style="font-weight:500">${a.title}</td>
+    <td><span class="bg bgn">${a.course}</span></td>
+    <td>${a.due}</td>
+    <td>${a.max}</td>
+    <td>${sbg(a.type)}</td>
+    <td><span class="bg bgm">0 submitted</span></td>
+    <td>${abtn('fas fa-eye',`toast('View assignment: ${a.title}')`)} ${abtn('fas fa-edit',`toast('Edit assignment…')`)} ${abtn('fas fa-download',`toast('Downloading submissions…')`)}</td>
+  </tr>`).join('');
+}
+function openAssignModal(){document.getElementById('mtitle').textContent='Create Assignment';document.getElementById('mbody').innerHTML=`<div class="fg"><label class="fl">Title *</label><input class="fc" placeholder="Assignment title"></div><div class="fg"><label class="fl">Course *</label><select class="fs">${DB.courses.map(c=>`<option>${c.code} — ${c.name}</option>`).join('')}</select></div><div class="row"><div class="c6"><div class="fg"><label class="fl">Due Date *</label><input class="fc" type="datetime-local"></div></div><div class="c6"><div class="fg"><label class="fl">Max Marks</label><input class="fc" type="number" value="100"></div></div></div><div class="fg"><label class="fl">Submission Type</label><select class="fs"><option>file</option><option>text</option><option>link</option><option>any</option></select></div><div class="fg"><label class="fl">Instructions</label><textarea class="ft" rows="4" placeholder="Detailed instructions for students…"></textarea></div>`;document.getElementById('mfoot').innerHTML=`<button class="btn bo bsm" onclick="closeModal()">Cancel</button><button class="btn bp bsm" onclick="closeModal();toast('Assignment created and published')"><i class="fas fa-save"></i> Create</button>`;document.getElementById('moverlay').style.display='flex';}
+
+// ===== LIVE CLASSES =====
+function renderLiveClasses(){
+  document.getElementById('lctb').innerHTML=DB.liveClasses.map(c=>`<tr>
+    <td style="font-weight:500;font-size:12px">${c.title}</td>
+    <td><span class="bg bgn">${c.course}</span></td>
+    <td>${c.platform}</td>
+    <td>${c.date}</td>
+    <td style="font-size:11px">${c.start}–${c.end}</td>
+    <td>${sbg(c.status)}</td>
+    <td><a href="${c.url}" target="_blank" class="btn bp bxs"><i class="fas fa-video"></i> Join</a></td>
+  </tr>`).join('');
+  document.getElementById('lcconfig').innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--bd)"><div><strong style="font-size:12px">Jitsi Meet</strong><div style="font-size:10px;color:var(--mu)">meet.jit.si — Free, no account needed</div></div><span class="bg bgs">Default</span></div><div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--bd)"><div><strong style="font-size:12px">Google Meet</strong><div style="font-size:10px;color:var(--mu)">External link</div></div><label class="tg"><input type="checkbox" checked><span class="sl2"></span></label></div><div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--bd)"><div><strong style="font-size:12px">Zoom</strong><div style="font-size:10px;color:var(--mu)">API integration</div></div><label class="tg"><input type="checkbox"><span class="sl2"></span></label></div><div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0"><div><strong style="font-size:12px">BigBlueButton</strong><div style="font-size:10px;color:var(--mu)">Open source</div></div><label class="tg"><input type="checkbox"><span class="sl2"></span></label></div>`;
+}
+
+// ===== LIBRARY =====
+function renderLibrary(){
+  const cats=['eBooks','Research Papers','Past Papers','Journals','Policy Documents','Other'];
+  const colors=['#1a3a6b','#6f42c1','#c8860a','#198754','#0d6efd','#6c757d'];
+  const icons=['fas fa-book','fas fa-microscope','fas fa-file-alt','fas fa-journal-whills','fas fa-file-contract','fas fa-archive'];
+  document.getElementById('libcats').innerHTML=cats.map((c,i)=>`<div class="card" style="padding:18px;text-align:center;cursor:pointer;border-top:3px solid ${colors[i]}" onclick="toast('${c} — Upload resources to populate this category')"><i class="${icons[i]}" style="font-size:26px;color:${colors[i]};margin-bottom:8px"></i><div style="font-weight:600;font-size:12px">${c}</div><div style="font-size:20px;font-weight:700;color:${colors[i]}">0</div><div style="font-size:10px;color:var(--mu)">resources</div></div>`).join('');
+}
+
+// ===== NOTICES =====
+function renderNotices(){
+  const catMap={exam:'bgd',academic:'bgn',finance:'bgw',event:'bgs',general:'bgm'};
+  document.getElementById('notlist').innerHTML=DB.notices.map(n=>`<div style="padding:12px 0;border-bottom:1px solid var(--bd)">
+    <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:6px">
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+        ${n.urgent?'<span class="bg bgd">URGENT</span>':''}
+        <span class="bg ${catMap[n.cat]||'bgm'}">${n.cat}</span>
+        <strong style="font-size:13px">${n.title}</strong>
+      </div>
+      <div style="display:flex;gap:5px;flex-shrink:0">${abtn('fas fa-edit',`editNotice(${n.id})`)} ${abtn('fas fa-trash',`deleteNotice(${n.id})`,'bod')}</div>
+    </div>
+    <div style="font-size:12px;color:var(--mu);line-height:1.5">${n.body.substring(0,180)}${n.body.length>180?'…':''}</div>
+    <div style="font-size:10px;color:var(--mu);margin-top:5px">${n.date} · ${sbg(n.pub?'published':'draft')}</div>
+  </div>`).join('');
+}
+function openNoticeModal(){
+  document.getElementById('mtitle').textContent='Create New Notice';
+  document.getElementById('mbody').innerHTML=`<div class="fg"><label class="fl">Title *</label><input class="fc" id="nf1" placeholder="Notice title"></div><div class="fg"><label class="fl">Category</label><select class="fs" id="nf2"><option>general</option><option>academic</option><option>finance</option><option>event</option><option>exam</option></select></div><div class="fg"><label class="fl">Target Audience</label><select class="fs" id="nf3"><option>all</option><option>students</option><option>staff</option></select></div><div class="fg"><label class="fl">Body *</label><textarea class="ft" id="nf4" rows="5" placeholder="Notice content…"></textarea></div><div style="display:flex;align-items:center;gap:8px"><label style="font-size:12px;font-weight:600">Mark as Urgent</label><label class="tg"><input type="checkbox" id="nf5"><span class="sl2"></span></label></div>`;
+  document.getElementById('mfoot').innerHTML=`<button class="btn bo bsm" onclick="closeModal()">Cancel</button><button class="btn bp bsm" onclick="saveNotice()"><i class="fas fa-bullhorn"></i> Publish Notice</button>`;
+  document.getElementById('moverlay').style.display='flex';
+}
+function saveNotice(){
+  const t=document.getElementById('nf1').value;if(!t){alert('Title required');return;}
+  const n={id:Date.now(),title:t,cat:document.getElementById('nf2').value,body:document.getElementById('nf4').value,urgent:document.getElementById('nf5').checked?1:0,pub:1,date:new Date().toISOString().split('T')[0]};
+  DB.notices.unshift(n);closeModal();renderNotices();toast('Notice published');
+}
+function editNotice(id){toast('Edit notice '+id)}
+function deleteNotice(id){if(confirm('Delete this notice?')){DB.notices=DB.notices.filter(n=>n.id!=id);renderNotices();toast('Notice deleted');}}
+
+// ===== CALENDAR =====
+function renderCalendar(){
+  document.getElementById('calcon').innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:11px">${DB.calendar.map(e=>`<div style="padding:11px 14px;border-left:4px solid ${e.color};background:${e.color}11;border-radius:0 var(--r) var(--r) 0"><div style="font-weight:600;font-size:12px">${e.title}</div><div style="font-size:11px;color:var(--mu);margin-top:3px"><i class="fas fa-calendar" style="margin-right:5px"></i>${e.date}</div><span class="bg bgn" style="margin-top:5px;display:inline-flex">${e.type}</span></div>`).join('')}</div>`;
+}
+
+// ===== ATTENDANCE =====
+function renderAttendance(){
+  const stus=DB.students.slice(0,2);
+  document.getElementById('attlist').innerHTML=`<strong style="font-size:12px;display:block;margin-bottom:8px">Students enrolled in BBA Yr2 — BUS102</strong>${stus.map(s=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--bd)"><div style="display:flex;align-items:center;gap:7px"><div class="av" style="width:26px;height:26px;font-size:9px">${s.first[0]}${s.last[0]}</div><span style="font-size:12px">${s.first} ${s.last}</span></div><div style="display:flex;gap:8px"><label style="display:flex;align-items:center;gap:3px;font-size:11px;cursor:pointer"><input type="radio" name="a${s.id}" value="present" checked> Present</label><label style="display:flex;align-items:center;gap:3px;font-size:11px;cursor:pointer"><input type="radio" name="a${s.id}" value="absent"> Absent</label><label style="display:flex;align-items:center;gap:3px;font-size:11px;cursor:pointer"><input type="radio" name="a${s.id}" value="late"> Late</label></div></div>`).join('')}`;
+  document.getElementById('attsum').innerHTML=`<div class="tw"><table class="dt"><thead><tr><th>Student</th><th>Present</th><th>Absent</th><th>Rate</th></tr></thead><tbody>${DB.students.slice(0,3).map(s=>`<tr><td style="font-size:11px">${s.first} ${s.last}</td><td>8</td><td>1</td><td><div style="font-size:10px;display:flex;align-items:center;gap:5px"><div style="flex:1;height:5px;background:#e9ecef;border-radius:3px;overflow:hidden"><div style="width:88%;height:100%;background:var(--navy)"></div></div>88%</div></td></tr>`).join('')}</tbody></table></div>`;
+}
+
+// ===== AUDIT =====
+function renderAudit(filter){
+  const data=filter?DB.activityLog.filter(a=>(a.action+a.mod+a.desc+a.user).toLowerCase().includes(filter.toLowerCase())):DB.activityLog;
+  document.getElementById('audtb').innerHTML=data.map(a=>`<tr>
+    <td>${a.id}</td>
+    <td><strong>${a.user}</strong></td>
+    <td><code style="font-size:10px">${a.action}</code></td>
+    <td><span class="bg bgn">${a.mod}</span></td>
+    <td style="font-size:11px;max-width:280px">${a.desc}</td>
+    <td style="font-size:10px;color:var(--mu)">${a.ip}</td>
+    <td style="font-size:11px">${a.date}</td>
+  </tr>`).join('');
+}
+function filterAudit(q){renderAudit(q||document.querySelector('#pg-audit input')?.value||'');}
+
+// ===== SETTINGS =====
+function renderSettings(){
+  const bl=document.getElementById('branchlist');
+  if(bl)bl.innerHTML=DB.branches.map(b=>`<div style="padding:7px 0;border-bottom:1px solid var(--bd);font-size:11px"><div style="display:flex;justify-content:space-between"><strong>${b.name}</strong>${b.is_main?'<span class="bg bgs">Main</span>':''}</div><div style="color:var(--mu)">${b.code} · ${b.city}</div></div>`).join('');
+  const bk=document.getElementById('banklist');
+  if(bk)bk.innerHTML=DB.bankAccounts.map(a=>`<div style="padding:7px 0;border-bottom:1px solid var(--bd);font-size:11px"><div style="font-weight:600">${a.bank}</div><div style="color:var(--mu)">${a.name} · ${a.acc}</div>${a.primary?'<span class="bg bgs">Primary</span>':''}</div>`).join('');
+  const gt=document.getElementById('gradtb');
+  if(gt)gt.innerHTML=DB.grading.map(g=>`<tr><td><span class="bg bgn">${g.grade}</span></td><td>${g.min}</td><td>${g.max}</td><td>${g.gpa}</td><td>${g.desc}</td></tr>`).join('');
+  const pr=document.getElementById('permroles');
+  if(pr)pr.innerHTML=DB.roles.map(r=>`<button class="btn bo bxs" onclick="showPermFor('${r.slug}')">${r.name}</button>`).join('');
+  const tl=document.getElementById('tmpllist');
+  if(tl){const types=['ID Card','Transcript','Certificate','Admission Letter','Receipt'];tl.innerHTML=types.map(t=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--bd)"><strong style="font-size:12px">${t}</strong><select class="fs" style="max-width:180px"><option>Navy Classic</option><option>Modern Clean</option><option>Executive</option><option>Minimal White</option></select></div>`).join('');}
+  const sf=document.getElementById('stftypelist');
+  if(sf)sf.innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px">${DB.staffTypes.map(t=>`<div class="card" style="padding:12px 14px;border-left:3px solid ${t.color}"><i class="${t.icon}" style="color:${t.color};font-size:16px;margin-bottom:5px"></i><div style="font-weight:600;font-size:12px">${t.name}</div></div>`).join('')}</div>`;
+}
+function showPermFor(role){document.getElementById('permtable').innerHTML=`<div class="alert ai" style="margin-top:10px"><i class="fas fa-info-circle"></i> Showing permissions for role: <strong>${role}</strong>. Toggle checkboxes to grant/revoke access.</div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:6px">${['View Dashboard','View Students','Edit Students','Delete Students','View Staff','Edit Staff','Manage Courses','Enter Marks','Publish Results','Manage Attendance','View Finance','Record Payments','Manage Payroll','View Admissions','Manage Admissions','View Library','Post Notices','View Reports','View Audit Log','System Settings'].map(p=>`<label style="display:flex;align-items:center;gap:6px;font-size:11px;padding:4px 0"><input type="checkbox" checked onchange="toast('Permission updated')"> ${p}</label>`).join('')}</div>`;}
+
+// ===== ASSETS =====
+function renderAssets(){
+  document.getElementById('assetcats').innerHTML=DB.assetCats.map(c=>`<div class="card" style="padding:14px;text-align:center;cursor:pointer;border-top:3px solid ${c.color}" onclick="toast('${c.name} — 0 assets registered')"><i class="${c.icon}" style="font-size:22px;color:${c.color};margin-bottom:7px"></i><div style="font-size:11px;font-weight:600">${c.name}</div><div style="font-size:18px;font-weight:700;color:${c.color}">0</div></div>`).join('');
+}
+function openAssetModal(){document.getElementById('mtitle').textContent='Register Asset';document.getElementById('mbody').innerHTML=`<div class="fg"><label class="fl">Asset Tag</label><input class="fc" placeholder="e.g. TDIIBT-IT-001"></div><div class="fg"><label class="fl">Asset Name *</label><input class="fc" placeholder="e.g. Dell Laptop Inspiron 15"></div><div class="fg"><label class="fl">Category</label><select class="fs">${DB.assetCats.map(c=>`<option>${c.name}</option>`).join('')}</select></div><div class="row"><div class="c6"><div class="fg"><label class="fl">Serial Number</label><input class="fc"></div></div><div class="c6"><div class="fg"><label class="fl">Purchase Date</label><input class="fc" type="date"></div></div><div class="c6"><div class="fg"><label class="fl">Purchase Cost (UGX)</label><input class="fc" type="number"></div></div><div class="c6"><div class="fg"><label class="fl">Current Value (UGX)</label><input class="fc" type="number"></div></div></div><div class="fg"><label class="fl">Location / Room</label><input class="fc" placeholder="Where is this asset located?"></div><div class="fg"><label class="fl">Condition</label><select class="fs"><option>new</option><option>good</option><option>fair</option><option>poor</option></select></div>`;document.getElementById('mfoot').innerHTML=`<button class="btn bo bsm" onclick="closeModal()">Cancel</button><button class="btn bp bsm" onclick="closeModal();toast('Asset registered')"><i class="fas fa-save"></i> Register Asset</button>`;document.getElementById('moverlay').style.display='flex';}
+
+// ===== REPORTS =====
+function renderReports(){
+  const rpts=[{title:'Student Enrollment Report',icon:'fas fa-user-graduate',color:'#1a3a6b',desc:'Total students by programme, level, year, branch'},{title:'Financial Summary',icon:'fas fa-coins',color:'#c8860a',desc:'Revenue, outstanding fees, expense breakdown'},{title:'Attendance Report',icon:'fas fa-clipboard-list',color:'#198754',desc:'Attendance rates by course, student, and period'},{title:'Academic Performance',icon:'fas fa-chart-bar',color:'#6f42c1',desc:'Marks distribution, GPA, pass/fail rates'},{title:'Fee Collection Report',icon:'fas fa-file-invoice-dollar',color:'#0d6efd',desc:'Invoice status, payment methods, balances'},{title:'Staff Report',icon:'fas fa-users',color:'#fd7e14',desc:'Staff by department, employment type, status'},{title:'Exam Results Report',icon:'fas fa-laptop',color:'#dc3545',desc:'CBT scores, performance analysis, pass rates'},{title:'Admissions Report',icon:'fas fa-file-alt',color:'#20c997',desc:'Applications, enrolments, conversion rates'}];
+  document.getElementById('rptcards').innerHTML=rpts.map(r=>`<div class="card" style="padding:16px;cursor:pointer;border-top:3px solid ${r.color}"><i class="${r.icon}" style="font-size:22px;color:${r.color};margin-bottom:8px"></i><strong style="font-size:12px;display:block">${r.title}</strong><div style="font-size:11px;color:var(--mu);margin:5px 0 12px">${r.desc}</div><div style="display:flex;gap:5px"><button class="btn bo bxs" onclick="toast('Generating: ${r.title}')"><i class="fas fa-eye"></i> Preview</button><button class="btn bo bxs" onclick="toast('Exporting: ${r.title}')"><i class="fas fa-download"></i> Export</button></div></div>`).join('');
+}
+
+// ===== TRANSCRIPT SEARCH =====
+function searchTranscript(q){
+  if(!q||q.length<2){document.getElementById('transres').innerHTML='';return;}
+  const s=DB.students.find(x=>(x.first+' '+x.last+' '+x.reg).toLowerCase().includes(q.toLowerCase()));
+  if(!s){document.getElementById('transres').innerHTML='<div class="alert ad">No student found matching that query.</div>';return;}
+  const mks=DB.marks.filter(m=>m.stu_id==s.id);
+  const gpa=mks.length?((mks.reduce((a,m)=>a+m.gpa,0)/mks.length).toFixed(2)):'-';
+  document.getElementById('transres').innerHTML=`<div class="card" style="margin-top:14px"><div class="ch">Official Academic Transcript — ${s.first} ${s.last}</div><div class="cb"><div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;font-size:12px;margin-bottom:14px"><div><strong style="color:var(--mu)">Reg Number</strong><div>${s.reg}</div></div><div><strong style="color:var(--mu)">Programme</strong><div>${pfull(s.prog_id)}</div></div><div><strong style="color:var(--mu)">Cumulative GPA</strong><div><strong>${gpa}</strong></div></div><div><strong style="color:var(--mu)">Status</strong><div>${sbg(s.status)}</div></div></div>${mks.length?`<div class="tw"><table class="dt"><thead><tr><th>Course Code</th><th>Course Name</th><th>CAT</th><th>Exam</th><th>Total</th><th>Grade</th><th>GPA</th></tr></thead><tbody>${mks.map(m=>`<tr><td><code style="font-size:10px">${DB.courses.find(c=>c.id==m.crs_id)?.code||'—'}</code></td><td>${cname(m.crs_id)}</td><td>${m.cat}</td><td>${m.exam}</td><td><strong>${m.total}</strong></td><td>${sbg(m.grade)}</td><td>${m.gpa}</td></tr>`).join('')}</tbody></table></div>`:'<div class="alert ai">No marks recorded yet.</div>'}<div style="margin-top:14px;display:flex;gap:7px"><button class="btn bp bsm" onclick="toast('Generating PDF transcript…')"><i class="fas fa-download"></i> Download PDF</button><button class="btn bo bsm" onclick="toast('Printing transcript…')"><i class="fas fa-print"></i> Print</button></div></div></div>`;
+}
+
+// ===== PROFILE =====
+function saveProfile(){document.getElementById('tun').textContent=document.getElementById('pfirst').value+' '+document.getElementById('plast').value;toast('Profile updated successfully');}
+
+// ===== MISC =====
+function showTab(prefix,tab,btn){
+  document.querySelectorAll(`#pg-${prefix.replace('fin','finance').replace('adm','admissions').replace('ex','exams').replace('hr','hr').replace('set','settings')} .tp`).forEach(p=>p.classList.remove('act'));
+  document.getElementById(`${prefix}-${tab}`).classList.add('act');
+  btn.closest('.tbn').querySelectorAll('.tbt').forEach(b=>b.classList.remove('act'));
+  btn.classList.add('act');
+}
+function closeModal(){document.getElementById('moverlay').style.display='none';}
+function doExport(type){toast(`Exporting ${type} list as CSV…`)}
+function gSearch(q){if(!q||q.length<2)return;const rs=[];DB.students.filter(s=>(s.first+' '+s.last+' '+s.reg).toLowerCase().includes(q.toLowerCase())).forEach(s=>rs.push(`Student: ${s.first} ${s.last}`));DB.staff.filter(s=>(s.first+' '+s.last).toLowerCase().includes(q.toLowerCase())).forEach(s=>rs.push(`Staff: ${s.first} ${s.last}`));if(rs.length)toast(rs.slice(0,3).join(' | '));}
+</script>
+</body>
+</html>

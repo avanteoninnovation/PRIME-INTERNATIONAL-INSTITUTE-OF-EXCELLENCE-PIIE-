@@ -13,6 +13,20 @@ use App\Http\Controllers\TeacherController;
 use App\Http\Controllers\Updater;
 use App\Http\Controllers\WebsiteManagementController;
 use App\Http\Controllers\WardenController;
+// New HEI Controllers
+use App\Http\Controllers\ProgrammeController;
+use App\Http\Controllers\AdmissionsController;
+use App\Http\Controllers\FeeStructureController;
+use App\Http\Controllers\LeaveController;
+use App\Http\Controllers\OnlineExamController;
+use App\Http\Controllers\AssignmentController;
+use App\Http\Controllers\LiveClassController;
+use App\Http\Controllers\AcademicCalendarController;
+use App\Http\Controllers\PayrollController;
+use App\Http\Controllers\GraduationController;
+use App\Http\Controllers\AssetController;
+use App\Http\Controllers\ProcurementController;
+use App\Http\Controllers\AuditLogController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -1085,3 +1099,225 @@ Route::controller(InstallController::class)->middleware('is_installed')->group(f
     Route::get('install/success', 'success')->name('success');
 });
 //Installation routes end here
+
+// ═══════════════════════════════════════════════════════════════
+// HEI FEATURE ROUTES — Phase 1-4 Implementation
+// ═══════════════════════════════════════════════════════════════
+
+// ── Programmes ────────────────────────────────────────────────
+Route::controller(ProgrammeController::class)->middleware('auth', 'admin')->group(function () {
+    Route::get('admin/programmes',                  'index')->name('admin.programmes.index');
+    Route::get('admin/programmes/open_modal',       'openModal')->name('admin.programmes.open_modal');
+    Route::post('admin/programmes/store',           'store')->name('admin.programmes.store');
+    Route::post('admin/programmes/update/{id}',     'update')->name('admin.programmes.update');
+    Route::get('admin/programmes/delete/{id}',      'destroy')->name('admin.programmes.destroy');
+    Route::get('admin/programmes/toggle/{id}',      'toggleStatus')->name('admin.programmes.toggle');
+});
+
+// ── Admissions ────────────────────────────────────────────────
+Route::controller(AdmissionsController::class)->middleware('auth', 'admin')->group(function () {
+    // Applications
+    Route::get('admin/hei-admissions',                         'index')->name('admin.hei_admissions.index');
+    Route::get('admin/hei-admissions/open_modal',              'openModal')->name('admin.hei_admissions.open_modal');
+    Route::post('admin/hei-admissions/store',                  'store')->name('admin.hei_admissions.store');
+    Route::post('admin/hei-admissions/status/{id}',            'updateStatus')->name('admin.hei_admissions.status');
+    Route::get('admin/hei-admissions/delete/{id}',             'destroy')->name('admin.hei_admissions.destroy');
+    Route::get('admin/hei-admissions/offer-letter/{id}',       'printOfferLetter')->name('admin.hei_admissions.offer_letter');
+    // Intake Sessions
+    Route::get('admin/intake-sessions',                        'sessions')->name('admin.intake_sessions.index');
+    Route::get('admin/intake-sessions/open_modal',             'openSessionModal')->name('admin.intake_sessions.open_modal');
+    Route::post('admin/intake-sessions/store',                 'storeSession')->name('admin.intake_sessions.store');
+    Route::post('admin/intake-sessions/update/{id}',           'updateSession')->name('admin.intake_sessions.update');
+    Route::get('admin/intake-sessions/delete/{id}',            'destroySession')->name('admin.intake_sessions.destroy');
+    // Agents
+    Route::get('admin/admissions-agents',                      'agents')->name('admin.admissions_agents.index');
+    Route::get('admin/admissions-agents/open_modal',           'openAgentModal')->name('admin.admissions_agents.open_modal');
+    Route::post('admin/admissions-agents/store',               'storeAgent')->name('admin.admissions_agents.store');
+    Route::post('admin/admissions-agents/update/{id}',         'updateAgent')->name('admin.admissions_agents.update');
+    Route::get('admin/admissions-agents/delete/{id}',          'destroyAgent')->name('admin.admissions_agents.destroy');
+});
+
+// ── Fee Structures ────────────────────────────────────────────
+Route::controller(FeeStructureController::class)->middleware('auth', 'admin')->group(function () {
+    Route::get('admin/fee-structures',              'index')->name('admin.fee_structures.index');
+    Route::get('admin/fee-structures/open_modal',   'openModal')->name('admin.fee_structures.open_modal');
+    Route::post('admin/fee-structures/store',       'store')->name('admin.fee_structures.store');
+    Route::post('admin/fee-structures/update/{id}', 'update')->name('admin.fee_structures.update');
+    Route::get('admin/fee-structures/delete/{id}',  'destroy')->name('admin.fee_structures.destroy');
+});
+
+// ── Leave Management ──────────────────────────────────────────
+Route::controller(LeaveController::class)->middleware('auth', 'admin')->group(function () {
+    Route::get('admin/leave',                    'index')->name('admin.leave.index');
+    Route::get('admin/leave/open_modal',         'openModal')->name('admin.leave.open_modal');
+    Route::post('admin/leave/store',             'store')->name('admin.leave.store');
+    Route::get('admin/leave/approve/{id}',       'approve')->name('admin.leave.approve');
+    Route::get('admin/leave/reject/{id}',        'reject')->name('admin.leave.reject');
+    Route::get('admin/leave/delete/{id}',        'destroy')->name('admin.leave.destroy');
+    // Leave Types
+    Route::get('admin/leave-types',             'types')->name('admin.leave_types.index');
+    Route::get('admin/leave-types/modal',       'typeModal')->name('admin.leave_types.modal');
+    Route::post('admin/leave-types/store',      'storeType')->name('admin.leave_types.store');
+    Route::get('admin/leave-types/delete/{id}', 'destroyType')->name('admin.leave_types.destroy');
+});
+
+// ── Online Exams / CBT ────────────────────────────────────────
+Route::controller(OnlineExamController::class)->middleware('auth', 'admin')->group(function () {
+    Route::get('admin/online-exams',                         'index')->name('admin.online_exams.index');
+    Route::get('admin/online-exams/open_modal',              'openModal')->name('admin.online_exams.open_modal');
+    Route::post('admin/online-exams/store',                  'store')->name('admin.online_exams.store');
+    Route::post('admin/online-exams/update/{id}',            'update')->name('admin.online_exams.update');
+    Route::get('admin/online-exams/publish/{id}',            'publish')->name('admin.online_exams.publish');
+    Route::get('admin/online-exams/delete/{id}',             'destroy')->name('admin.online_exams.destroy');
+    Route::get('admin/online-exams/{id}/questions',          'questions')->name('admin.online_exams.questions');
+    Route::post('admin/online-exams/{id}/questions/store',   'storeQuestion')->name('admin.online_exams.questions.store');
+    Route::get('admin/online-exams/questions/delete/{id}',   'destroyQuestion')->name('admin.online_exams.questions.destroy');
+    Route::get('admin/online-exams/{id}/submissions',        'submissions')->name('admin.online_exams.submissions');
+    // Question Bank
+    Route::get('admin/question-bank',                        'questionBank')->name('admin.question_bank.index');
+    Route::get('admin/question-bank/modal',                  'bankModal')->name('admin.question_bank.modal');
+    Route::post('admin/question-bank/store',                 'storeBankQuestion')->name('admin.question_bank.store');
+    Route::get('admin/question-bank/delete/{id}',            'destroyBankQuestion')->name('admin.question_bank.delete');
+    // Per-exam question modal
+    Route::get('admin/online-exams/{id}/question_modal',     'questionModal')->name('admin.online_exams.question_modal');
+});
+
+// ── Student CBT exam routes ────────────────────────────────────
+Route::controller(OnlineExamController::class)->middleware('auth', 'student')->group(function () {
+    Route::get('student/online-exams',              'studentExams')->name('student.online_exam.list');
+    Route::get('student/online-exams/{id}/take',    'takeExam')->name('student.online_exam.take');
+    Route::post('student/online-exams/{id}/submit', 'submitExam')->name('student.online_exam.submit');
+    Route::get('student/online-exams/result/{id}',  'examResult')->name('student.online_exam.result');
+});
+
+// ── Assignments (admin/teacher) ───────────────────────────────
+Route::controller(AssignmentController::class)->middleware('auth', 'admin')->group(function () {
+    Route::get('admin/assignments',                            'index')->name('admin.assignments.index');
+    Route::get('admin/assignments/open_modal',                 'openModal')->name('admin.assignments.open_modal');
+    Route::post('admin/assignments/store',                     'store')->name('admin.assignments.store');
+    Route::post('admin/assignments/update/{id}',               'update')->name('admin.assignments.update');
+    Route::get('admin/assignments/delete/{id}',                'destroy')->name('admin.assignments.destroy');
+    Route::get('admin/assignments/{id}/submissions',           'submissions')->name('admin.assignments.submissions');
+    Route::post('admin/assignments/grade/{submission_id}',     'gradeSubmission')->name('admin.assignments.grade');
+});
+
+// ── Student Assignment routes ──────────────────────────────────
+Route::controller(AssignmentController::class)->middleware('auth', 'student')->group(function () {
+    Route::get('student/assignments',                'studentList')->name('student.assignments.list');
+    Route::get('student/assignments/{id}/modal',     'submitModal')->name('student.assignments.modal');
+    Route::post('student/assignments/{id}/submit',   'studentSubmit')->name('student.assignments.submit');
+});
+
+// ── Live Classes ──────────────────────────────────────────────
+Route::controller(LiveClassController::class)->middleware('auth', 'admin')->group(function () {
+    Route::get('admin/live-classes',               'index')->name('admin.live_classes.index');
+    Route::get('admin/live-classes/open_modal',    'openModal')->name('admin.live_classes.open_modal');
+    Route::post('admin/live-classes/store',        'store')->name('admin.live_classes.store');
+    Route::post('admin/live-classes/update/{id}',  'update')->name('admin.live_classes.update');
+    Route::get('admin/live-classes/delete/{id}',   'destroy')->name('admin.live_classes.destroy');
+});
+
+Route::controller(LiveClassController::class)->middleware('auth', 'student')->group(function () {
+    Route::get('student/live-classes', 'studentIndex')->name('student.live_classes.index');
+});
+
+// ── Academic Calendar ─────────────────────────────────────────
+Route::controller(AcademicCalendarController::class)->middleware('auth', 'admin')->group(function () {
+    Route::get('admin/academic-calendar',              'index')->name('admin.academic_calendar.index');
+    Route::get('admin/academic-calendar/open_modal',   'openModal')->name('admin.academic_calendar.open_modal');
+    Route::post('admin/academic-calendar/store',       'store')->name('admin.academic_calendar.store');
+    Route::post('admin/academic-calendar/update/{id}', 'update')->name('admin.academic_calendar.update');
+    Route::get('admin/academic-calendar/delete/{id}',  'destroy')->name('admin.academic_calendar.destroy');
+    Route::get('admin/academic-calendar/events.json',  'eventsJson')->name('admin.academic_calendar.events_json');
+});
+
+// ── Payroll ───────────────────────────────────────────────────
+Route::controller(PayrollController::class)->middleware('auth', 'admin')->group(function () {
+    Route::get('admin/payroll',                      'index')->name('admin.payroll.index');
+    Route::post('admin/payroll/generate',            'generate')->name('admin.payroll.generate');
+    Route::get('admin/payroll/approve/{id}',         'approve')->name('admin.payroll.approve');
+    Route::get('admin/payroll/paid/{id}',            'markPaid')->name('admin.payroll.paid');
+    Route::get('admin/payroll/print/{id}',           'printSlip')->name('admin.payroll.print');
+    Route::get('admin/salary-structures',            'salaryIndex')->name('admin.salary_structures.index');
+    Route::get('admin/salary-structures/modal',      'salaryModal')->name('admin.salary_structures.modal');
+    Route::post('admin/salary-structures/store',     'storeSalary')->name('admin.salary_structures.store');
+});
+
+Route::controller(PayrollController::class)->middleware('auth', 'teacher')->group(function () {
+    Route::get('teacher/payslips', 'staffPayslips')->name('teacher.payroll.index');
+});
+
+// ── Graduation ────────────────────────────────────────────────
+Route::controller(GraduationController::class)->middleware('auth', 'admin')->group(function () {
+    Route::get('admin/graduation',               'index')->name('admin.graduation.index');
+    Route::get('admin/graduation/open_modal',    'openApplyModal')->name('admin.graduation.open_modal');
+    Route::post('admin/graduation/store',        'store')->name('admin.graduation.store');
+    Route::get('admin/graduation/approve/{id}',  'approve')->name('admin.graduation.approve');
+    Route::get('admin/graduation/graduate/{id}', 'graduate')->name('admin.graduation.graduate');
+    Route::get('admin/graduation/delete/{id}',   'destroy')->name('admin.graduation.destroy');
+});
+
+Route::controller(GraduationController::class)->middleware('auth', 'student')->group(function () {
+    Route::get('student/graduation/apply',   'studentApply')->name('student.graduation.apply');
+    Route::post('student/graduation/submit', 'studentStore')->name('student.graduation.store');
+});
+
+// ── Assets ────────────────────────────────────────────────────
+Route::controller(AssetController::class)->middleware('auth', 'admin')->group(function () {
+    Route::get('admin/assets',                        'index')->name('admin.assets.index');
+    Route::get('admin/assets/open_modal',             'openModal')->name('admin.assets.open_modal');
+    Route::post('admin/assets/store',                 'store')->name('admin.assets.store');
+    Route::post('admin/assets/update/{id}',           'update')->name('admin.assets.update');
+    Route::get('admin/assets/delete/{id}',            'destroy')->name('admin.assets.destroy');
+    Route::get('admin/asset-categories',              'categories')->name('admin.asset_categories.index');
+    Route::get('admin/asset-categories/modal',        'categoryModal')->name('admin.asset_categories.modal');
+    Route::post('admin/asset-categories/store',       'storeCategory')->name('admin.asset_categories.store');
+    Route::get('admin/asset-categories/delete/{id}',  'destroyCategory')->name('admin.asset_categories.destroy');
+});
+
+// ── Procurement ───────────────────────────────────────────────
+Route::controller(ProcurementController::class)->middleware('auth', 'admin')->group(function () {
+    Route::get('admin/procurement',                'index')->name('admin.procurement.index');
+    Route::get('admin/procurement/open_modal',     'openModal')->name('admin.procurement.open_modal');
+    Route::post('admin/procurement/store',         'store')->name('admin.procurement.store');
+    Route::post('admin/procurement/status/{id}',   'updateStatus')->name('admin.procurement.status');
+    Route::get('admin/procurement/delete/{id}',    'destroy')->name('admin.procurement.destroy');
+});
+
+// ── Audit Log ─────────────────────────────────────────────────
+Route::controller(AuditLogController::class)->middleware('auth')->group(function () {
+    Route::get('admin/audit-log', 'index')->name('admin.audit_log.index')->middleware('admin');
+    Route::get('superadmin/audit-log', 'index')->name('superadmin.audit_log.index')->middleware('superAdmin');
+});
+
+// ── Transcripts ───────────────────────────────────────────────
+Route::middleware(['auth', 'admin'])->controller(\App\Http\Controllers\TranscriptController::class)->group(function () {
+    Route::get('admin/transcripts',              'index')->name('admin.transcripts.index');
+    Route::get('admin/transcripts/search',       'search')->name('admin.transcripts.search');
+    Route::get('admin/transcripts/{id}/view',    'show')->name('admin.transcripts.show');
+    Route::get('admin/transcripts/{id}/pdf',     'downloadPdf')->name('admin.transcripts.pdf');
+});
+
+// ── Reports & Analytics ───────────────────────────────────────
+Route::middleware(['auth', 'admin'])->controller(\App\Http\Controllers\ReportsController::class)->group(function () {
+    Route::get('admin/reports',                  'index')->name('admin.reports.index');
+    Route::get('admin/reports/students',         'studentsReport')->name('admin.reports.students');
+    Route::get('admin/reports/finance',          'financeReport')->name('admin.reports.finance');
+    Route::get('admin/reports/attendance',       'attendanceReport')->name('admin.reports.attendance');
+    Route::get('admin/reports/exams',            'examsReport')->name('admin.reports.exams');
+    Route::get('admin/reports/export/{type}',    'export')->name('admin.reports.export');
+});
+
+// ── Enhanced Settings ─────────────────────────────────────────
+Route::middleware(['auth', 'admin'])->controller(\App\Http\Controllers\EnhancedSettingsController::class)->group(function () {
+    Route::get('admin/settings/academic',        'academic')->name('admin.settings.academic');
+    Route::post('admin/settings/academic/save',  'saveAcademic')->name('admin.settings.academic.save');
+    Route::get('admin/settings/notifications',   'notifications')->name('admin.settings.notifications');
+    Route::post('admin/settings/notifications/save', 'saveNotifications')->name('admin.settings.notifications.save');
+    Route::get('admin/settings/permissions',     'permissions')->name('admin.settings.permissions');
+    Route::post('admin/settings/permissions/save','savePermissions')->name('admin.settings.permissions.save');
+    Route::get('admin/settings/backup',          'backup')->name('admin.settings.backup');
+    Route::post('admin/settings/backup/run',     'runBackup')->name('admin.settings.backup.run');
+    Route::get('admin/settings/api',             'apiSettings')->name('admin.settings.api');
+    Route::post('admin/settings/api/regenerate', 'regenerateKey')->name('admin.settings.api.regenerate');
+});

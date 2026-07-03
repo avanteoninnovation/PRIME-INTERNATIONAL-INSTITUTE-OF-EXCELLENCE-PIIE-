@@ -17,13 +17,13 @@ class AdminMiddleware
     public function handle(Request $request, Closure $next)
     {
         $user = auth()->user();
-       
-        if ($user->role_id == '2' && $user->account_status != 'disable') {
-            return $next($request);
 
-        }else{
-            return redirect()->route('admin.account_disableview')->with('error', 'Access denied or your account is disabled.');
+        $staffRoles = [2, 3, 4, 5, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19];
+
+        if ($user && in_array($user->role_id, $staffRoles) && $user->account_status != 'disable') {
+            return $next($request);
         }
-       
+
+        return redirect()->route('admin.account_disableview')->with('error', 'Access denied or your account is disabled.');
     }
 }

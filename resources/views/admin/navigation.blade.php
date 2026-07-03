@@ -6,6 +6,77 @@
         empty($user->menu_permission) || $user->menu_permission == 'null'
             ? []
             : json_decode($user->menu_permission, true);
+
+    // Role-based nav permissions (used when menu_permission is empty)
+    $roleNavPerms = function_exists('get_role_nav_permissions')
+        ? get_role_nav_permissions((int) $user->role_id)
+        : ['all'];
+
+    // canSee: returns true if this nav section should be visible
+    $canSee = function(string $section) use ($menu_permission, $roleNavPerms): bool {
+        // If menu_permission is set (legacy per-user config), use it
+        if (!empty($menu_permission)) {
+            return in_array($section, $menu_permission);
+        }
+        // Otherwise use role-based permissions
+        return in_array('all', $roleNavPerms) || in_array($section, $roleNavPerms);
+    };
+
+    // Build the effective permission array used by legacy @if checks.
+    // When roleNavPerms is 'all', keep $menu_permission empty so existing
+    // `empty($user->menu_permission)` checks evaluate to true (show everything).
+    // For restricted roles, populate it with allowed keys so existing checks work.
+    $isAdminOrSuper = in_array($user->role_id, [1, 2]);
+    if (!$isAdminOrSuper && empty($menu_permission) && !in_array('all', $roleNavPerms)) {
+        // Map role nav permission keys → legacy menu_permission keys
+        $navToMenuKeys = [
+            'students'         => ['admin.student', 'admin.parent'],
+            'staff'            => ['admin.admin', 'admin.teacher', 'admin.accountant', 'admin.librarian', 'admin.warden'],
+            'attendance'       => ['admin.student_attendance', 'admin.teacher_attendance'],
+            'admissions'       => ['admin.offline_admission.single'],
+            'hei_admissions'   => ['admin.hei_admissions'],
+            'intake_sessions'  => ['admin.intake_sessions'],
+            'admissions_agents'=> ['admin.admissions_agents'],
+            'programmes'       => ['admin.programmes'],
+            'enrolment'        => ['admin.enrolment'],
+            'online_exams'     => ['admin.online_exams'],
+            'exams'            => ['admin.exam', 'admin.exam_category', 'admin.admit_card'],
+            'assignments'      => ['admin.assignments'],
+            'live_classes'     => ['admin.live_classes'],
+            'gradebook'        => ['admin.gradebook'],
+            'question_bank'    => ['admin.question_bank'],
+            'transcripts'      => ['admin.transcripts'],
+            'graduation'       => ['admin.graduation'],
+            'fees'             => ['admin.fee', 'admin.fee_structures'],
+            'fee_structures'   => ['admin.fee_structures'],
+            'payments'         => ['admin.payment'],
+            'expenses'         => ['admin.expense'],
+            'payroll'          => ['admin.payroll'],
+            'salary_structures'=> ['admin.salary_structures'],
+            'hostel_fee'       => ['admin.hostel'],
+            'library'          => ['admin.library'],
+            'assets'           => ['admin.assets'],
+            'asset_categories' => ['admin.asset_categories'],
+            'procurement'      => ['admin.procurement'],
+            'leave'            => ['admin.leave'],
+            'leave_types'      => ['admin.leave_types'],
+            'appraisal'        => ['admin.appraisal'],
+            'departments'      => ['admin.department'],
+            'routine'          => ['admin.routine'],
+            'academic_calendar'=> ['admin.academic_calendar'],
+            'noticeboard'      => ['admin.noticeboard'],
+            'chat'             => ['admin.chat'],
+            'reports'          => ['admin.reports'],
+            'settings'         => ['admin.setting'],
+        ];
+        foreach ($roleNavPerms as $key) {
+            if (isset($navToMenuKeys[$key])) {
+                $menu_permission = array_merge($menu_permission, $navToMenuKeys[$key]);
+            }
+        }
+        // Always allow dashboard
+        $menu_permission[] = 'admin.dashboard';
+    }
 @endphp
 <!DOCTYPE html>
 <html lang="en">
@@ -320,6 +391,14 @@
                                     href="{{ route('admin.examination.admit_card_print') }}"><span>{{ get_phrase('Print Admit Card') }}</span></a>
                             </li>
                         @endif
+                        <li>
+                            <a class="{{ request()->is('admin/online-exams*') ? 'active' : '' }}"
+                                href="{{ route('admin.online_exams.index') }}"><span>{{ get_phrase('Online Exams / CBT') }}</span></a>
+                        </li>
+                        <li>
+                            <a class="{{ request()->is('admin/question-bank*') ? 'active' : '' }}"
+                                href="{{ route('admin.question_bank.index') }}"><span>{{ get_phrase('Question Bank') }}</span></a>
+                        </li>
                     </ul>
                 </li>
             @endif
@@ -405,6 +484,26 @@
                                         {{ get_phrase('Department') }}
                                     </span></a></li>
                         @endif
+                        <li>
+                            <a class="{{ request()->is('admin/programmes*') ? 'active' : '' }}"
+                                href="{{ route('admin.programmes.index') }}"><span>{{ get_phrase('Programmes') }}</span></a>
+                        </li>
+                        <li>
+                            <a class="{{ request()->is('admin/assignments*') ? 'active' : '' }}"
+                                href="{{ route('admin.assignments.index') }}"><span>{{ get_phrase('Assignments') }}</span></a>
+                        </li>
+                        <li>
+                            <a class="{{ request()->is('admin/live-classes*') ? 'active' : '' }}"
+                                href="{{ route('admin.live_classes.index') }}"><span>{{ get_phrase('Live Classes') }}</span></a>
+                        </li>
+                        <li>
+                            <a class="{{ request()->is('admin/academic-calendar*') ? 'active' : '' }}"
+                                href="{{ route('admin.academic_calendar.index') }}"><span>{{ get_phrase('Academic Calendar') }}</span></a>
+                        </li>
+                        <li>
+                            <a class="{{ request()->is('admin/graduation*') ? 'active' : '' }}"
+                                href="{{ route('admin.graduation.index') }}"><span>{{ get_phrase('Graduation') }}</span></a>
+                        </li>
                     </ul>
                 </li>
             @endif
@@ -463,8 +562,109 @@
                                         {{ get_phrase('Expense Category') }}
                                     </span></a></li>
                         @endif
+                        <li>
+                            <a class="{{ request()->is('admin/fee-structures*') ? 'active' : '' }}"
+                                href="{{ route('admin.fee_structures.index') }}"><span>{{ get_phrase('Fee Structures') }}</span></a>
+                        </li>
+                        <li>
+                            <a class="{{ request()->is('admin/payroll*') || request()->is('admin/salary-structures*') ? 'active' : '' }}"
+                                href="{{ route('admin.payroll.index') }}"><span>{{ get_phrase('Payroll') }}</span></a>
+                        </li>
                     </ul>
                 </li>
+            @endif
+
+            {{-- HEI Admissions --}}
+            <li class="nav-links-li {{ request()->is('admin/hei-admissions*') || request()->is('admin/intake-sessions*') || request()->is('admin/admissions-agents*') ? 'showMenu' : '' }}">
+                <div class="iocn-link">
+                    <a href="#">
+                        <div class="sidebar_icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="48" height="48"><path d="M12 2a5 5 0 1 0 0 10A5 5 0 0 0 12 2zm0 8a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm9 11v-1a7 7 0 0 0-14 0v1H5v-1a9 9 0 0 1 18 0v1h-2zm-7-4v4h-2v-4h-2l3-4 3 4h-2z"/></svg>
+                        </div>
+                        <span class="link_name">{{ get_phrase('HEI Admissions') }}</span>
+                    </a>
+                    <span class="arrow"><svg xmlns="http://www.w3.org/2000/svg" width="4.743" height="7.773" viewBox="0 0 4.743 7.773"><path d="M1.466.247,4.5,3.277a.793.793,0,0,1,.189.288.92.92,0,0,1,0,.643A.793.793,0,0,1,4.5,4.5l-3.03,3.03a.828.828,0,0,1-.609.247.828.828,0,0,1-.609-.247.875.875,0,0,1,0-1.219L2.668,3.886.247,1.466A.828.828,0,0,1,0,.856.828.828,0,0,1,.247.247.828.828,0,0,1,.856,0,.828.828,0,0,1,1.466.247Z" fill="#fff"/></svg></span>
+                </div>
+                <ul class="sub-menu">
+                    <li><a class="{{ request()->is('admin/hei-admissions*') ? 'active' : '' }}" href="{{ route('admin.hei_admissions.index') }}"><span>{{ get_phrase('Applications') }}</span></a></li>
+                    <li><a class="{{ request()->is('admin/intake-sessions*') ? 'active' : '' }}" href="{{ route('admin.intake_sessions.index') }}"><span>{{ get_phrase('Intake Sessions') }}</span></a></li>
+                    <li><a class="{{ request()->is('admin/admissions-agents*') ? 'active' : '' }}" href="{{ route('admin.admissions_agents.index') }}"><span>{{ get_phrase('Agents') }}</span></a></li>
+                </ul>
+            </li>
+
+            {{-- Leave Management --}}
+            <li class="nav-links-li {{ request()->is('admin/leave*') ? 'showMenu' : '' }}">
+                <div class="iocn-link">
+                    <a href="#">
+                        <div class="sidebar_icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="48" height="48"><path d="M19 3h-1V1h-2v2H8V1H6v2H5C3.9 3 3 3.9 3 5v16c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 18H5V9h14v12zM9 11H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2zm-8 4H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2z"/></svg>
+                        </div>
+                        <span class="link_name">{{ get_phrase('Leave Management') }}</span>
+                    </a>
+                    <span class="arrow"><svg xmlns="http://www.w3.org/2000/svg" width="4.743" height="7.773" viewBox="0 0 4.743 7.773"><path d="M1.466.247,4.5,3.277a.793.793,0,0,1,.189.288.92.92,0,0,1,0,.643A.793.793,0,0,1,4.5,4.5l-3.03,3.03a.828.828,0,0,1-.609.247.828.828,0,0,1-.609-.247.875.875,0,0,1,0-1.219L2.668,3.886.247,1.466A.828.828,0,0,1,0,.856.828.828,0,0,1,.247.247.828.828,0,0,1,.856,0,.828.828,0,0,1,1.466.247Z" fill="#fff"/></svg></span>
+                </div>
+                <ul class="sub-menu">
+                    <li><a class="{{ request()->is('admin/leave') ? 'active' : '' }}" href="{{ route('admin.leave.index') }}"><span>{{ get_phrase('Leave Requests') }}</span></a></li>
+                    <li><a class="{{ request()->is('admin/leave-types*') ? 'active' : '' }}" href="{{ route('admin.leave_types.index') }}"><span>{{ get_phrase('Leave Types') }}</span></a></li>
+                </ul>
+            </li>
+
+            {{-- Assets & Procurement --}}
+            <li class="nav-links-li {{ request()->is('admin/assets*') || request()->is('admin/asset-categories*') || request()->is('admin/procurement*') ? 'showMenu' : '' }}">
+                <div class="iocn-link">
+                    <a href="#">
+                        <div class="sidebar_icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="48" height="48"><path d="M20 3H4v2h16V3zm1 4H3l1 13h16l1-13zm-9 11H8v-6h4v6zm5 0h-3v-4h3v4zm-7-8H7V8h3v2zm6 0h-4V8h4v2z"/></svg>
+                        </div>
+                        <span class="link_name">{{ get_phrase('Assets') }}</span>
+                    </a>
+                    <span class="arrow"><svg xmlns="http://www.w3.org/2000/svg" width="4.743" height="7.773" viewBox="0 0 4.743 7.773"><path d="M1.466.247,4.5,3.277a.793.793,0,0,1,.189.288.92.92,0,0,1,0,.643A.793.793,0,0,1,4.5,4.5l-3.03,3.03a.828.828,0,0,1-.609.247.828.828,0,0,1-.609-.247.875.875,0,0,1,0-1.219L2.668,3.886.247,1.466A.828.828,0,0,1,0,.856.828.828,0,0,1,.247.247.828.828,0,0,1,.856,0,.828.828,0,0,1,1.466.247Z" fill="#fff"/></svg></span>
+                </div>
+                <ul class="sub-menu">
+                    <li><a class="{{ request()->is('admin/assets') ? 'active' : '' }}" href="{{ route('admin.assets.index') }}"><span>{{ get_phrase('Assets') }}</span></a></li>
+                    <li><a class="{{ request()->is('admin/asset-categories*') ? 'active' : '' }}" href="{{ route('admin.asset_categories.index') }}"><span>{{ get_phrase('Asset Categories') }}</span></a></li>
+                    <li><a class="{{ request()->is('admin/procurement*') ? 'active' : '' }}" href="{{ route('admin.procurement.index') }}"><span>{{ get_phrase('Procurement') }}</span></a></li>
+                </ul>
+            </li>
+
+            {{-- Audit Log --}}
+            <li class="nav-links-li {{ request()->is('admin/audit-log*') ? 'showMenu' : '' }}">
+                <div class="iocn-link">
+                    <a class="{{ request()->is('admin/audit-log*') ? 'active' : '' }}" href="{{ route('admin.audit_log.index') }}">
+                        <div class="sidebar_icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="48" height="48"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg>
+                        </div>
+                        <span class="link_name">{{ get_phrase('Audit Log') }}</span>
+                    </a>
+                </div>
+            </li>
+
+            {{-- Reports & Analytics --}}
+            @if (empty($user->menu_permission) || in_array('admin.reports', $menu_permission))
+            <li class="nav-links-li {{ request()->is('admin/reports*') ? 'showMenu' : '' }}">
+                <div class="iocn-link">
+                    <a class="{{ request()->is('admin/reports*') ? 'active' : '' }}" href="{{ route('admin.reports.index') }}">
+                        <div class="sidebar_icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="48" height="48"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14l-5-5 1.41-1.41L12 14.17l7.59-7.59L21 8l-9 9z"/><path d="M7 12h2v5H7zm4-3h2v8h-2zm4-3h2v11h-2z" fill-opacity="0"/><rect x="7" y="12" width="2" height="5"/><rect x="11" y="9" width="2" height="8"/><rect x="15" y="6" width="2" height="11"/></svg>
+                        </div>
+                        <span class="link_name">{{ get_phrase('Reports & Analytics') }}</span>
+                    </a>
+                </div>
+            </li>
+            @endif
+
+            {{-- Transcripts --}}
+            @if (empty($user->menu_permission) || in_array('admin.transcripts', $menu_permission))
+            <li class="nav-links-li {{ request()->is('admin/transcripts*') ? 'showMenu' : '' }}">
+                <div class="iocn-link">
+                    <a class="{{ request()->is('admin/transcripts*') ? 'active' : '' }}" href="{{ route('admin.transcripts.index') }}">
+                        <div class="sidebar_icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="48" height="48"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11zM8 15.01l1.41 1.41L11 14.84V19h2v-4.16l1.59 1.59L16 15.01 12.01 11 8 15.01z"/></svg>
+                        </div>
+                        <span class="link_name">{{ get_phrase('Transcripts') }}</span>
+                    </a>
+                </div>
+            </li>
             @endif
 
             @if (addon_status('online_courses') == 1)
@@ -1000,7 +1200,8 @@
                     in_array('admin.settings.session_manager', $menu_permission) ||
                     in_array('admin.settings.payment', $menu_permission) ||
                     in_array('admin.website_management', $menu_permission) ||
-                    in_array('admin.profile', $menu_permission))
+                    in_array('admin.profile', $menu_permission) ||
+                    in_array('admin.setting', $menu_permission))
                 <li
                     class="nav-links-li {{ request()->is('admin/settings/school*') || request()->is('admin/session_manager*') || request()->is('admin/settings/payment*') || request()->is('admin/live_class_settings*') || request()->is('admin/profile*') || request()->is('admin/website-management*') ? 'showMenu' : '' }}">
                     <div class="iocn-link">
@@ -1042,6 +1243,37 @@
                                 </a>
                             </li>
                         @endif
+                        {{-- HEI Enhanced Settings --}}
+                        <li>
+                            <a class="{{ request()->is('admin/settings/academic*') ? 'active' : '' }}"
+                                href="{{ route('admin.settings.academic') }}">
+                                <span>{{ get_phrase('Grading Scale') }}</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a class="{{ request()->is('admin/settings/notifications*') ? 'active' : '' }}"
+                                href="{{ route('admin.settings.notifications') }}">
+                                <span>{{ get_phrase('Notifications') }}</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a class="{{ request()->is('admin/settings/permissions*') ? 'active' : '' }}"
+                                href="{{ route('admin.settings.permissions') }}">
+                                <span>{{ get_phrase('Role Permissions') }}</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a class="{{ request()->is('admin/settings/backup*') ? 'active' : '' }}"
+                                href="{{ route('admin.settings.backup') }}">
+                                <span>{{ get_phrase('Database Backup') }}</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a class="{{ request()->is('admin/settings/api*') ? 'active' : '' }}"
+                                href="{{ route('admin.settings.api') }}">
+                                <span>{{ get_phrase('API Settings') }}</span>
+                            </a>
+                        </li>
                         @if (empty($user->menu_permission) || in_array('admin.settings.session_manager', $menu_permission))
                             <li>
                                 <a class="{{ request()->is('admin/session_manager*') ? 'active' : '' }}"
