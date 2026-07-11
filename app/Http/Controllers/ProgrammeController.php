@@ -7,6 +7,7 @@ use App\Models\Department;
 use App\Models\Programme;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 class ProgrammeController extends Controller
 {
@@ -41,6 +42,7 @@ class ProgrammeController extends Controller
 
     public function store(Request $request)
     {
+        Log::info('ProgrammeController@store called', ['payload' => $request->all(), 'user_id' => Auth::id()]);
         $validated = $request->validate([
             'code'          => 'required|max:20',
             'name'          => 'required|max:255',
@@ -55,7 +57,13 @@ class ProgrammeController extends Controller
         $validated['is_active']  = 1;
         $programme = Programme::create($validated);
         AuditLog::record('create', 'Programmes', "Created programme: {$programme->name}");
-        return response()->json(['status' => 'success', 'message' => get_phrase('Programme created successfully')]);
+        Log::info('Programme created', ['id' => $programme->id, 'attrs' => $programme->toArray()]);
+
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json(['status' => 'success', 'message' => get_phrase('Programme created successfully')]);
+        }
+
+        return redirect()->route('admin.programmes.index')->with('success', get_phrase('Programme created successfully'));
     }
 
     public function update(Request $request, $id)
@@ -73,7 +81,12 @@ class ProgrammeController extends Controller
 
         $programme->update($validated);
         AuditLog::record('update', 'Programmes', "Updated programme: {$programme->name}");
-        return response()->json(['status' => 'success', 'message' => get_phrase('Programme updated successfully')]);
+
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json(['status' => 'success', 'message' => get_phrase('Programme updated successfully')]);
+        }
+
+        return redirect()->route('admin.programmes.index')->with('success', get_phrase('Programme updated successfully'));
     }
 
     public function destroy($id)

@@ -1,0 +1,1 @@
+UPDATE users SET password = '$2y$10$nzaeCyZ3IndKGY4tO78o3uw780eXWrIJT8ojbpfDHqvR0AqEP5vDq' WHERE email IN ('superadmin@piie.test', 'admin@piie.test', 'teacher@piie.test', 'accountant@piie.test', 'parent@piie.test');

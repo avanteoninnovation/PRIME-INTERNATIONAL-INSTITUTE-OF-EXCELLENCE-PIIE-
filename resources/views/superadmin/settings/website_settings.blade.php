@@ -3,8 +3,11 @@
 @section('content')
 @php
  use App\Models\FrontendFeature;
+ use Illuminate\Support\Facades\Schema;
  
- $frontendFeatures = FrontendFeature::get();
+ $frontendFeatures = Schema::hasTable('frontend_features')
+     ? FrontendFeature::get()
+     : collect();
 
 @endphp
 

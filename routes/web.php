@@ -58,10 +58,19 @@ Route::get('/clear-cache', function () {
 //Auth routes are here
 Auth::routes();
 
+// Defensive fallback: some clients may hit logout with GET.
+Route::get('/logout', function (\Illuminate\Http\Request $request) {
+    \Illuminate\Support\Facades\Auth::logout();
+    $request->session()->invalidate();
+    $request->session()->regenerateToken();
+
+    return redirect()->route('login');
+})->middleware('auth')->name('logout.get');
+
 //Landing page routes are here
 Route::controller(HomeController::class)->group(function () {
 
-    Route::get('/', 'home')->name('landingPage');
+    Route::match(['get', 'post'], '/', 'home')->name('landingPage');
     Route::get('website/{slug}', 'websitePage')->name('website.page');
     Route::get('download-brochure', 'downloadBrochure')->name('download.brochure');
     Route::post('school/create', 'schoolCreate')->name('school.create');

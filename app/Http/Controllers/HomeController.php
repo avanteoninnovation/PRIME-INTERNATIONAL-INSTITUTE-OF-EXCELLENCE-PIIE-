@@ -29,13 +29,25 @@ class HomeController extends Controller
     public function home(Request $request)
     {
         if(get_settings('frontend_view') == '1') {
-            $packages = Package::where('status', 1)->get();
-            $faqs = Faq::all();
-            $users = User::all();
-            $schools = School::all();
-            $frontendFeatures = ($request->has('see_all')) 
-            ? FrontendFeature::all() 
-            : FrontendFeature::limit(8)->get();
+            $packages = Schema::hasTable('packages')
+                ? Package::where('status', 1)->get()
+                : collect();
+
+            $faqs = Schema::hasTable('faq')
+                ? Faq::all()
+                : collect();
+
+            $users = Schema::hasTable('users')
+                ? User::all()
+                : collect();
+
+            $schools = Schema::hasTable('schools')
+                ? School::all()
+                : collect();
+
+            $frontendFeatures = Schema::hasTable('frontend_features')
+                ? ($request->has('see_all') ? FrontendFeature::all() : FrontendFeature::limit(8)->get())
+                : collect();
 
             $websiteSections = collect();
             $websiteItems = collect();

@@ -10,6 +10,7 @@ use App\Models\Subject;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Log;
 
 class AssignmentController extends Controller
 {
@@ -52,6 +53,7 @@ class AssignmentController extends Controller
 
     public function store(Request $request)
     {
+        Log::info('AssignmentController@store called', ['payload' => $request->all(), 'user_id' => Auth::id()]);
         $validated = $request->validate([
             'title'           => 'required|max:255',
             'subject_id'      => 'nullable|exists:subjects,id',
@@ -67,6 +69,7 @@ class AssignmentController extends Controller
 
         $a = Assignment::create($validated);
         AuditLog::record('create', 'Assignments', "Created assignment: {$a->title}");
+        Log::info('Assignment created', ['id' => $a->id, 'attrs' => $a->toArray()]);
         return response()->json(['status' => 'success', 'message' => get_phrase('Assignment created')]);
     }
 

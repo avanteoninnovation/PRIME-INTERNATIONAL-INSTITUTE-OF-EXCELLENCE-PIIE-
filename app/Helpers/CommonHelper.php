@@ -331,9 +331,7 @@ if ( ! function_exists('get_grade'))
 if (!function_exists('get_active_currency')) {
     function get_active_currency()
     {
-        $global_system_currency = GlobalSettings::where('key', 'system_currency')->get()->toArray();
-        $global_system_currency = $global_system_currency[0]['value'];
-        return $global_system_currency;
+        return GlobalSettings::where('key', 'system_currency')->value('value') ?: 'USD';
     }
 }
 
@@ -351,55 +349,69 @@ if (!function_exists('relogin_user')) {
 if (!function_exists('get_payment_keys')) {
     function get_payment_keys($payment_method = '',$returnItem='')
     {
-        $return_value;
-        $global_system_currency = GlobalSettings::where('key', 'system_currency')->get()->toArray();
-        $global_system_currency = $global_system_currency[0]['value'];
+        $return_value = [];
+        $global_system_currency = get_active_currency();
 
         if ($payment_method == "stripe") {
-            $stripe = PaymentMethods::where('name', 'stripe')->first()->toArray();
+            $stripe = PaymentMethods::where('name', 'stripe')->first();
+            if (!$stripe) {
+                return null;
+            }
+
             $stripe_keys = json_decode($stripe['payment_keys']);
+            if (!$stripe_keys) {
+                return null;
+            }
+
             if ($stripe['mode'] == "test") {
-                $return_value['test_key'] = $stripe_keys->test_key;
-                $return_value['test_secret_key'] = $stripe_keys->test_secret_key;
+                $return_value['test_key'] = $stripe_keys->test_key ?? null;
+                $return_value['test_secret_key'] = $stripe_keys->test_secret_key ?? null;
                 $return_value['currency'] = $global_system_currency;
-                return    $return_value[$returnItem];
+                return $return_value[$returnItem] ?? null;
             } elseif ($stripe['mode'] == "live") {
-                $return_value['public_live_key'] = $stripe_keys->public_live_key;
-                $return_value['secret_live_key'] = $stripe_keys->secret_live_key;
+                $return_value['public_live_key'] = $stripe_keys->public_live_key ?? null;
+                $return_value['secret_live_key'] = $stripe_keys->secret_live_key ?? null;
                 $return_value['currency'] = $global_system_currency;
-                return    $return_value[$returnItem];
+                return $return_value[$returnItem] ?? null;
             }
         }
 
 
         if ($payment_method == "paytm") {
-            $paytm = PaymentMethods::where('name', 'paytm')->first()->toArray();
+            $paytm = PaymentMethods::where('name', 'paytm')->first();
+            if (!$paytm) {
+                return null;
+            }
+
             $paytm_keys = json_decode($paytm['payment_keys']);
+            if (!$paytm_keys) {
+                return null;
+            }
 
             if ($paytm['mode'] == "test") {
-                $return_value['environment'] = $paytm_keys->environment;
-                $return_value['merchant_id'] = $paytm_keys->test_merchant_id;
-                $return_value['merchant_key'] = $paytm_keys->test_merchant_key;
-                $return_value['merchant_website'] = $paytm_keys->merchant_website;
-                $return_value['channel'] = $paytm_keys->channel;
-                $return_value['industry_type'] = $paytm_keys->industry_type;
+                $return_value['environment'] = $paytm_keys->environment ?? null;
+                $return_value['merchant_id'] = $paytm_keys->test_merchant_id ?? null;
+                $return_value['merchant_key'] = $paytm_keys->test_merchant_key ?? null;
+                $return_value['merchant_website'] = $paytm_keys->merchant_website ?? null;
+                $return_value['channel'] = $paytm_keys->channel ?? null;
+                $return_value['industry_type'] = $paytm_keys->industry_type ?? null;
                 $return_value['currency'] = $global_system_currency;
-                return    $return_value[$returnItem];
+                return $return_value[$returnItem] ?? null;
 
             } elseif ($paytm['mode'] == "live") {
-                $return_value['environment'] = $paytm_keys->environment;
-                $return_value['merchant_id'] = $paytm_keys->live_merchant_id;
-                $return_value['merchant_key'] = $paytm_keys->live_merchant_key;
-                $return_value['merchant_website'] = $paytm_keys->merchant_website;
-                $return_value['channel'] = $paytm_keys->channel;
-                $return_value['industry_type'] = $paytm_keys->industry_type;
+                $return_value['environment'] = $paytm_keys->environment ?? null;
+                $return_value['merchant_id'] = $paytm_keys->live_merchant_id ?? null;
+                $return_value['merchant_key'] = $paytm_keys->live_merchant_key ?? null;
+                $return_value['merchant_website'] = $paytm_keys->merchant_website ?? null;
+                $return_value['channel'] = $paytm_keys->channel ?? null;
+                $return_value['industry_type'] = $paytm_keys->industry_type ?? null;
                 $return_value['currency'] = $global_system_currency;
-                return    $return_value[$returnItem];
+                return $return_value[$returnItem] ?? null;
 
             }
         }
 
-
+        return null;
     }
 }
 

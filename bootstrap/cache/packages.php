@@ -1,13 +1,13 @@
 <?php return array (
   'anandsiddharth/laravel-paytm-wallet' => 
   array (
-    'providers' => 
-    array (
-      0 => 'Anand\\LaravelPaytmWallet\\PaytmWalletServiceProvider',
-    ),
     'aliases' => 
     array (
       'PaytmWallet' => 'Anand\\LaravelPaytmWallet\\Facades\\PaytmWallet',
+    ),
+    'providers' => 
+    array (
+      0 => 'Anand\\LaravelPaytmWallet\\PaytmWalletServiceProvider',
     ),
   ),
   'barryvdh/laravel-dompdf' => 

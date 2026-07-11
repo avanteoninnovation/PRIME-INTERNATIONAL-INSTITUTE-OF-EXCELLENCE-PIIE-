@@ -43,6 +43,7 @@ use App\Models\FrontendFeature;
 use Mail;
 use App\Mail\SchoolEmail;
 use Illuminate\Support\Facades\Redirect;
+use Illuminate\Support\Facades\Schema;
 use  Omnipay\Omnipay;
 use Illuminate\Support\Str;
 use Razorpay\Api\Api;
@@ -437,8 +438,8 @@ class SuperAdminController extends Controller
             if (!empty($subcription)) {
                 $uses_date = $subcription['date_added'] - $today_time;
                 $upgrade_expireDate =  $expire_date - $uses_date ;   
-                $subscriptions_active = $subcription->active;
-                $students_limit = $subcription->studentLimit;
+                $subscriptions_active = $subcription->active ?? 1;
+                $students_limit = $subcription->studentLimit ?? ($subcription->student_limit ?? null);
                 $upgradePrice = $payment_history->amount - $subcription->paid_amount;
 
                 
@@ -451,52 +452,47 @@ class SuperAdminController extends Controller
 
             $offline_tr_keys = json_encode($info);
 
-            if(empty($subcription) || $subcription['expire_date'] < $today_time ){
-                
-                $subscriptionsmail = Subscription::create([
+            $createSubscription = function ($paidAmount, $finalExpireDate, $finalStudentLimit = null) use ($payment_history, $offline_tr_keys, $package) {
+                $payload = [
                     'package_id' => $payment_history->package_id,
                     'school_id' => $payment_history->school_id,
-                    'paid_amount' => $payment_history->amount,
+                    'paid_amount' => $paidAmount,
                     'payment_method' => ucwords($payment_history->paid_by),
                     'transaction_keys' => $offline_tr_keys,
-                    'expire_date' => $expire_date,
-                    'studentLimit' => $package->studentLimit,
-                    'paid_amount' => $payment_history->amount,
-                    'date_added' => strtotime(date('Y-m-d')),
-                    'active' => '1',
-                    'status' => '1',
-                    
-                ]);
+                    'expire_date' => $finalExpireDate,
+                ];
+
+                if (Schema::hasColumn('subscriptions', 'date_added')) {
+                    $payload['date_added'] = strtotime(date('Y-m-d'));
+                }
+
+                if (Schema::hasColumn('subscriptions', 'active')) {
+                    $payload['active'] = '1';
+                }
+
+                if (Schema::hasColumn('subscriptions', 'status')) {
+                    $payload['status'] = '1';
+                }
+
+                if (Schema::hasColumn('subscriptions', 'studentLimit')) {
+                    $payload['studentLimit'] = $finalStudentLimit ?? ($package->studentLimit ?? null);
+                } elseif (Schema::hasColumn('subscriptions', 'student_limit')) {
+                    $payload['student_limit'] = $finalStudentLimit ?? ($package->studentLimit ?? null);
+                }
+
+                return Subscription::create($payload);
+            };
+
+            if(empty($subcription) || $subcription['expire_date'] < $today_time ){
+                
+                $subscriptionsmail = $createSubscription($payment_history->amount, $expire_date, $package->studentLimit ?? null);
 
             }elseif($subscriptions_active == '1' && $students_limit == 'Unlimited') {
                
-                $subscriptionsmail = Subscription::create([
-                    'package_id' => $payment_history->package_id,
-                    'school_id' => $payment_history->school_id,
-                    'paid_amount' => $upgradePrice,
-                    'payment_method' => ucwords($payment_history->paid_by),
-                    'transaction_keys' => $offline_tr_keys,
-                    'expire_date' => $upgrade_expireDate,
-                    'studentLimit' => "Unlimited",
-                    'date_added' => strtotime(date('Y-m-d')),
-                    'active' => '1',
-                    'status' => '1',
-                ]);
+                $subscriptionsmail = $createSubscription($upgradePrice, $upgrade_expireDate, 'Unlimited');
             }else{
                   
-                $subscriptionsmail = Subscription::create([
-                    'package_id' => $payment_history->package_id,
-                    'school_id' => $payment_history->school_id,
-                    'paid_amount' => $upgradePrice,
-                    'payment_method' => ucwords($payment_history->paid_by),
-                    'transaction_keys' => $offline_tr_keys,
-                    'expire_date' => $upgrade_expireDate,
-                    'studentLimit' => $package->studentLimit,
-                    'date_added' => strtotime(date('Y-m-d')),
-                    'active' => '1',
-                    'status' => '1',
-                    
-                ]);
+                $subscriptionsmail = $createSubscription($upgradePrice, $upgrade_expireDate, $package->studentLimit ?? null);
             }
             
             
@@ -917,10 +913,8 @@ class SuperAdminController extends Controller
     {
 
 
-        $global_currency = GlobalSettings::where('key', 'system_currency')->first()->toArray();
-        $global_currency = $global_currency['value'];
-        $global_currency_position = GlobalSettings::where('key', 'currency_position')->first()->toArray();
-        $global_currency_position = $global_currency_position['value'];
+        $global_currency = GlobalSettings::where('key', 'system_currency')->value('value') ?: 'USD';
+        $global_currency_position = GlobalSettings::where('key', 'currency_position')->value('value') ?: 'left';
 
         $currencies = Currency::all()->toArray();
 

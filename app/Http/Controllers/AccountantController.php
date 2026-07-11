@@ -338,8 +338,12 @@ class AccountantController extends Controller
 
     public function update_offline_payment($id,$status)
     {
-        $amount= StudentFeeManager::find($id)->first()->toArray();
-        $amount=$amount['total_amount'];
+        $invoice = StudentFeeManager::find($id);
+        if (!$invoice) {
+            return redirect()->back()->with('error', 'Invoice not found.');
+        }
+
+        $amount = $invoice->total_amount;
 
         if($status=='approve')
         {

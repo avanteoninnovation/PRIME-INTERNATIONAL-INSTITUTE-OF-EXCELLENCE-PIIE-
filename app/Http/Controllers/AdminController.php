@@ -58,6 +58,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Schema;
 use Mail;
 use PDF;
 
@@ -75,7 +76,12 @@ class AdminController extends Controller
     {
         $this->middleware(function ($request, $next) {
             $this->user = Auth()->user();
-            $this->check_subscription_status(Auth()->user()->school_id);
+
+            // Super admin and unauthenticated requests should not be blocked by subscription checks.
+            if ($this->user && (int) $this->user->role_id !== 1) {
+                $this->check_subscription_status($this->user->school_id);
+            }
+
             $this->insert_gateways();
             return $next($request);
         });
@@ -88,15 +94,31 @@ class AdminController extends Controller
             return;
         }
 
+        if (empty($school_id) || !Schema::hasTable('subscriptions')) {
+            return;
+        }
+
         $current_route       = Route::currentRouteName();
-        $has_subscription    = Subscription::where('school_id', $school_id)->where('status', 1)->get()->count();
-        $active_subscription = Subscription::where('school_id', $school_id)->where('active', 1)->first();
+
+        $hasSubscriptionQuery = Subscription::where('school_id', $school_id);
+        if (Schema::hasColumn('subscriptions', 'status')) {
+            $hasSubscriptionQuery->where('status', 1);
+        }
+        $has_subscription = $hasSubscriptionQuery->count();
+
+        $activeSubscriptionQuery = Subscription::where('school_id', $school_id);
+        if (Schema::hasColumn('subscriptions', 'active')) {
+            $activeSubscriptionQuery->where('active', 1);
+        }
+        $active_subscription = $activeSubscriptionQuery->latest('id')->first();
 
         $today      = date("Y-m-d");
         $today_time = strtotime($today);
 
         if ($has_subscription != 0) {
-            if ($active_subscription['expire_date'] == '0') {
+            if (!$active_subscription) {
+                $expiry_status = true;
+            } elseif (!Schema::hasColumn('subscriptions', 'expire_date') || $active_subscription['expire_date'] == '0') {
                 $expiry_status = '0';
             } else {
                 $expiry_status = (int) $active_subscription['expire_date'] < $today_time;
@@ -3634,29 +3656,44 @@ class AdminController extends Controller
 
         $if_pending_payment = PaymentHistory::where('user_id', auth()->user()->id)->where('status', 'pending')->get()->count();
 
-        if (count($request->all()) > 0) {
-            $data          = $request->all();
-            $date          = explode('-', $data['eDateRange']);
-            $date_from     = strtotime($date[0] . ' 00:00:00');
-            $date_to       = strtotime($date[1] . ' 23:59:59');
-            $subscriptions = Subscription::where('school_id', auth()->user()->school_id)
-                ->where('date_added', '>=', $date_from)
-                ->where('date_added', '<=', $date_to)
-                ->get();
-        } else {
-            $date_from     = strtotime('first day of january this year');
-            $date_to       = strtotime('last day of december this year');
-            $subscriptions = Subscription::where('school_id', auth()->user()->school_id)
-                ->where('date_added', '>=', $date_from)
-                ->where('date_added', '<=', $date_to)
-                ->get();
+        $date_from = strtotime('first day of january this year');
+        $date_to   = strtotime('last day of december this year');
+
+        if (count($request->all()) > 0 && !empty($request->eDateRange)) {
+            $data = $request->all();
+            $date = explode('-', $data['eDateRange']);
+            if (count($date) === 2) {
+                $date_from = strtotime(trim($date[0]) . ' 00:00:00');
+                $date_to   = strtotime(trim($date[1]) . ' 23:59:59');
+            }
         }
 
-        $subscription_details = Subscription::where(['school_id' => auth()->user()->school_id, 'active' => '1']);
+        $subscriptionQuery = Subscription::where('school_id', auth()->user()->school_id);
+        if (Schema::hasColumn('subscriptions', 'date_added')) {
+            $subscriptionQuery->where('date_added', '>=', $date_from)
+                ->where('date_added', '<=', $date_to);
+        }
+        $subscriptions = $subscriptionQuery->get();
+
+        $subscription_details = Subscription::where('school_id', auth()->user()->school_id);
+        if (Schema::hasColumn('subscriptions', 'active')) {
+            $subscription_details->where('active', '1');
+        } elseif (Schema::hasColumn('subscriptions', 'status')) {
+            $subscription_details->where('status', '1');
+        } else {
+            $subscription_details->whereRaw('1 = 0');
+        }
+
         if ($subscription_details->get()->count() > 0) {
             $package_details = Package::find($subscription_details->first()->package_id);
         } else {
-            $subscription_details = Subscription::where(['school_id' => auth()->user()->school_id, 'status' => '0']);
+            $subscription_details = Subscription::where('school_id', auth()->user()->school_id);
+            if (Schema::hasColumn('subscriptions', 'status')) {
+                $subscription_details->where('status', '0');
+            } else {
+                $subscription_details->whereRaw('1 = 0');
+            }
+
             if ($subscription_details->get()->count() > 0) {
                 $package_details = Package::find($subscription_details->first()->package_id);
             } else {
@@ -3932,7 +3969,8 @@ class AdminController extends Controller
 
         $payment_gateways = PaymentMethods::where('school_id', auth()->user()->school_id)->get();
 
-        $school_currency  = School::where('id', auth()->user()->school_id)->first()->toArray();
+        $school = School::where('id', auth()->user()->school_id)->first();
+        $school_currency = $school ? $school->toArray() : ['currency' => get_active_currency()];
         $currencies       = Currency::all()->toArray();
         $paypal           = "";
         $paypal_keys      = "";
@@ -4234,9 +4272,18 @@ class AdminController extends Controller
 
     public function subscriptionPayment($package_id)
     {
+        $selectedPackageModel = Package::find($package_id);
+        if (!$selectedPackageModel) {
+            return redirect()->route('admin.subscription')->with('error', 'Selected package not found.');
+        }
 
-        $selected_package = Package::find($package_id)->toArray();
-        $user_info        = User::where('id', auth()->user()->id)->first()->toArray();
+        $userModel = User::where('id', auth()->user()->id)->first();
+        if (!$userModel) {
+            return redirect()->route('login')->with('error', 'User account not found. Please login again.');
+        }
+
+        $selected_package = $selectedPackageModel->toArray();
+        $user_info        = $userModel->toArray();
 
         if ($selected_package['price'] == 0) {
             $check_duplication = Subscription::where('package_id', $selected_package['id'])->where('school_id', auth()->user()->school_id)->get()->count();
@@ -4254,8 +4301,14 @@ class AdminController extends Controller
     {
         $data = $request->all();
 
-        $selected_package = Package::find($data['package_id'])->toArray();
-        $user_info        = User::where('id', $data['user_id'])->first()->toArray();
+        $selectedPackageModel = Package::find($data['package_id'] ?? null);
+        $userModel = User::where('id', $data['user_id'] ?? null)->first();
+        if (!$selectedPackageModel || !$userModel) {
+            return redirect()->route('admin.subscription')->with('error', 'Unable to process free subscription. Missing user or package.');
+        }
+
+        $selected_package = $selectedPackageModel->toArray();
+        $user_info        = $userModel->toArray();
         $school_email     = School::where('id', auth()->user()->school_id)->value('email');
 
         $data['document_file'] = "sample-payment.pdf";
