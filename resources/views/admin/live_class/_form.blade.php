@@ -20,6 +20,7 @@
                 <option value="{{ $value }}" {{ $selectedPlatform === $value ? 'selected' : '' }}>{{ $label }}</option>
             @endforeach
         </select>
+        <small class="text-muted d-block mt-1">{{ get_phrase('Jitsi is auto-created by default. Zoom and Google Meet can also be auto-created when API credentials are configured.') }}</small>
     </div>
 
     <div class="col-12 mt-3">
@@ -35,6 +36,13 @@
                 <option value="{{ $subject->id }}" {{ (string) $selectedSubject === (string) $subject->id ? 'selected' : '' }}>{{ $subject->name }}</option>
             @endforeach
         </select>
+        <small class="text-muted d-block mt-1">
+            @if(request()->routeIs('teacher.*'))
+                <a href="{{ route('teacher.subject.create') }}">{{ get_phrase('Add course') }}</a>
+            @else
+                <a href="javascript:;" onclick="rightModal('{{ route('admin.subject.open_modal') }}', '{{ get_phrase('Create Subject') }}')">{{ get_phrase('Add course') }}</a>
+            @endif
+        </small>
     </div>
 
     <div class="col-md-6 mt-3">

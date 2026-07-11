@@ -71,15 +71,7 @@ class LiveClassPolicy
 
     public function publish(User $user, LiveClass $liveClass): bool
     {
-        if ((int) $user->school_id !== (int) $liveClass->school_id) {
-            return false;
-        }
-
-        if (!$this->isStaff($user) || !$this->hasMenuPermission($user, 'admin.live_classes')) {
-            return false;
-        }
-
-        return $this->canManageAll($user);
+        return $this->update($user, $liveClass);
     }
 
     public function join(User $user, LiveClass $liveClass): bool

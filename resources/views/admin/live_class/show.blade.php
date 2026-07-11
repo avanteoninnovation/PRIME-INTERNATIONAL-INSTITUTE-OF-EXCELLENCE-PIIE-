@@ -1,5 +1,8 @@
-@extends('admin.navigation')
+@extends(request()->routeIs('teacher.*') ? 'teacher.navigation' : 'admin.navigation')
 @section('content')
+@php
+    $routePrefix = request()->routeIs('teacher.*') ? 'teacher' : 'admin';
+@endphp
 <div class="mainSection-title">
     <div class="row">
         <div class="col-12">
@@ -7,15 +10,15 @@
                 <div class="d-flex flex-column">
                     <h4>{{ get_phrase('Live Class Details') }}</h4>
                     <ul class="d-flex align-items-center eBreadcrumb-2">
-                        <li><a href="{{ route('admin.dashboard') }}">{{ get_phrase('Home') }}</a></li>
-                        <li><a href="{{ route('admin.live_classes.index') }}">{{ get_phrase('Live Classes') }}</a></li>
+                        <li><a href="{{ route($routePrefix === 'teacher' ? 'teacher.dashboard' : 'admin.dashboard') }}">{{ get_phrase('Home') }}</a></li>
+                        <li><a href="{{ route($routePrefix . '.live_classes.index') }}">{{ get_phrase('Live Classes') }}</a></li>
                         <li><a href="#">{{ get_phrase('Details') }}</a></li>
                     </ul>
                 </div>
                 <div class="d-flex gap-2">
-                    <a href="{{ route('admin.live_classes.edit', $liveClass->id) }}" class="eBtn eBtn-warning">{{ get_phrase('Edit') }}</a>
+                    <a href="{{ route($routePrefix . '.live_classes.edit', $liveClass->id) }}" class="eBtn eBtn-warning">{{ get_phrase('Edit') }}</a>
                     @if($liveClass->can_join)
-                        <a href="{{ route('admin.live_classes.join', $liveClass->id) }}" target="_blank" class="eBtn eBtn-primary">{{ get_phrase('Join') }}</a>
+                        <a href="{{ route($routePrefix . '.live_classes.join', $liveClass->id) }}" target="_blank" class="eBtn eBtn-primary">{{ get_phrase('Join') }}</a>
                     @endif
                 </div>
             </div>
@@ -48,17 +51,17 @@
             @if($liveClass->safe_recording_url)
                 <a href="{{ $liveClass->safe_recording_url }}" target="_blank" class="eBtn eBtn-dark w-100 mb-2">{{ get_phrase('View Recording') }}</a>
             @endif
-            <form method="POST" action="{{ route('admin.live_classes.publish', $liveClass->id) }}" class="mb-2">
+            <form method="POST" action="{{ route($routePrefix . '.live_classes.publish', $liveClass->id) }}" class="mb-2">
                 @csrf
                 <button type="submit" class="eBtn eBtn-primary w-100">{{ $liveClass->is_published ? get_phrase('Unpublish') : get_phrase('Publish') }}</button>
             </form>
             @if($liveClass->computed_status !== \App\Models\LiveClass::STATUS_CANCELLED)
-                <form method="POST" action="{{ route('admin.live_classes.cancel', $liveClass->id) }}" class="mb-2" onsubmit="return confirm('{{ get_phrase('Cancel this class?') }}')">
+                <form method="POST" action="{{ route($routePrefix . '.live_classes.cancel', $liveClass->id) }}" class="mb-2" onsubmit="return confirm('{{ get_phrase('Cancel this class?') }}')">
                     @csrf
                     <button type="submit" class="eBtn eBtn-danger w-100">{{ get_phrase('Cancel Class') }}</button>
                 </form>
             @endif
-            <form method="POST" action="{{ route('admin.live_classes.destroy', $liveClass->id) }}" onsubmit="return confirm('{{ get_phrase('Delete this class?') }}')">
+            <form method="POST" action="{{ route($routePrefix . '.live_classes.destroy', $liveClass->id) }}" onsubmit="return confirm('{{ get_phrase('Delete this class?') }}')">
                 @csrf
                 @method('DELETE')
                 <button type="submit" class="eBtn eBtn-danger w-100">{{ get_phrase('Delete') }}</button>

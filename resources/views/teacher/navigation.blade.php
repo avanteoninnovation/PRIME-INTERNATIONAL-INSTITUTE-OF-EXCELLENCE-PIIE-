@@ -169,16 +169,14 @@
             </li>
 
 
-            @if(addon_status('online_live_class')==1)
-            
-            <li class="nav-links-li {{ request()->is('teacher/add_live_class*') ||request()->is('teacher/list_of_live_class*')   ? 'showMenu':'' }}">
+            <li class="nav-links-li {{ request()->is('teacher/live-classes*') ? 'showMenu':'' }}">
                 <div class="iocn-link">
                     <a href="#">
                         <div class="sidebar_icon">
                             <svg xmlns="http://www.w3.org/2000/svg" id="Layer_1" data-name="Layer 1" viewBox="0 0 24 24" width="48" height="48"><path d="M22.925,5.695c-.663-.332-1.443-.262-2.037,.183l-1.944,1.882c-.364-2.683-2.664-4.76-5.444-4.76H5.5C2.467,3,0,5.468,0,8.5v7c0,3.032,2.467,5.5,5.5,5.5H13.5c2.772,0,5.067-2.065,5.441-4.736l1.947,1.846c.346,.258,.753,.391,1.165,.391,.335,0,.672-.087,.98-.265,.63-.364,.967-1.088,.967-1.816V7.434c0-.741-.412-1.408-1.075-1.739Zm-6.925,9.805c0,1.379-1.121,2.5-2.5,2.5H5.5c-1.378,0-2.5-1.121-2.5-2.5v-7c0-1.379,1.122-2.5,2.5-2.5H13.5c1.379,0,2.5,1.121,2.5,2.5v7Z"/>
                             </svg>
                         </div>
-                        <span class="link_name">{{ get_phrase('Live class ') }}</span>
+                        <span class="link_name">{{ get_phrase('Live Classes') }}</span>
                     </a>
                     <span class="arrow">
 	                  <svg
@@ -198,21 +196,18 @@
                 </div>
                 <ul class="sub-menu">
                     <li>
-                    	<a class="{{ (request()->is('teacher/add_live_class*')) ? 'active' : '' }}" href="{{ route('teacher.add_live_class') }}">
-                    		<span>{{ get_phrase('Add new '); }}</span>
-                    		<!-- <span class="badge bg-success m-1" style="">{{ get_phrase('Addon') }}</span> -->
+                    	<a class="{{ request()->is('teacher/live-classes/create') ? 'active' : '' }}" href="{{ route('teacher.live_classes.create') }}">
+                    		<span>{{ get_phrase('Schedule Class') }}</span>
                     	</a>
                     </li>
                     <li>
-                    	<a class="{{ (request()->is('teacher/list_of_live_class*')) ? 'active' : '' }}" href="{{ route('teacher.list_of_live_class') }}">
-                    		<span>{{ get_phrase('Live Classes '); }}</span>
-                    		<!-- <span class="badge bg-success m-1" style="">{{ get_phrase('Addon') }}</span> -->
+                    	<a class="{{ request()->is('teacher/live-classes') ? 'active' : '' }}" href="{{ route('teacher.live_classes.index') }}">
+                    		<span>{{ get_phrase('Live Classes') }}</span>
                     	</a>
                     </li>
 
                 </ul>
             </li>
-            @endif
 
             @if(addon_status('online_courses')==1)
             <li class="nav-links-li {{ request()->is('teacher/addons/courses*') ? 'showMenu':'' }}">

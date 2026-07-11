@@ -54,6 +54,7 @@ class LiveClassModuleTest extends TestCase
             'teacher_id' => $lecturer->id,
             'marks' => 1,
             'attendance' => 1,
+            'updated_at' => time(),
         ]);
 
         $response = $this->actingAs($lecturer)->post(route('admin.live_classes.store'), [
@@ -70,6 +71,79 @@ class LiveClassModuleTest extends TestCase
 
         $response->assertStatus(302);
         $this->assertDatabaseHas('live_classes', ['title' => 'Lecturer Class', 'teacher_id' => $lecturer->id]);
+    }
+
+    public function test_meeting_link_is_auto_generated_when_missing(): void
+    {
+        $this->guardRequiredSchema();
+        $admin = $this->createUser(2, 1);
+        $context = $this->createAcademicContext(1);
+
+        $response = $this->actingAs($admin)->post(route('admin.live_classes.store'), [
+            'title' => 'Auto Link Class',
+            'subject_id' => $context['subject_id'],
+            'class_id' => $context['class_id'],
+            'platform' => 'jitsi',
+            'start_date' => now()->addDay()->format('Y-m-d'),
+            'start_time' => '09:00',
+            'end_time' => '10:00',
+            'timezone' => 'UTC',
+            'is_published' => 1,
+        ]);
+
+        $response->assertStatus(302);
+        $meetingUrl = DB::table('live_classes')->where('title', 'Auto Link Class')->value('meeting_url');
+
+        $this->assertNotEmpty($meetingUrl);
+        $this->assertStringStartsWith('https://', $meetingUrl);
+    }
+
+    public function test_google_meet_without_url_is_rejected(): void
+    {
+        $this->guardRequiredSchema();
+        $admin = $this->createUser(2, 1);
+        $context = $this->createAcademicContext(1);
+
+        $response = $this->actingAs($admin)
+            ->from(route('admin.live_classes.create'))
+            ->post(route('admin.live_classes.store'), [
+                'title' => 'Google Meet No URL',
+                'subject_id' => $context['subject_id'],
+                'class_id' => $context['class_id'],
+                'platform' => 'google_meet',
+                'start_date' => now()->addDay()->format('Y-m-d'),
+                'start_time' => '09:00',
+                'end_time' => '10:00',
+                'timezone' => 'UTC',
+                'is_published' => 1,
+            ]);
+
+        $response->assertSessionHasErrors(['meeting_url']);
+    }
+
+    public function test_meet_now_creates_live_class_with_link(): void
+    {
+        $this->guardRequiredSchema();
+        $admin = $this->createUser(2, 1);
+        $context = $this->createAcademicContext(1);
+
+        $response = $this->actingAs($admin)->post(route('admin.live_classes.meet_now'), [
+            'title' => 'Instant Session',
+            'subject_id' => $context['subject_id'],
+            'class_id' => $context['class_id'],
+            'platform' => 'jitsi',
+        ]);
+
+        $response->assertStatus(302);
+        $this->assertDatabaseHas('live_classes', [
+            'title' => 'Instant Session',
+            'is_published' => 1,
+            'platform' => 'jitsi',
+        ]);
+
+        $meetingUrl = DB::table('live_classes')->where('title', 'Instant Session')->value('meeting_url');
+        $this->assertNotEmpty($meetingUrl);
+        $this->assertStringStartsWith('https://', $meetingUrl);
     }
 
     public function test_lecturer_cannot_modify_another_lecturer_class_without_permission(): void
@@ -112,6 +186,42 @@ class LiveClassModuleTest extends TestCase
         ]);
 
         $response->assertStatus(403);
+    }
+
+    public function test_lecturer_can_publish_own_live_class(): void
+    {
+        $this->guardRequiredSchema();
+        $lecturer = $this->createUser(3, 1);
+        $context = $this->createAcademicContext(1);
+
+        $liveClassId = DB::table('live_classes')->insertGetId([
+            'school_id' => 1,
+            'title' => 'Teacher Publish Class',
+            'subject_id' => $context['subject_id'],
+            'class_id' => $context['class_id'],
+            'teacher_id' => $lecturer->id,
+            'platform' => 'jitsi',
+            'meeting_url' => 'https://meet.jit.si/teacher-publish-room',
+            'scheduled_at' => now()->addDay()->format('Y-m-d H:i:s'),
+            'ends_at' => now()->addDay()->addHour()->format('Y-m-d H:i:s'),
+            'start_date' => now()->addDay()->format('Y-m-d'),
+            'start_time' => '09:00:00',
+            'end_time' => '10:00:00',
+            'timezone' => 'UTC',
+            'status' => 'draft',
+            'is_published' => 0,
+            'created_by' => $lecturer->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($lecturer)->post(route('teacher.live_classes.publish', $liveClassId));
+
+        $response->assertStatus(302);
+        $this->assertDatabaseHas('live_classes', [
+            'id' => $liveClassId,
+            'is_published' => 1,
+        ]);
     }
 
     public function test_student_cannot_create_live_class(): void
@@ -216,6 +326,78 @@ class LiveClassModuleTest extends TestCase
         $response->assertOk()->assertDontSee('Draft Class');
     }
 
+    public function test_student_cannot_view_class_for_different_session(): void
+    {
+        $this->guardRequiredSchema();
+
+        if (!Schema::hasColumn('live_classes', 'academic_session_id')) {
+            $this->markTestSkipped('live_classes.academic_session_id is required for session-targeted filtering.');
+        }
+
+        $student = $this->createUser(7, 1);
+        $contextA = $this->createAcademicContext(1);
+        $contextB = $this->createAcademicContext(1);
+
+        $this->enrollStudent($student->id, $contextA['class_id'], $contextA['session_id']);
+
+        DB::table('live_classes')->insert([
+            'school_id' => 1,
+            'title' => 'Other Session Class',
+            'subject_id' => $contextA['subject_id'],
+            'class_id' => $contextA['class_id'],
+            'academic_session_id' => $contextB['session_id'],
+            'teacher_id' => $this->createUser(3, 1)->id,
+            'platform' => 'jitsi',
+            'meeting_url' => 'https://meet.jit.si/other-session-room',
+            'scheduled_at' => now()->addHour()->format('Y-m-d H:i:s'),
+            'ends_at' => now()->addHours(2)->format('Y-m-d H:i:s'),
+            'start_date' => now()->format('Y-m-d'),
+            'start_time' => now()->addHour()->format('H:i:s'),
+            'end_time' => now()->addHours(2)->format('H:i:s'),
+            'timezone' => 'UTC',
+            'status' => 'scheduled',
+            'is_published' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($student)->get(route('student.live_classes.index'));
+        $response->assertOk()->assertDontSee('Other Session Class');
+    }
+
+    public function test_student_cannot_view_subject_targeted_for_other_class(): void
+    {
+        $this->guardRequiredSchema();
+        $student = $this->createUser(7, 1);
+        $contextA = $this->createAcademicContext(1);
+        $contextB = $this->createAcademicContext(1);
+
+        $this->enrollStudent($student->id, $contextA['class_id'], $contextA['session_id']);
+
+        DB::table('live_classes')->insert([
+            'school_id' => 1,
+            'title' => 'Other Class Subject Class',
+            'subject_id' => $contextB['subject_id'],
+            'class_id' => null,
+            'teacher_id' => $this->createUser(3, 1)->id,
+            'platform' => 'jitsi',
+            'meeting_url' => 'https://meet.jit.si/other-class-subject-room',
+            'scheduled_at' => now()->addHour()->format('Y-m-d H:i:s'),
+            'ends_at' => now()->addHours(2)->format('Y-m-d H:i:s'),
+            'start_date' => now()->format('Y-m-d'),
+            'start_time' => now()->addHour()->format('H:i:s'),
+            'end_time' => now()->addHours(2)->format('H:i:s'),
+            'timezone' => 'UTC',
+            'status' => 'scheduled',
+            'is_published' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($student)->get(route('student.live_classes.index'));
+        $response->assertOk()->assertDontSee('Other Class Subject Class');
+    }
+
     public function test_unauthorized_user_cannot_access_management_routes(): void
     {
         $this->guardRequiredSchema();
@@ -289,6 +471,19 @@ class LiveClassModuleTest extends TestCase
 
         $response = $this->actingAs($student)->get(route('student.live_classes.join', $liveClassId));
         $response->assertStatus(302);
+    }
+
+    public function test_student_can_open_live_jitsi_class_inside_app(): void
+    {
+        $this->guardRequiredSchema();
+        $student = $this->createUser(7, 1);
+        $context = $this->createAcademicContext(1);
+        $this->enrollStudent($student->id, $context['class_id'], $context['session_id']);
+
+        $liveClassId = $this->createLiveClass(1, $context['subject_id'], $context['class_id'], 'live', 1);
+
+        $response = $this->actingAs($student)->get(route('student.live_classes.join', $liveClassId));
+        $response->assertOk()->assertSee('Live Meeting Room');
     }
 
     public function test_permission_seeder_adds_permissions_without_destroying_existing(): void

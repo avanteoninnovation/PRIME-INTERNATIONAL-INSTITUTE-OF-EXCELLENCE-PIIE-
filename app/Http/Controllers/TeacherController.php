@@ -203,6 +203,41 @@ class TeacherController extends Controller
         return view('teacher.subject.subject_list', compact('subjects', 'classes', 'class_id'));
     }
 
+    public function createSubject()
+    {
+        $classes = Classes::where('school_id', auth()->user()->school_id)->get();
+        return view('teacher.subject.create_subject', compact('classes'));
+    }
+
+    public function subjectCreate(Request $request)
+    {
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'class_id' => 'required|integer|exists:classes,id',
+        ]);
+
+        $active_session = get_school_settings(auth()->user()->school_id)->value('running_session');
+        if (empty($active_session)) {
+            $active_session = Session::where('school_id', auth()->user()->school_id)->max('id');
+        }
+
+        if (empty($active_session)) {
+            return redirect()->back()
+                ->withInput()
+                ->with('error', 'Please create or set an active academic session before adding subjects.');
+        }
+
+        Subject::create([
+            'name' => $request->name,
+            'class_id' => $request->class_id,
+            'school_id' => auth()->user()->school_id,
+            'session_id' => $active_session,
+        ]);
+
+        return redirect('/teacher/subject?class_id=' . $request->class_id)
+            ->with('message', 'You have successfully created subject.');
+    }
+
     /**
      * Show the gradebook.
      *

@@ -9,6 +9,8 @@ class Enrollment extends Model
 {
     use HasFactory;
 
+    protected $table = 'enrollment';
+
     /**
      * The attributes that are mass assignable.
      *

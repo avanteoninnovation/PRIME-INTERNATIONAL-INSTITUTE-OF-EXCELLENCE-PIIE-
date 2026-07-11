@@ -18,6 +18,9 @@
                         <li><a href="#">{{ get_phrase('Subjects') }}</a></li>
                     </ul>
                 </div>
+                <div class="export-btn-area">
+                    <a href="{{ route('teacher.subject.create') }}" class="export_btn"><i class="bi bi-plus"></i>{{ get_phrase('Add subject') }}</a>
+                </div>
             </div>
         </div>
     </div>
@@ -57,7 +60,7 @@
                          <tr>
                             <td>{{ $subjects->firstItem() + $key }}</td>
                             <td>{{ $subject->name }}</td>
-                            <td>{{ $class->name }}</td>
+                            <td>{{ optional($class)->name ?? '—' }}</td>
                         </tr>
                     @endforeach
                 </tbody>

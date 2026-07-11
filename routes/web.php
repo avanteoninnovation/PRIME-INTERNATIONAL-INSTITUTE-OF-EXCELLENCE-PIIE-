@@ -682,6 +682,8 @@ Route::controller(TeacherController::class)->middleware('teacher', 'auth')->grou
 
     //Subject routes
     Route::get('teacher/subject', 'subjectList')->name('teacher.subject_list');
+    Route::get('teacher/subject/create', 'createSubject')->name('teacher.subject.create');
+    Route::post('teacher/subject', 'subjectCreate')->name('teacher.subject.store');
 
     //Gradebook routes
     Route::get('teacher/gradebook', 'gradebook')->name('teacher.gradebook');
@@ -1222,6 +1224,7 @@ Route::controller(LiveClassController::class)->middleware('auth', 'admin')->grou
     Route::get('admin/live-classes',                   'index')->name('admin.live_classes.index');
     Route::get('admin/live-classes/create',            'create')->name('admin.live_classes.create');
     Route::post('admin/live-classes',                  'store')->name('admin.live_classes.store');
+    Route::post('admin/live-classes/meet-now',         'meetNow')->name('admin.live_classes.meet_now');
     Route::get('admin/live-classes/{liveClass}',       'show')->name('admin.live_classes.show');
     Route::get('admin/live-classes/{liveClass}/edit',  'edit')->name('admin.live_classes.edit');
     Route::put('admin/live-classes/{liveClass}',       'update')->name('admin.live_classes.update');
@@ -1241,6 +1244,26 @@ Route::controller(LiveClassController::class)->middleware('auth', 'admin')->grou
 Route::controller(LiveClassController::class)->middleware('auth', 'student')->group(function () {
     Route::get('student/live-classes',                    'studentIndex')->name('student.live_classes.index');
     Route::get('student/live-classes/{liveClass}/join',   'join')->name('student.live_classes.join');
+});
+
+Route::controller(LiveClassController::class)->middleware('auth', 'teacher')->group(function () {
+    Route::get('teacher/live-classes',                    'index')->name('teacher.live_classes.index');
+    Route::get('teacher/live-classes/create',             'create')->name('teacher.live_classes.create');
+    Route::post('teacher/live-classes',                   'store')->name('teacher.live_classes.store');
+    Route::post('teacher/live-classes/meet-now',          'meetNow')->name('teacher.live_classes.meet_now');
+    Route::get('teacher/live-classes/{liveClass}',        'show')->name('teacher.live_classes.show');
+    Route::get('teacher/live-classes/{liveClass}/edit',   'edit')->name('teacher.live_classes.edit');
+    Route::put('teacher/live-classes/{liveClass}',        'update')->name('teacher.live_classes.update');
+    Route::delete('teacher/live-classes/{liveClass}',     'destroy')->name('teacher.live_classes.destroy');
+
+    Route::post('teacher/live-classes/{liveClass}/cancel',  'cancel')->name('teacher.live_classes.cancel');
+    Route::post('teacher/live-classes/{liveClass}/publish', 'publish')->name('teacher.live_classes.publish');
+    Route::get('teacher/live-classes/{liveClass}/join',     'join')->name('teacher.live_classes.join');
+
+    Route::get('teacher/live-classes/open_modal',           'openModal')->name('teacher.live_classes.open_modal');
+    Route::post('teacher/live-classes/store',               'store')->name('teacher.live_classes.store_legacy');
+    Route::post('teacher/live-classes/update/{liveClass}',  'update')->name('teacher.live_classes.update_legacy');
+    Route::get('teacher/live-classes/delete/{liveClass}',   'destroy')->name('teacher.live_classes.destroy_legacy');
 });
 
 // ── Academic Calendar ─────────────────────────────────────────

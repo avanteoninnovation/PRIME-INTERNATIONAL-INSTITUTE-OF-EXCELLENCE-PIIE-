@@ -1,14 +1,42 @@
-@extends('admin.navigation')
+@extends(request()->routeIs('teacher.*') ? 'teacher.navigation' : 'admin.navigation')
 @section('content')
+@php
+    $routePrefix = request()->routeIs('teacher.*') ? 'teacher' : 'admin';
+@endphp
 <div class="mainSection-title"><div class="row"><div class="col-12">
     <div class="d-flex justify-content-between align-items-center flex-wrap gr-15">
         <div class="d-flex flex-column">
             <h4>{{ get_phrase('Live Classes') }}</h4>
-            <ul class="d-flex align-items-center eBreadcrumb-2"><li><a href="{{ route('admin.dashboard') }}">{{ get_phrase('Home') }}</a></li><li><a href="#">{{ get_phrase('Live Classes') }}</a></li></ul>
+            <ul class="d-flex align-items-center eBreadcrumb-2"><li><a href="{{ route($routePrefix === 'teacher' ? 'teacher.dashboard' : 'admin.dashboard') }}">{{ get_phrase('Home') }}</a></li><li><a href="#">{{ get_phrase('Live Classes') }}</a></li></ul>
         </div>
         <div class="d-flex gap-2">
-            <a href="{{ route('admin.live_classes.create') }}" class="eBtn eBtn-primary">{{ get_phrase('Schedule Class') }}</a>
-            <a href="javascript:;" class="eBtn eBtn-dark" onclick="rightModal('{{ route('admin.live_classes.open_modal') }}', '{{ get_phrase('Quick Schedule') }}')">{{ get_phrase('Quick Modal') }}</a>
+            <a href="{{ route($routePrefix . '.live_classes.create') }}" class="eBtn eBtn-primary">{{ get_phrase('Schedule Class') }}</a>
+            <form method="POST" action="{{ route($routePrefix . '.live_classes.meet_now') }}" target="_blank" class="d-flex align-items-center gap-2 flex-wrap justify-content-end">
+                @csrf
+                <select name="class_id" class="form-control eForm-control" style="min-width: 150px; height: 40px;" aria-label="{{ get_phrase('Class') }}">
+                    <option value="">{{ get_phrase('All classes') }}</option>
+                    @foreach($classList as $class)
+                        <option value="{{ $class->id }}">{{ $class->name }}</option>
+                    @endforeach
+                </select>
+                <select name="subject_id" class="form-control eForm-control" style="min-width: 170px; height: 40px;" aria-label="{{ get_phrase('Course') }}">
+                    <option value="">{{ get_phrase('All courses') }}</option>
+                    @foreach($subjects as $subject)
+                        <option value="{{ $subject->id }}">{{ $subject->name }}</option>
+                    @endforeach
+                </select>
+                <select name="academic_session_id" class="form-control eForm-control" style="min-width: 170px; height: 40px;" aria-label="{{ get_phrase('Academic session') }}">
+                    <option value="">{{ get_phrase('All sessions') }}</option>
+                    @foreach($sessions as $session)
+                        <option value="{{ $session->id }}">{{ $session->session_title }}</option>
+                    @endforeach
+                </select>
+                <select name="platform" class="form-control eForm-control" style="min-width: 165px; height: 40px;" aria-label="{{ get_phrase('Meeting platform') }}">
+                    <option value="jitsi" selected>{{ get_phrase('Jitsi (Auto In-System)') }}</option>
+                </select>
+                <button type="submit" class="eBtn eBtn-success">{{ get_phrase('Meet Now') }}</button>
+            </form>
+            <a href="javascript:;" class="eBtn eBtn-dark" onclick="rightModal('{{ route($routePrefix . '.live_classes.open_modal') }}', '{{ get_phrase('Quick Schedule') }}')">{{ get_phrase('Quick Modal') }}</a>
         </div>
     </div>
 </div></div></div>
@@ -58,21 +86,21 @@
                             <td>{{ $lc->start_time ? \Illuminate\Support\Carbon::parse($lc->start_time)->format('H:i') : '—' }} - {{ $lc->end_time ? \Illuminate\Support\Carbon::parse($lc->end_time)->format('H:i') : '—' }}</td>
                             <td><span class="badge bg-{{ $statusClass }}">{{ ucfirst($lc->computed_status) }}</span></td>
                             <td class="d-flex flex-wrap gap-1">
-                                <a href="{{ route('admin.live_classes.show', $lc->id) }}" class="eBtn eBtn-sm eBtn-dark">{{ get_phrase('View') }}</a>
-                                <a href="{{ route('admin.live_classes.edit', $lc->id) }}" class="eBtn eBtn-sm eBtn-warning">{{ get_phrase('Edit') }}</a>
+                                <a href="{{ route($routePrefix . '.live_classes.show', $lc->id) }}" class="eBtn eBtn-sm eBtn-dark">{{ get_phrase('View') }}</a>
+                                <a href="{{ route($routePrefix . '.live_classes.edit', $lc->id) }}" class="eBtn eBtn-sm eBtn-warning">{{ get_phrase('Edit') }}</a>
                                 @if($lc->can_join)
-                                    <a href="{{ route('admin.live_classes.join', $lc->id) }}" target="_blank" class="eBtn eBtn-sm eBtn-primary">{{ get_phrase('Join') }}</a>
+                                    <a href="{{ route($routePrefix . '.live_classes.join', $lc->id) }}" target="_blank" class="eBtn eBtn-sm eBtn-primary">{{ get_phrase('Join') }}</a>
                                 @endif
                                 @if($lc->safe_recording_url)
                                     <a href="{{ $lc->safe_recording_url }}" target="_blank" class="eBtn eBtn-sm eBtn-dark">{{ get_phrase('Recording') }}</a>
                                 @endif
                                 @if($lc->computed_status !== \App\Models\LiveClass::STATUS_CANCELLED)
-                                    <form method="POST" action="{{ route('admin.live_classes.cancel', $lc->id) }}" onsubmit="return confirm('{{ get_phrase('Cancel this class?') }}')">
+                                    <form method="POST" action="{{ route($routePrefix . '.live_classes.cancel', $lc->id) }}" onsubmit="return confirm('{{ get_phrase('Cancel this class?') }}')">
                                         @csrf
                                         <button type="submit" class="eBtn eBtn-sm eBtn-danger">{{ get_phrase('Cancel') }}</button>
                                     </form>
                                 @endif
-                                <form method="POST" action="{{ route('admin.live_classes.publish', $lc->id) }}">
+                                <form method="POST" action="{{ route($routePrefix . '.live_classes.publish', $lc->id) }}">
                                     @csrf
                                     <button type="submit" class="eBtn eBtn-sm eBtn-primary">{{ $lc->is_published ? get_phrase('Unpublish') : get_phrase('Publish') }}</button>
                                 </form>

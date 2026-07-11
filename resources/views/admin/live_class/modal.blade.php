@@ -1,6 +1,9 @@
 <div class="eoff-form">
+    @php
+        $routePrefix = request()->routeIs('teacher.*') ? 'teacher' : 'admin';
+    @endphp
     <form method="POST" class="d-block ajaxForm"
-          action="{{ $liveClass->id ? route('admin.live_classes.update_legacy', $liveClass->id) : route('admin.live_classes.store_legacy') }}">
+          action="{{ $liveClass->id ? route($routePrefix . '.live_classes.update_legacy', $liveClass->id) : route($routePrefix . '.live_classes.store_legacy') }}">
         @csrf
         @include('admin.live_class._form')
         <div class="fpb-7 pt-3">

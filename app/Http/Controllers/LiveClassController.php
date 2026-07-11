@@ -7,6 +7,7 @@ use App\Http\Requests\UpdateLiveClassRequest;
 use App\Models\AuditLog;
 use App\Models\Classes;
 use App\Models\LiveClass;
+use App\Models\Noticeboard;
 use App\Models\Programme;
 use App\Models\Session;
 use App\Models\Subject;
@@ -15,6 +16,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -130,19 +132,153 @@ class LiveClassController extends Controller
         $liveClass = DB::transaction(function () use ($payload) {
             $record = LiveClass::create($payload);
             AuditLog::record('create', 'Live Classes', "Scheduled live class: {$record->title}");
+            $this->createStudentLiveClassNotice($record, 'scheduled');
             return $record;
         });
 
         if ($request->expectsJson() || $request->ajax()) {
+            $routePrefix = $this->getRoutePrefix($request);
             return response()->json([
                 'status' => 'success',
                 'message' => get_phrase('Live class scheduled'),
-                'redirect' => route('admin.live_classes.show', $liveClass->id),
+                'redirect' => route($routePrefix . '.live_classes.show', $liveClass->id),
             ]);
         }
 
-        return redirect()->route('admin.live_classes.show', $liveClass->id)
+        $routePrefix = $this->getRoutePrefix($request);
+        return redirect()->route($routePrefix . '.live_classes.show', $liveClass->id)
             ->with('success', get_phrase('Live class scheduled'));
+    }
+
+    public function meetNow(Request $request)
+    {
+        $this->authorize('create', LiveClass::class);
+
+        $validated = $request->validate([
+            'title' => ['nullable', 'string', 'max:255'],
+            'subject_id' => ['nullable', 'exists:subjects,id'],
+            'class_id' => ['nullable', 'exists:classes,id'],
+            'programme_id' => ['nullable', 'exists:programmes,id'],
+            'academic_session_id' => ['nullable', 'exists:sessions,id'],
+            'platform' => ['nullable', 'in:jitsi,google_meet,zoom'],
+        ]);
+
+        $platform = $validated['platform'] ?? 'jitsi';
+        if (!in_array($platform, $this->getEnabledPlatforms(), true)) {
+            throw ValidationException::withMessages([
+                'platform' => get_phrase('Selected platform is disabled by administrator settings.'),
+            ]);
+        }
+
+        $subject = null;
+        if (!empty($validated['subject_id'])) {
+            $subject = Subject::where('id', $validated['subject_id'])
+                ->where('school_id', $this->school_id)
+                ->first();
+
+            if (!$subject) {
+                throw ValidationException::withMessages([
+                    'subject_id' => get_phrase('Selected course is invalid for this school.'),
+                ]);
+            }
+        }
+
+        $classId = $validated['class_id'] ?? null;
+        if ($classId) {
+            $classExists = Classes::where('id', $classId)
+                ->where('school_id', $this->school_id)
+                ->exists();
+
+            if (!$classExists) {
+                throw ValidationException::withMessages([
+                    'class_id' => get_phrase('Selected class is invalid for this school.'),
+                ]);
+            }
+        }
+
+        if ($subject && $subject->class_id && $classId && (int) $subject->class_id !== (int) $classId) {
+            throw ValidationException::withMessages([
+                'subject_id' => get_phrase('Selected course does not belong to the selected class.'),
+            ]);
+        }
+
+        if (!$classId && $subject && $subject->class_id) {
+            $classId = (int) $subject->class_id;
+        }
+
+        $sessionId = $validated['academic_session_id'] ?? null;
+        if ($sessionId) {
+            $sessionExists = Session::where('id', $sessionId)
+                ->where('school_id', $this->school_id)
+                ->exists();
+
+            if (!$sessionExists) {
+                throw ValidationException::withMessages([
+                    'academic_session_id' => get_phrase('Selected session is invalid for this school.'),
+                ]);
+            }
+        }
+
+        $programmeId = $validated['programme_id'] ?? null;
+        if ($programmeId) {
+            $programmeExists = Programme::where('id', $programmeId)
+                ->where('school_id', $this->school_id)
+                ->exists();
+
+            if (!$programmeExists) {
+                throw ValidationException::withMessages([
+                    'programme_id' => get_phrase('Selected programme is invalid for this school.'),
+                ]);
+            }
+        }
+
+        $now = now();
+        $endsAt = $now->copy()->addHour();
+        $title = trim((string) ($validated['title'] ?? 'Instant Live Class ' . $now->format('H:i')));
+        $meetingUrl = $this->resolveMeetingUrl(
+            $platform,
+            $title,
+            $now,
+            $endsAt,
+            config('app.timezone', 'UTC')
+        );
+
+        $payload = [
+            'school_id' => $this->school_id,
+            'title' => $title,
+            'description' => 'Instant meeting created by ' . (Auth::user()->name ?? 'staff'),
+            'subject_id' => $subject?->id,
+            'class_id' => $classId,
+            'programme_id' => $programmeId,
+            'academic_session_id' => $sessionId,
+            'teacher_id' => Auth::id(),
+            'platform' => $platform,
+            'meeting_url' => $meetingUrl,
+            'meeting_id' => null,
+            'meeting_password' => null,
+            'start_date' => $now->format('Y-m-d'),
+            'start_time' => $now->format('H:i'),
+            'end_time' => $endsAt->format('H:i'),
+            'timezone' => config('app.timezone', 'UTC'),
+            'scheduled_at' => $now->timezone('UTC')->format('Y-m-d H:i:s'),
+            'ends_at' => $endsAt->timezone('UTC')->format('Y-m-d H:i:s'),
+            'status' => LiveClass::STATUS_LIVE,
+            'is_published' => 1,
+            'attendance_enabled' => 1,
+            'recording_url' => null,
+            'created_by' => Auth::id(),
+            'updated_by' => Auth::id(),
+        ];
+
+        $liveClass = DB::transaction(function () use ($payload) {
+            $record = LiveClass::create($payload);
+            AuditLog::record('create', 'Live Classes', "Started instant live class: {$record->title}");
+            $this->createStudentLiveClassNotice($record, 'published');
+            return $record;
+        });
+
+        $routePrefix = $this->getRoutePrefix($request);
+        return redirect()->route($routePrefix . '.live_classes.join', $liveClass->id);
     }
 
     public function show(LiveClass $liveClass)
@@ -180,14 +316,16 @@ class LiveClassController extends Controller
         });
 
         if ($request->expectsJson() || $request->ajax()) {
+            $routePrefix = $this->getRoutePrefix($request);
             return response()->json([
                 'status' => 'success',
                 'message' => get_phrase('Live class updated'),
-                'redirect' => route('admin.live_classes.show', $liveClass->id),
+                'redirect' => route($routePrefix . '.live_classes.show', $liveClass->id),
             ]);
         }
 
-        return redirect()->route('admin.live_classes.show', $liveClass->id)
+        $routePrefix = $this->getRoutePrefix($request);
+        return redirect()->route($routePrefix . '.live_classes.show', $liveClass->id)
             ->with('success', get_phrase('Live class updated'));
     }
 
@@ -231,6 +369,10 @@ class LiveClassController extends Controller
             'updated_by' => Auth::id(),
         ]);
 
+        if ($isPublished) {
+            $this->createStudentLiveClassNotice($liveClass, 'published');
+        }
+
         AuditLog::record('update', 'Live Classes', ($isPublished ? 'Published' : 'Unpublished') . " live class: {$liveClass->title}");
         return redirect()->back()->with('success', get_phrase('Live class publication updated'));
     }
@@ -245,6 +387,13 @@ class LiveClassController extends Controller
         }
 
         if ($liveClass->shouldAllowJoin()) {
+            if ($this->shouldRenderEmbeddedMeeting($liveClass)) {
+                return view('admin.live_class.meeting_room', [
+                    'liveClass' => $liveClass,
+                    'meetingUrl' => $liveClass->safe_meeting_url,
+                ]);
+            }
+
             return redirect()->away($liveClass->safe_meeting_url);
         }
 
@@ -253,6 +402,35 @@ class LiveClassController extends Controller
         }
 
         return redirect()->back()->with('error', get_phrase('Joining is not available for this class right now'));
+    }
+
+    private function shouldRenderEmbeddedMeeting(LiveClass $liveClass): bool
+    {
+        if ($liveClass->platform !== 'jitsi') {
+            return false;
+        }
+
+        $meetingUrl = $liveClass->safe_meeting_url;
+        if (empty($meetingUrl)) {
+            return false;
+        }
+
+        $meetingHost = parse_url($meetingUrl, PHP_URL_HOST);
+        if (empty($meetingHost)) {
+            return false;
+        }
+
+        $base = rtrim((string) get_settings('live_class_jitsi_base_url'), '/');
+        if ($base === '') {
+            $base = 'https://meet.jit.si';
+        }
+
+        $configuredHost = parse_url($base, PHP_URL_HOST);
+        if (empty($configuredHost)) {
+            $configuredHost = 'meet.jit.si';
+        }
+
+        return strcasecmp($meetingHost, $configuredHost) === 0;
     }
 
     public function studentIndex(Request $request)
@@ -278,6 +456,24 @@ class LiveClassController extends Controller
             ->where(function ($q) use ($class_id) {
                 $q->whereNull('class_id')
                     ->orWhere('class_id', $class_id);
+            })
+            ->where(function ($q) use ($enroll) {
+                $q->whereNull('academic_session_id');
+                if (!empty($enroll?->session_id)) {
+                    $q->orWhere('academic_session_id', $enroll->session_id);
+                }
+            })
+            ->where(function ($q) use ($class_id, $school_id) {
+                $q->whereNull('subject_id')
+                    ->orWhereHas('subject', function ($subQ) use ($class_id, $school_id) {
+                        $subQ->where('school_id', $school_id)
+                            ->where(function ($clsQ) use ($class_id) {
+                                $clsQ->whereNull('class_id');
+                                if (!empty($class_id)) {
+                                    $clsQ->orWhere('class_id', $class_id);
+                                }
+                            });
+                    });
             })
             ->when($search !== '', fn($q) => $q->where('title', 'like', "%{$search}%"))
             ->when($subjectId, fn($q) => $q->where('subject_id', $subjectId))
@@ -306,14 +502,16 @@ class LiveClassController extends Controller
         $scheduledAt = Carbon::parse($validated['start_date'] . ' ' . $validated['start_time'], $validated['timezone'] ?? config('app.timezone', 'UTC'));
         $endsAt = Carbon::parse($validated['start_date'] . ' ' . $validated['end_time'], $validated['timezone'] ?? config('app.timezone', 'UTC'));
 
-        $meetingUrl = $validated['meeting_url'] ?? null;
-        if (($validated['platform'] ?? 'jitsi') === 'jitsi' && empty($meetingUrl)) {
-            $base = rtrim((string) get_settings('live_class_jitsi_base_url'), '/');
-            if ($base === '') {
-                $base = 'https://meet.jit.si';
-            }
-            $room = Str::slug(($validated['title'] ?? 'class') . '-' . Str::random(8));
-            $meetingUrl = $base . '/' . $room;
+        $meetingUrl = $validated['meeting_url'] ?? ($existing?->meeting_url ?? null);
+        if (empty($meetingUrl)) {
+            $platform = $validated['platform'] ?? 'jitsi';
+            $meetingUrl = $this->resolveMeetingUrl(
+                $platform,
+                $validated['title'] ?? 'class',
+                $scheduledAt,
+                $endsAt,
+                $validated['timezone'] ?? config('app.timezone', 'UTC')
+            );
         }
 
         $isPublished = array_key_exists('is_published', $validated)
@@ -349,6 +547,11 @@ class LiveClassController extends Controller
             'created_by' => $existing?->created_by ?: Auth::id(),
             'updated_by' => Auth::id(),
         ];
+    }
+
+    private function getRoutePrefix(Request $request): string
+    {
+        return $request->routeIs('teacher.*') ? 'teacher' : 'admin';
     }
 
     private function deriveStatus(string $inputStatus, Carbon $scheduledAt, Carbon $endsAt, bool $isPublished): string
@@ -390,8 +593,6 @@ class LiveClassController extends Controller
 
             if ($classIds->isNotEmpty()) {
                 $query->whereIn('class_id', $classIds);
-            } else {
-                $query->whereRaw('1 = 0');
             }
         }
 
@@ -412,7 +613,232 @@ class LiveClassController extends Controller
             return false;
         }
 
+        if ($liveClass->academic_session_id && (int) $liveClass->academic_session_id !== (int) $enroll->session_id) {
+            return false;
+        }
+
+        if ($liveClass->subject_id) {
+            $subject = Subject::where('id', $liveClass->subject_id)
+                ->where('school_id', $this->school_id)
+                ->first();
+
+            if (!$subject) {
+                return false;
+            }
+
+            if ($subject->class_id && (int) $subject->class_id !== (int) $enroll->class_id) {
+                return false;
+            }
+        }
+
         return (bool) $liveClass->is_published;
+    }
+
+    private function generateMeetingUrl(string $platform, string $title): string
+    {
+        if ($platform === 'jitsi') {
+            $base = rtrim((string) get_settings('live_class_jitsi_base_url'), '/');
+            if ($base === '') {
+                $base = 'https://meet.jit.si';
+            }
+
+            return $base . '/' . Str::slug($title . '-' . Str::random(8));
+        }
+
+        return '';
+    }
+
+    private function resolveMeetingUrl(string $platform, string $title, Carbon $scheduledAt, Carbon $endsAt, string $timezone): string
+    {
+        if ($platform === 'jitsi') {
+            return $this->generateMeetingUrl('jitsi', $title);
+        }
+
+        if ($platform === 'zoom') {
+            $url = $this->createZoomMeetingUrl($title, $scheduledAt, $endsAt, $timezone);
+            if (!empty($url)) {
+                return $url;
+            }
+
+            throw ValidationException::withMessages([
+                'meeting_url' => get_phrase('Zoom API is not configured. Add ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID, and ZOOM_CLIENT_SECRET in your .env file.'),
+            ]);
+        }
+
+        if ($platform === 'google_meet') {
+            $url = $this->createGoogleMeetUrl($title, $scheduledAt, $endsAt, $timezone);
+            if (!empty($url)) {
+                return $url;
+            }
+
+            throw ValidationException::withMessages([
+                'meeting_url' => get_phrase('Google Meet API is not configured. Add GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and GOOGLE_REFRESH_TOKEN in your .env file.'),
+            ]);
+        }
+
+        throw ValidationException::withMessages([
+            'platform' => get_phrase('Automatic link generation is supported only for Jitsi, Zoom API, or Google Meet API.'),
+        ]);
+    }
+
+    private function createZoomMeetingUrl(string $title, Carbon $scheduledAt, Carbon $endsAt, string $timezone): ?string
+    {
+        $accountId = (string) config('services.zoom.account_id');
+        $clientId = (string) config('services.zoom.client_id');
+        $clientSecret = (string) config('services.zoom.client_secret');
+
+        if ($accountId === '' || $clientId === '' || $clientSecret === '') {
+            return null;
+        }
+
+        $tokenResponse = Http::asForm()
+            ->withBasicAuth($clientId, $clientSecret)
+            ->post('https://zoom.us/oauth/token', [
+                'grant_type' => 'account_credentials',
+                'account_id' => $accountId,
+            ]);
+
+        if (!$tokenResponse->successful()) {
+            return null;
+        }
+
+        $accessToken = (string) $tokenResponse->json('access_token');
+        if ($accessToken === '') {
+            return null;
+        }
+
+        $duration = max(1, $scheduledAt->diffInMinutes($endsAt));
+        $meetingResponse = Http::withToken($accessToken)
+            ->acceptJson()
+            ->post('https://api.zoom.us/v2/users/me/meetings', [
+                'topic' => $title,
+                'type' => 2,
+                'start_time' => $scheduledAt->copy()->timezone('UTC')->toIso8601String(),
+                'duration' => $duration,
+                'timezone' => $timezone,
+                'settings' => [
+                    'join_before_host' => true,
+                    'waiting_room' => false,
+                ],
+            ]);
+
+        if (!$meetingResponse->successful()) {
+            return null;
+        }
+
+        $joinUrl = (string) $meetingResponse->json('join_url');
+        return $joinUrl !== '' ? $joinUrl : null;
+    }
+
+    private function createGoogleMeetUrl(string $title, Carbon $scheduledAt, Carbon $endsAt, string $timezone): ?string
+    {
+        $clientId = (string) config('services.google_meet.client_id');
+        $clientSecret = (string) config('services.google_meet.client_secret');
+        $refreshToken = (string) config('services.google_meet.refresh_token');
+        $calendarId = (string) config('services.google_meet.calendar_id', 'primary');
+
+        if ($clientId === '' || $clientSecret === '' || $refreshToken === '') {
+            return null;
+        }
+
+        $tokenResponse = Http::asForm()->post('https://oauth2.googleapis.com/token', [
+            'client_id' => $clientId,
+            'client_secret' => $clientSecret,
+            'refresh_token' => $refreshToken,
+            'grant_type' => 'refresh_token',
+        ]);
+
+        if (!$tokenResponse->successful()) {
+            return null;
+        }
+
+        $accessToken = (string) $tokenResponse->json('access_token');
+        if ($accessToken === '') {
+            return null;
+        }
+
+        $eventResponse = Http::withToken($accessToken)
+            ->acceptJson()
+            ->post('https://www.googleapis.com/calendar/v3/calendars/' . urlencode($calendarId) . '/events?conferenceDataVersion=1', [
+                'summary' => $title,
+                'start' => [
+                    'dateTime' => $scheduledAt->copy()->setTimezone($timezone)->toIso8601String(),
+                    'timeZone' => $timezone,
+                ],
+                'end' => [
+                    'dateTime' => $endsAt->copy()->setTimezone($timezone)->toIso8601String(),
+                    'timeZone' => $timezone,
+                ],
+                'conferenceData' => [
+                    'createRequest' => [
+                        'requestId' => (string) Str::uuid(),
+                        'conferenceSolutionKey' => [
+                            'type' => 'hangoutsMeet',
+                        ],
+                    ],
+                ],
+            ]);
+
+        if (!$eventResponse->successful()) {
+            return null;
+        }
+
+        $hangoutLink = (string) $eventResponse->json('hangoutLink');
+        if ($hangoutLink !== '') {
+            return $hangoutLink;
+        }
+
+        $entryPoints = (array) $eventResponse->json('conferenceData.entryPoints', []);
+        foreach ($entryPoints as $entryPoint) {
+            $entryUri = (string) ($entryPoint['uri'] ?? '');
+            if ($entryUri !== '') {
+                return $entryUri;
+            }
+        }
+
+        return null;
+    }
+
+    private function createStudentLiveClassNotice(LiveClass $liveClass, string $eventType): void
+    {
+        $liveClass->loadMissing(['subject', 'classRoom', 'academicSession']);
+
+        $classInfo = $liveClass->class_id
+            ? ('Class: ' . (optional($liveClass->classRoom)->name ?: ('ID ' . $liveClass->class_id)))
+            : 'Class: All classes';
+        $subjectName = optional($liveClass->subject)->name ?: 'All courses';
+        $sessionInfo = $liveClass->academic_session_id
+            ? ('Session: ' . (optional($liveClass->academicSession)->session_title ?: ('ID ' . $liveClass->academic_session_id)))
+            : 'Session: All sessions';
+        $actionLabel = $eventType === 'published' ? 'published' : 'scheduled';
+
+        $noticeTitle = 'Live Class ' . ucfirst($actionLabel) . ': ' . $liveClass->title;
+        $noticeBody = "A live class has been {$actionLabel}.\n"
+            . "Course: {$subjectName}\n"
+            . "{$classInfo}\n"
+            . "{$sessionInfo}\n"
+            . "Date: " . optional($liveClass->start_date)->format('Y-m-d') . "\n"
+            . "Time: {$liveClass->start_time} - {$liveClass->end_time}\n"
+            . "Join Link: " . ($liveClass->meeting_url ?: 'TBD');
+
+        $sessionId = (int) get_school_settings($this->school_id)->value('running_session');
+        if ($sessionId === 0) {
+            $sessionId = (int) Session::where('school_id', $this->school_id)->max('id');
+        }
+
+        Noticeboard::create([
+            'notice_title' => $noticeTitle,
+            'notice' => $noticeBody,
+            'start_date' => optional($liveClass->start_date)->format('Y-m-d') ?: now()->format('Y-m-d'),
+            'start_time' => (string) ($liveClass->start_time ?: ''),
+            'end_date' => optional($liveClass->start_date)->format('Y-m-d') ?: now()->format('Y-m-d'),
+            'end_time' => (string) ($liveClass->end_time ?: ''),
+            'status' => 1,
+            'show_on_website' => 0,
+            'image' => '',
+            'school_id' => $this->school_id,
+            'session_id' => $sessionId > 0 ? $sessionId : 0,
+        ]);
     }
 
     private function getEnabledPlatforms(): array
