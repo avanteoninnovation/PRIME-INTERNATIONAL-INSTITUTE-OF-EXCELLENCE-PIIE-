@@ -27,7 +27,8 @@ class EnhancedSettingsController extends Controller
     public function academic()
     {
         $grades = Grade::where('school_id', $this->school_id)->orderByDesc('mark_from')->get();
-        return view('admin.settings.academic', compact('grades'));
+        $platform_settings = $this->getLiveClassPlatformSettings();
+        return view('admin.settings.academic', compact('grades', 'platform_settings'));
     }
 
     public function saveAcademic(Request $request)
@@ -49,6 +50,24 @@ class EnhancedSettingsController extends Controller
                 }
             }
         }
+
+        $platformKeys = [
+            'live_class_platform_jitsi',
+            'live_class_platform_google_meet',
+            'live_class_platform_zoom',
+            'live_class_platform_bigbluebutton',
+            'live_class_platform_custom',
+        ];
+
+        foreach ($platformKeys as $key) {
+            GlobalSettings::updateOrCreate(['key' => $key], ['value' => $request->has($key) ? '1' : '0']);
+        }
+
+        GlobalSettings::updateOrCreate(
+            ['key' => 'live_class_jitsi_base_url'],
+            ['value' => trim((string) $request->input('live_class_jitsi_base_url', 'https://meet.jit.si')) ?: 'https://meet.jit.si']
+        );
+
         return redirect()->back()->with('success', get_phrase('Grading scale updated'));
     }
 
@@ -176,10 +195,23 @@ class EnhancedSettingsController extends Controller
         return $result;
     }
 
+    private function getLiveClassPlatformSettings(): array
+    {
+        return [
+            'live_class_platform_jitsi' => GlobalSettings::where('key', 'live_class_platform_jitsi')->value('value') !== '0',
+            'live_class_platform_google_meet' => GlobalSettings::where('key', 'live_class_platform_google_meet')->value('value') !== '0',
+            'live_class_platform_zoom' => GlobalSettings::where('key', 'live_class_platform_zoom')->value('value') !== '0',
+            'live_class_platform_bigbluebutton' => GlobalSettings::where('key', 'live_class_platform_bigbluebutton')->value('value') === '1',
+            'live_class_platform_custom' => GlobalSettings::where('key', 'live_class_platform_custom')->value('value') === '1',
+            'live_class_jitsi_base_url' => GlobalSettings::where('key', 'live_class_jitsi_base_url')->value('value') ?: 'https://meet.jit.si',
+        ];
+    }
+
     private function getPermissionList(): array
     {
         return [
             'Academic'    => ['View Dashboard', 'View Students', 'Edit Students', 'Delete Students', 'View Staff', 'Edit Staff', 'Manage Courses', 'Enter Marks', 'Publish Results', 'Manage Attendance'],
+            'Live Classes' => ['View Live Classes', 'Create Live Classes', 'Edit Live Classes', 'Delete Live Classes', 'Cancel Live Classes', 'Publish Live Classes', 'Join Live Classes', 'Manage Live Class Platforms'],
             'Finance'     => ['View Finance', 'Record Payments', 'Manage Payroll', 'View Invoices'],
             'Admissions'  => ['View Admissions', 'Manage Admissions', 'Issue Offer Letters'],
             'Operations'  => ['View Library', 'Post Notices', 'Manage Events', 'Manage Leave'],

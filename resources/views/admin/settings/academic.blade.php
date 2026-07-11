@@ -57,6 +57,49 @@
             <button type="button" class="eBtn eBtn-secondary" id="addGradeRow"><i class="bi bi-plus"></i> {{ get_phrase('Add Grade') }}</button>
             <button type="submit" class="eBtn eBtn-primary"><i class="bi bi-save"></i> {{ get_phrase('Save Grading Scale') }}</button>
         </div>
+
+        <hr class="my-4">
+        <div class="mb-2"><strong>{{ get_phrase('Live Class Platform Configuration') }}</strong></div>
+        <div class="row g-2 mb-3">
+            <div class="col-md-4">
+                <label class="d-flex align-items-center gap-2">
+                    <input type="checkbox" name="live_class_platform_jitsi" value="1" {{ $platform_settings['live_class_platform_jitsi'] ? 'checked' : '' }}>
+                    {{ get_phrase('Enable Jitsi Meet') }}
+                </label>
+            </div>
+            <div class="col-md-4">
+                <label class="d-flex align-items-center gap-2">
+                    <input type="checkbox" name="live_class_platform_google_meet" value="1" {{ $platform_settings['live_class_platform_google_meet'] ? 'checked' : '' }}>
+                    {{ get_phrase('Enable Google Meet') }}
+                </label>
+            </div>
+            <div class="col-md-4">
+                <label class="d-flex align-items-center gap-2">
+                    <input type="checkbox" name="live_class_platform_zoom" value="1" {{ $platform_settings['live_class_platform_zoom'] ? 'checked' : '' }}>
+                    {{ get_phrase('Enable Zoom') }}
+                </label>
+            </div>
+            <div class="col-md-4">
+                <label class="d-flex align-items-center gap-2">
+                    <input type="checkbox" name="live_class_platform_bigbluebutton" value="1" {{ $platform_settings['live_class_platform_bigbluebutton'] ? 'checked' : '' }}>
+                    {{ get_phrase('Enable BigBlueButton') }}
+                </label>
+            </div>
+            <div class="col-md-4">
+                <label class="d-flex align-items-center gap-2">
+                    <input type="checkbox" name="live_class_platform_custom" value="1" {{ $platform_settings['live_class_platform_custom'] ? 'checked' : '' }}>
+                    {{ get_phrase('Enable Custom Platform') }}
+                </label>
+            </div>
+            <div class="col-md-8">
+                <label class="eForm-label">{{ get_phrase('Jitsi Base URL') }}</label>
+                <input type="url" class="form-control eForm-control" name="live_class_jitsi_base_url" value="{{ $platform_settings['live_class_jitsi_base_url'] }}" placeholder="https://meet.jit.si">
+            </div>
+        </div>
+
+        <div class="d-flex gap-3 align-items-center">
+            <button type="submit" class="eBtn eBtn-primary"><i class="bi bi-save"></i> {{ get_phrase('Save Academic and Platform Settings') }}</button>
+        </div>
     </form>
     </div>
 </div></div></div>

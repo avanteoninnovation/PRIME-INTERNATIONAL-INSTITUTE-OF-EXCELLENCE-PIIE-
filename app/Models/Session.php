@@ -17,4 +17,9 @@ class Session extends Model
     protected $fillable = [
         'session_title', 'status', 'school_id'
     ];
+
+    public function liveClasses()
+    {
+        return $this->hasMany(LiveClass::class, 'academic_session_id');
+    }
 }

@@ -4,42 +4,88 @@
     <div class="d-flex justify-content-between align-items-center flex-wrap gr-15">
         <div class="d-flex flex-column">
             <h4>{{ get_phrase('Live Classes') }}</h4>
-            <ul class="d-flex align-items-center eBreadcrumb-2"><li><a href="#">{{ get_phrase('Academic') }}</a></li><li><a href="#">{{ get_phrase('Live Classes') }}</a></li></ul>
+            <ul class="d-flex align-items-center eBreadcrumb-2"><li><a href="{{ route('admin.dashboard') }}">{{ get_phrase('Home') }}</a></li><li><a href="#">{{ get_phrase('Live Classes') }}</a></li></ul>
         </div>
-        <div class="export-btn-area">
-            <a href="javascript:;" class="export_btn" onclick="rightModal('{{ route('admin.live_classes.open_modal') }}', '{{ get_phrase('Schedule Class') }}')">{{ get_phrase('Schedule Class') }}</a>
+        <div class="d-flex gap-2">
+            <a href="{{ route('admin.live_classes.create') }}" class="eBtn eBtn-primary">{{ get_phrase('Schedule Class') }}</a>
+            <a href="javascript:;" class="eBtn eBtn-dark" onclick="rightModal('{{ route('admin.live_classes.open_modal') }}', '{{ get_phrase('Quick Schedule') }}')">{{ get_phrase('Quick Modal') }}</a>
         </div>
     </div>
 </div></div></div>
+
 @if(session('success'))<div class="alert alert-success">{{ session('success') }}</div>@endif
-<div class="row"><div class="col-12"><div class="eSection-wrap">
-    <div class="table-responsive">
-        <table class="table eTable">
-            <thead><tr><th>#</th><th>{{ get_phrase('Title') }}</th><th>{{ get_phrase('Subject') }}</th><th>{{ get_phrase('Teacher') }}</th><th>{{ get_phrase('Scheduled') }}</th><th>{{ get_phrase('Platform') }}</th><th>{{ get_phrase('Status') }}</th><th>{{ get_phrase('Actions') }}</th></tr></thead>
-            <tbody>
-            @forelse($classes as $i => $lc)
-            <tr>
-                <td>{{ $classes->firstItem() + $i }}</td>
-                <td><strong>{{ $lc->title }}</strong></td>
-                <td>{{ optional($lc->subject)->name ?? '—' }}</td>
-                <td>{{ optional($lc->teacher)->name ?? '—' }}</td>
-                <td>{{ $lc->scheduled_at?->format('d M Y H:i') }}</td>
-                <td><span class="badge bg-info">{{ ucfirst($lc->platform) }}</span></td>
-                <td><span class="badge bg-{{ $lc->status=='live'?'danger':($lc->status=='scheduled'?'warning':'secondary') }}">{{ ucfirst($lc->status) }}</span></td>
-                <td>
-                    @if($lc->join_url)
-                    <a href="{{ $lc->join_url }}" target="_blank" class="eBtn eBtn-sm eBtn-primary"><i class="bi bi-camera-video"></i> {{ get_phrase('Join') }}</a>
-                    @endif
-                    <a href="javascript:;" class="eBtn eBtn-sm eBtn-warning" onclick="rightModal('{{ route('admin.live_classes.open_modal', ['id'=>$lc->id]) }}', '{{ get_phrase('Edit') }}')"><i class="bi bi-pencil"></i></a>
-                    <a href="{{ route('admin.live_classes.destroy', $lc->id) }}" class="eBtn eBtn-sm eBtn-danger" onclick="return confirm('Delete?')"><i class="bi bi-trash"></i></a>
-                </td>
-            </tr>
-            @empty
-            <tr><td colspan="8" class="text-center text-muted py-4">{{ get_phrase('No live classes scheduled') }}</td></tr>
-            @endforelse
-            </tbody>
-        </table>
+@if(session('error'))<div class="alert alert-danger">{{ session('error') }}</div>@endif
+
+<div class="row">
+    <div class="col-12">
+        <div class="eSection-wrap">
+            <form method="GET" class="row g-2 align-items-end mb-3">
+                <div class="col-md-3"><label class="eForm-label">{{ get_phrase('Search') }}</label><input type="text" name="search" value="{{ $search }}" class="form-control eForm-control" placeholder="{{ get_phrase('Title') }}"></div>
+                <div class="col-md-2"><label class="eForm-label">{{ get_phrase('Course') }}</label><select name="subject_id" class="form-control eForm-control"><option value="">{{ get_phrase('All') }}</option>@foreach($subjects as $subject)<option value="{{ $subject->id }}" {{ (string)$subjectId===(string)$subject->id ? 'selected' : '' }}>{{ $subject->name }}</option>@endforeach</select></div>
+                <div class="col-md-2"><label class="eForm-label">{{ get_phrase('Platform') }}</label><select name="platform" class="form-control eForm-control"><option value="">{{ get_phrase('All') }}</option>@foreach(['jitsi','google_meet','zoom','bigbluebutton','custom'] as $platformValue)<option value="{{ $platformValue }}" {{ $platform === $platformValue ? 'selected' : '' }}>{{ ucwords(str_replace('_',' ', $platformValue)) }}</option>@endforeach</select></div>
+                <div class="col-md-2"><label class="eForm-label">{{ get_phrase('Status') }}</label><select name="status" class="form-control eForm-control"><option value="">{{ get_phrase('All') }}</option>@foreach(['draft','scheduled','live','ended','cancelled'] as $statusValue)<option value="{{ $statusValue }}" {{ $status === $statusValue ? 'selected' : '' }}>{{ ucfirst($statusValue) }}</option>@endforeach</select></div>
+                <div class="col-md-2"><label class="eForm-label">{{ get_phrase('Date') }}</label><input type="date" name="date" class="form-control eForm-control" value="{{ $date }}"></div>
+                <div class="col-md-1"><button type="submit" class="eBtn eBtn-primary">{{ get_phrase('Go') }}</button></div>
+            </form>
+
+            <div class="table-responsive">
+                <table class="table eTable">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>{{ get_phrase('Title') }}</th>
+                            <th>{{ get_phrase('Course') }}</th>
+                            <th>{{ get_phrase('Lecturer') }}</th>
+                            <th>{{ get_phrase('Platform') }}</th>
+                            <th>{{ get_phrase('Date') }}</th>
+                            <th>{{ get_phrase('Time') }}</th>
+                            <th>{{ get_phrase('Status') }}</th>
+                            <th>{{ get_phrase('Actions') }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @forelse($classes as $i => $lc)
+                        @php
+                            $statusClass = $lc->computed_status === 'live' ? 'danger' : ($lc->computed_status === 'scheduled' ? 'warning' : ($lc->computed_status === 'cancelled' ? 'secondary' : ($lc->computed_status === 'draft' ? 'dark' : 'success')));
+                        @endphp
+                        <tr>
+                            <td>{{ $classes->firstItem() + $i }}</td>
+                            <td>{{ $lc->title }}</td>
+                            <td>{{ optional($lc->subject)->name ?: '—' }}</td>
+                            <td>{{ optional($lc->teacher)->name ?: '—' }}</td>
+                            <td><span class="badge bg-info">{{ ucwords(str_replace('_',' ', $lc->platform)) }}</span></td>
+                            <td>{{ optional($lc->start_date)->format('d M Y') }}</td>
+                            <td>{{ $lc->start_time ? \Illuminate\Support\Carbon::parse($lc->start_time)->format('H:i') : '—' }} - {{ $lc->end_time ? \Illuminate\Support\Carbon::parse($lc->end_time)->format('H:i') : '—' }}</td>
+                            <td><span class="badge bg-{{ $statusClass }}">{{ ucfirst($lc->computed_status) }}</span></td>
+                            <td class="d-flex flex-wrap gap-1">
+                                <a href="{{ route('admin.live_classes.show', $lc->id) }}" class="eBtn eBtn-sm eBtn-dark">{{ get_phrase('View') }}</a>
+                                <a href="{{ route('admin.live_classes.edit', $lc->id) }}" class="eBtn eBtn-sm eBtn-warning">{{ get_phrase('Edit') }}</a>
+                                @if($lc->can_join)
+                                    <a href="{{ route('admin.live_classes.join', $lc->id) }}" target="_blank" class="eBtn eBtn-sm eBtn-primary">{{ get_phrase('Join') }}</a>
+                                @endif
+                                @if($lc->safe_recording_url)
+                                    <a href="{{ $lc->safe_recording_url }}" target="_blank" class="eBtn eBtn-sm eBtn-dark">{{ get_phrase('Recording') }}</a>
+                                @endif
+                                @if($lc->computed_status !== \App\Models\LiveClass::STATUS_CANCELLED)
+                                    <form method="POST" action="{{ route('admin.live_classes.cancel', $lc->id) }}" onsubmit="return confirm('{{ get_phrase('Cancel this class?') }}')">
+                                        @csrf
+                                        <button type="submit" class="eBtn eBtn-sm eBtn-danger">{{ get_phrase('Cancel') }}</button>
+                                    </form>
+                                @endif
+                                <form method="POST" action="{{ route('admin.live_classes.publish', $lc->id) }}">
+                                    @csrf
+                                    <button type="submit" class="eBtn eBtn-sm eBtn-primary">{{ $lc->is_published ? get_phrase('Unpublish') : get_phrase('Publish') }}</button>
+                                </form>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="9" class="text-center text-muted py-4">{{ get_phrase('No live classes scheduled') }}</td></tr>
+                    @endforelse
+                    </tbody>
+                </table>
+            </div>
+            {{ $classes->appends(request()->query())->links() }}
+        </div>
     </div>
-    {{ $classes->links() }}
-</div></div></div>
+</div>
 @endsection

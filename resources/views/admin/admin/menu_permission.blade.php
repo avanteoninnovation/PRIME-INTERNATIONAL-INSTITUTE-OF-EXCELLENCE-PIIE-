@@ -32,6 +32,7 @@
             'admin.subject_list' => get_phrase('Subject List'),
             'admin.gradebook' => get_phrase('Gradebooks'),
             'admin.syllabus' => get_phrase('Syllabus'),
+            'admin.live_classes' => get_phrase('Live Classes'),
             'admin.class_room_list' => get_phrase('Class Room'),
             'admin.department_list' => get_phrase('Department'),
             'admin.fee_manager.list' => get_phrase('Students Fee Manager'),

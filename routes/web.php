@@ -1219,15 +1219,28 @@ Route::controller(AssignmentController::class)->middleware('auth', 'student')->g
 
 // ── Live Classes ──────────────────────────────────────────────
 Route::controller(LiveClassController::class)->middleware('auth', 'admin')->group(function () {
-    Route::get('admin/live-classes',               'index')->name('admin.live_classes.index');
-    Route::get('admin/live-classes/open_modal',    'openModal')->name('admin.live_classes.open_modal');
-    Route::post('admin/live-classes/store',        'store')->name('admin.live_classes.store');
-    Route::post('admin/live-classes/update/{id}',  'update')->name('admin.live_classes.update');
-    Route::get('admin/live-classes/delete/{id}',   'destroy')->name('admin.live_classes.destroy');
+    Route::get('admin/live-classes',                   'index')->name('admin.live_classes.index');
+    Route::get('admin/live-classes/create',            'create')->name('admin.live_classes.create');
+    Route::post('admin/live-classes',                  'store')->name('admin.live_classes.store');
+    Route::get('admin/live-classes/{liveClass}',       'show')->name('admin.live_classes.show');
+    Route::get('admin/live-classes/{liveClass}/edit',  'edit')->name('admin.live_classes.edit');
+    Route::put('admin/live-classes/{liveClass}',       'update')->name('admin.live_classes.update');
+    Route::delete('admin/live-classes/{liveClass}',    'destroy')->name('admin.live_classes.destroy');
+
+    Route::post('admin/live-classes/{liveClass}/cancel',  'cancel')->name('admin.live_classes.cancel');
+    Route::post('admin/live-classes/{liveClass}/publish', 'publish')->name('admin.live_classes.publish');
+    Route::get('admin/live-classes/{liveClass}/join',     'join')->name('admin.live_classes.join');
+
+    // Backward compatibility with existing modal workflow.
+    Route::get('admin/live-classes/open_modal',           'openModal')->name('admin.live_classes.open_modal');
+    Route::post('admin/live-classes/store',               'store')->name('admin.live_classes.store_legacy');
+    Route::post('admin/live-classes/update/{liveClass}',  'update')->name('admin.live_classes.update_legacy');
+    Route::get('admin/live-classes/delete/{liveClass}',   'destroy')->name('admin.live_classes.destroy_legacy');
 });
 
 Route::controller(LiveClassController::class)->middleware('auth', 'student')->group(function () {
-    Route::get('student/live-classes', 'studentIndex')->name('student.live_classes.index');
+    Route::get('student/live-classes',                    'studentIndex')->name('student.live_classes.index');
+    Route::get('student/live-classes/{liveClass}/join',   'join')->name('student.live_classes.join');
 });
 
 // ── Academic Calendar ─────────────────────────────────────────

@@ -75,5 +75,15 @@ class User extends Authenticatable
     return $this->hasOne(Enrollment::class, 'user_id');
 }
 
+        public function liveClassesAsLecturer()
+        {
+            return $this->hasMany(LiveClass::class, 'teacher_id');
+        }
+
+        public function createdLiveClasses()
+        {
+            return $this->hasMany(LiveClass::class, 'created_by');
+        }
+
 
 }

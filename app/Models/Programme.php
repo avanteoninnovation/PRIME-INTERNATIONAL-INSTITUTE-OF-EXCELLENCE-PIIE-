@@ -28,4 +28,9 @@ class Programme extends Model
     {
         return $this->hasMany(Admission::class, 'programme_id');
     }
+
+    public function liveClasses()
+    {
+        return $this->hasMany(LiveClass::class, 'programme_id');
+    }
 }
