@@ -24,6 +24,7 @@
     <form action="{{ route('admin.settings.permissions.save') }}" method="POST">
     @csrf
     @foreach($roles as $role)
+    @php $roleKey = $role->role_id ?? $role->id; @endphp
     <div class="mb-4 pb-4 border-bottom">
         <div class="d-flex align-items-center gap-2 mb-3">
             <span class="badge bg-primary" style="font-size:12px">{{ $role->name }}</span>
@@ -34,8 +35,8 @@
                 <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#6c757d;margin-bottom:6px">{{ $group }}</div>
                 @foreach($perms as $perm)
                 <label class="d-flex align-items-center gap-2 mb-1" style="cursor:pointer;font-size:12px">
-                    <input type="checkbox" name="perms[{{ $role->id }}][]" value="{{ $perm }}"
-                        {{ in_array($perm, $role_perms[$role->id] ?? []) ? 'checked' : '' }}>
+                    <input type="checkbox" name="perms[{{ $roleKey }}][]" value="{{ $perm }}"
+                        {{ in_array($perm, $role_perms[$roleKey] ?? []) ? 'checked' : '' }}>
                     {{ get_phrase($perm) }}
                 </label>
                 @endforeach

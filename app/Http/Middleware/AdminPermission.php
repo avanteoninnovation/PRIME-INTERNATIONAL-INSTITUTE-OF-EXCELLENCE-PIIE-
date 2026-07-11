@@ -21,14 +21,40 @@ class AdminPermission
             return $next($request);
         }else{
             $user_permitted_routes = json_decode(Auth()->user()->menu_permission, true);
-            
-            // $current_route  = app()->router->getCurrentRoute();
+
             $current_route = Route::currentRouteName();
-            if (is_array($user_permitted_routes) && in_array($current_route, $user_permitted_routes) && Auth()->user()->menu_permission != 'null') {
+
+            if ($this->isPermitted($current_route, $user_permitted_routes) && Auth()->user()->menu_permission != 'null') {
                 return $next($request);
             }else{
                 return redirect()->back();
             }
         }
+    }
+
+    private function isPermitted(?string $currentRoute, $permittedRoutes): bool
+    {
+        if (!is_array($permittedRoutes) || empty($currentRoute)) {
+            return false;
+        }
+
+        if (in_array($currentRoute, $permittedRoutes, true)) {
+            return true;
+        }
+
+        if (str_starts_with($currentRoute, 'admin.online_exams.')) {
+            return in_array('admin.online_exams', $permittedRoutes, true)
+                || in_array('admin.online_exams.index', $permittedRoutes, true);
+        }
+
+        if ($currentRoute === 'admin.online_exams') {
+            return in_array('admin.online_exams.index', $permittedRoutes, true);
+        }
+
+        if ($currentRoute === 'admin.online_exams.index') {
+            return in_array('admin.online_exams', $permittedRoutes, true);
+        }
+
+        return false;
     }
 }

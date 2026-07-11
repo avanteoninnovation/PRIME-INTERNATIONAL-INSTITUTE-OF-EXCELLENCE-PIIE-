@@ -41,6 +41,14 @@
 
 <body>
 
+    @php
+        $studentUser = auth()->user();
+        $onlineExamPermissionService = app(\App\Support\Permissions\OnlineExamPermissionService::class);
+        $canSeeStudentOnlineExams = $studentUser
+            ? $onlineExamPermissionService->hasAny($studentUser, ['sit_online_exams', 'view_exam_results'])
+            : false;
+    @endphp
+
     <div class="sidebar">
         <div class="logo-details mt-4 mb-3">
             <div class="img_wrapper">
@@ -168,6 +176,12 @@
                         <a class="{{ request()->is('student/grade') ? 'active' : '' }}"
                             href="{{ route('student.grade_list') }}"><span>{{ get_phrase('Grades') }}</span></a>
                     </li>
+                    @if ($canSeeStudentOnlineExams)
+                        <li>
+                            <a class="{{ request()->is('student/online-exams*') ? 'active' : '' }}"
+                                href="{{ route('student.online_exam.list') }}"><span>{{ get_phrase('Online Exams') }}</span></a>
+                        </li>
+                    @endif
                 </ul>
             </li>
 

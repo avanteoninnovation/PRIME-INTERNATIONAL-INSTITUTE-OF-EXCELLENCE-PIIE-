@@ -344,9 +344,37 @@ class AdminController extends Controller
 
     public function menuPermissionUpdate(Request $request, $id)
     {
+        $inputPermissions = $request->input('permissions', []);
+        if (!is_array($inputPermissions)) {
+            $inputPermissions = [];
+        }
+
+        $normalized = [];
+        foreach ($inputPermissions as $permission) {
+            $permission = trim((string) $permission);
+            if ($permission === '') {
+                continue;
+            }
+
+            $normalized[] = $permission;
+
+            if ($permission === 'admin.online_exams') {
+                $normalized[] = 'admin.online_exams.index';
+            } elseif ($permission === 'admin.online_exams.index') {
+                $normalized[] = 'admin.online_exams';
+            }
+
+            if ($permission === 'admin.question_bank') {
+                $normalized[] = 'admin.question_bank.index';
+            } elseif ($permission === 'admin.question_bank.index') {
+                $normalized[] = 'admin.question_bank';
+            }
+        }
+
+        $normalized = array_values(array_unique($normalized));
 
         User::where('id', $id)->update([
-            'menu_permission' => json_encode($request->permissions),
+            'menu_permission' => json_encode($normalized),
         ]);
 
         return redirect()->back()->with('message', 'You have successfully updated user permissions.');

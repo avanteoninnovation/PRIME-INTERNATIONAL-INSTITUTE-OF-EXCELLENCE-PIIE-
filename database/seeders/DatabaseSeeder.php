@@ -16,6 +16,7 @@ class DatabaseSeeder extends Seeder
         $this->call([
             WebsiteContentSeeder::class,
             LiveClassPermissionSeeder::class,
+            OnlineExamPermissionSeeder::class,
         ]);
     }
 }

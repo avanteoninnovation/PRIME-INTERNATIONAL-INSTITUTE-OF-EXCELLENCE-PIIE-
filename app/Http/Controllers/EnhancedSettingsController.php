@@ -100,8 +100,13 @@ class EnhancedSettingsController extends Controller
         // Load saved permissions per role
         $role_perms = [];
         foreach ($roles as $role) {
-            $val = GlobalSettings::where('key', "role_perm_{$role->id}")->value('value');
-            $role_perms[$role->id] = $val ? json_decode($val, true) : [];
+            $roleId = $this->resolveRoleId($role);
+            if ($roleId <= 0) {
+                continue;
+            }
+
+            $val = GlobalSettings::where('key', "role_perm_{$roleId}")->value('value');
+            $role_perms[$roleId] = $val ? json_decode($val, true) : [];
         }
         return view('admin.settings.permissions', compact('roles', 'all_perms', 'role_perms'));
     }
@@ -110,9 +115,22 @@ class EnhancedSettingsController extends Controller
     {
         $roles = DB::table('roles')->where('school_id', $this->school_id)->orWhere('school_id', 0)->get();
         foreach ($roles as $role) {
-            $perms = $request->input("perms.{$role->id}", []);
+            $roleId = $this->resolveRoleId($role);
+            if ($roleId <= 0) {
+                continue;
+            }
+
+            $perms = $request->input("perms.{$roleId}", []);
+            if (!is_array($perms)) {
+                $perms = [];
+            }
+
+            $perms = array_values(array_unique(array_filter(array_map(function ($item) {
+                return trim((string) $item);
+            }, $perms))));
+
             GlobalSettings::updateOrCreate(
-                ['key' => "role_perm_{$role->id}"],
+                ['key' => "role_perm_{$roleId}"],
                 ['value' => json_encode($perms)]
             );
         }
@@ -212,11 +230,32 @@ class EnhancedSettingsController extends Controller
         return [
             'Academic'    => ['View Dashboard', 'View Students', 'Edit Students', 'Delete Students', 'View Staff', 'Edit Staff', 'Manage Courses', 'Enter Marks', 'Publish Results', 'Manage Attendance'],
             'Live Classes' => ['View Live Classes', 'Create Live Classes', 'Edit Live Classes', 'Delete Live Classes', 'Cancel Live Classes', 'Publish Live Classes', 'Join Live Classes', 'Manage Live Class Platforms'],
+            'Online Exams' => [
+                'view_online_exams',
+                'create_online_exams',
+                'edit_own_online_exams',
+                'edit_all_online_exams',
+                'delete_online_exams',
+                'publish_online_exams',
+                'cancel_online_exams',
+                'manage_exam_questions',
+                'view_exam_attempts',
+                'mark_exam_answers',
+                'view_exam_results',
+                'manage_exam_settings',
+                'review_exam_proctoring',
+                'sit_online_exams',
+            ],
             'Finance'     => ['View Finance', 'Record Payments', 'Manage Payroll', 'View Invoices'],
             'Admissions'  => ['View Admissions', 'Manage Admissions', 'Issue Offer Letters'],
             'Operations'  => ['View Library', 'Post Notices', 'Manage Events', 'Manage Leave'],
             'System'      => ['View Reports', 'View Audit Log', 'System Settings', 'Manage Users'],
         ];
+    }
+
+    private function resolveRoleId(object $role): int
+    {
+        return (int) ($role->role_id ?? $role->id ?? 0);
     }
 
     private function listBackups(): array

@@ -1,5 +1,6 @@
 @php
     use App\Models\User;
+    use App\Support\Permissions\OnlineExamPermissionService;
 
     $user = Auth()->user();
     $menu_permission =
@@ -39,12 +40,12 @@
             'admissions_agents'=> ['admin.admissions_agents'],
             'programmes'       => ['admin.programmes'],
             'enrolment'        => ['admin.enrolment'],
-            'online_exams'     => ['admin.online_exams'],
+            'online_exams'     => ['admin.online_exams', 'admin.online_exams.index'],
             'exams'            => ['admin.exam', 'admin.exam_category', 'admin.admit_card'],
             'assignments'      => ['admin.assignments'],
             'live_classes'     => ['admin.live_classes'],
             'gradebook'        => ['admin.gradebook'],
-            'question_bank'    => ['admin.question_bank'],
+            'question_bank'    => ['admin.question_bank', 'admin.question_bank.index'],
             'transcripts'      => ['admin.transcripts'],
             'graduation'       => ['admin.graduation'],
             'fees'             => ['admin.fee', 'admin.fee_structures'],
@@ -77,6 +78,15 @@
         // Always allow dashboard
         $menu_permission[] = 'admin.dashboard';
     }
+
+    $onlineExamPermissionService = app(OnlineExamPermissionService::class);
+    $canViewOnlineExamsNav = $onlineExamPermissionService->hasAny($user, [
+        'view_online_exams',
+        'create_online_exams',
+        'view_exam_attempts',
+        'view_exam_results',
+    ]);
+    $canManageQuestionBankNav = $onlineExamPermissionService->has($user, 'manage_exam_questions');
 @endphp
 <!DOCTYPE html>
 <html lang="en">
@@ -323,7 +333,11 @@
                     in_array('admin.offline_exam', $menu_permission) ||
                     in_array('admin.marks', $menu_permission) ||
                     in_array('admin.grade_list', $menu_permission) ||
-                    in_array('admin.promotion', $menu_permission))
+                    in_array('admin.promotion', $menu_permission) ||
+                    in_array('admin.online_exams', $menu_permission) ||
+                    in_array('admin.online_exams.index', $menu_permission) ||
+                    in_array('admin.question_bank', $menu_permission) ||
+                    in_array('admin.question_bank.index', $menu_permission))
                 <li
                     class="nav-links-li {{ request()->is('admin/exam_category*') || request()->is('admin/offline_exam*') || request()->is('admin/marks') || request()->is('admin/grade') || request()->is('admin/promotion*') || request()->is('admin/admit-card-list') || request()->is('admin/admitCardFilter') || request()->is('admin/print-admit-card') ? 'showMenu' : '' }}">
                     <div class="iocn-link">
@@ -391,14 +405,18 @@
                                     href="{{ route('admin.examination.admit_card_print') }}"><span>{{ get_phrase('Print Admit Card') }}</span></a>
                             </li>
                         @endif
-                        <li>
-                            <a class="{{ request()->is('admin/online-exams*') ? 'active' : '' }}"
-                                href="{{ route('admin.online_exams.index') }}"><span>{{ get_phrase('Online Exams / CBT') }}</span></a>
-                        </li>
-                        <li>
-                            <a class="{{ request()->is('admin/question-bank*') ? 'active' : '' }}"
-                                href="{{ route('admin.question_bank.index') }}"><span>{{ get_phrase('Question Bank') }}</span></a>
-                        </li>
+                        @if ((empty($user->menu_permission) || in_array('admin.online_exams', $menu_permission) || in_array('admin.online_exams.index', $menu_permission)) && $canViewOnlineExamsNav)
+                            <li>
+                                <a class="{{ request()->is('admin/online-exams*') ? 'active' : '' }}"
+                                    href="{{ route('admin.online_exams.index') }}"><span>{{ get_phrase('Online Exams / CBT') }}</span></a>
+                            </li>
+                        @endif
+                        @if ((empty($user->menu_permission) || in_array('admin.question_bank', $menu_permission) || in_array('admin.question_bank.index', $menu_permission)) && $canManageQuestionBankNav)
+                            <li>
+                                <a class="{{ request()->is('admin/question-bank*') ? 'active' : '' }}"
+                                    href="{{ route('admin.question_bank.index') }}"><span>{{ get_phrase('Question Bank') }}</span></a>
+                            </li>
+                        @endif
                     </ul>
                 </li>
             @endif

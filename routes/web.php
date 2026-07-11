@@ -1175,15 +1175,27 @@ Route::controller(LeaveController::class)->middleware('auth', 'admin')->group(fu
 // ── Online Exams / CBT ────────────────────────────────────────
 Route::controller(OnlineExamController::class)->middleware('auth', 'admin')->group(function () {
     Route::get('admin/online-exams',                         'index')->name('admin.online_exams.index');
+    Route::get('admin/online-exams/create',                  'create')->name('admin.online_exams.create');
+    Route::get('admin/online-exams/{id}',                    'show')->name('admin.online_exams.show');
+    Route::get('admin/online-exams/{id}/edit',               'edit')->name('admin.online_exams.edit');
     Route::get('admin/online-exams/open_modal',              'openModal')->name('admin.online_exams.open_modal');
     Route::post('admin/online-exams/store',                  'store')->name('admin.online_exams.store');
     Route::post('admin/online-exams/update/{id}',            'update')->name('admin.online_exams.update');
     Route::get('admin/online-exams/publish/{id}',            'publish')->name('admin.online_exams.publish');
+    Route::get('admin/online-exams/unpublish/{id}',          'unpublish')->name('admin.online_exams.unpublish');
+    Route::post('admin/online-exams/cancel/{id}',            'cancel')->name('admin.online_exams.cancel');
+    Route::post('admin/online-exams/lock/{id}',              'lock')->name('admin.online_exams.lock');
     Route::get('admin/online-exams/delete/{id}',             'destroy')->name('admin.online_exams.destroy');
     Route::get('admin/online-exams/{id}/questions',          'questions')->name('admin.online_exams.questions');
     Route::post('admin/online-exams/{id}/questions/store',   'storeQuestion')->name('admin.online_exams.questions.store');
+    Route::post('admin/online-exams/questions/update/{id}',  'updateQuestion')->name('admin.online_exams.questions.update');
+    Route::post('admin/online-exams/questions/remove/{id}',  'deleteQuestion')->name('admin.online_exams.questions.remove');
     Route::get('admin/online-exams/questions/delete/{id}',   'destroyQuestion')->name('admin.online_exams.questions.destroy');
     Route::get('admin/online-exams/{id}/submissions',        'submissions')->name('admin.online_exams.submissions');
+    Route::get('admin/online-exams/{id}/results',            'results')->name('admin.online_exams.results');
+    Route::get('admin/online-exams/{id}/proctoring/{submission}', 'reviewProctoring')->name('admin.online_exams.proctoring.review');
+    Route::post('admin/online-exams/answers/{answer}/manual-mark', 'manualMarking')->name('admin.online_exams.answers.manual_mark');
+    Route::post('admin/online-exams/submissions/{submission}/finalize', 'finalizeResult')->name('admin.online_exams.submissions.finalize');
     // Question Bank
     Route::get('admin/question-bank',                        'questionBank')->name('admin.question_bank.index');
     Route::get('admin/question-bank/modal',                  'bankModal')->name('admin.question_bank.modal');
@@ -1196,6 +1208,14 @@ Route::controller(OnlineExamController::class)->middleware('auth', 'admin')->gro
 // ── Student CBT exam routes ────────────────────────────────────
 Route::controller(OnlineExamController::class)->middleware('auth', 'student')->group(function () {
     Route::get('student/online-exams',              'studentExams')->name('student.online_exam.list');
+    Route::get('student/online-exams/{id}/instructions', 'instructions')->name('student.online_exam.instructions');
+    Route::post('student/online-exams/{id}/start',  'start')->name('student.online_exam.start');
+    Route::get('student/online-exams/submissions/{submission}/resume', 'resume')->name('student.online_exam.resume');
+    Route::post('student/online-exams/submissions/{submission}/readiness', 'readiness')->name('student.online_exam.readiness');
+    Route::post('student/online-exams/submissions/{submission}/save-answer', 'saveAnswer')->name('student.online_exam.save_answer');
+    Route::post('student/online-exams/submissions/{submission}/heartbeat', 'heartbeat')->name('student.online_exam.heartbeat');
+    Route::post('student/online-exams/submissions/{submission}/proctoring-event', 'proctoringEvent')->name('student.online_exam.proctoring_event');
+    Route::post('student/online-exams/submissions/{submission}/timeout-submit', 'timeoutSubmit')->name('student.online_exam.timeout_submit');
     Route::get('student/online-exams/{id}/take',    'takeExam')->name('student.online_exam.take');
     Route::post('student/online-exams/{id}/submit', 'submitExam')->name('student.online_exam.submit');
     Route::get('student/online-exams/result/{id}',  'examResult')->name('student.online_exam.result');

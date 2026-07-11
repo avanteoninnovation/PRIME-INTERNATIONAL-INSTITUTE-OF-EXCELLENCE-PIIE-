@@ -63,6 +63,20 @@
 
 <body>
 
+  @php
+    $teacherUser = auth()->user();
+    $onlineExamPermissionService = app(\App\Support\Permissions\OnlineExamPermissionService::class);
+    $teacherOnlineExamNavReady = $teacherUser
+      ? $onlineExamPermissionService->hasAny($teacherUser, [
+        'view_online_exams',
+        'create_online_exams',
+        'manage_exam_questions',
+        'view_exam_attempts',
+        'view_exam_results',
+      ])
+      : false;
+  @endphp
+
 	<div class="sidebar">
 		<div class="logo-details mt-4 mb-3">
             <div class="img_wrapper">
