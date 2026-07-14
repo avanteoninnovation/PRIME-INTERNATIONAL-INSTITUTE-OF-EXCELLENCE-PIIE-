@@ -64,7 +64,12 @@
                                     </div>
 
                                     <div class="form-group col-xl-5 col-lg-5 col-md-5 col-sm-12 col-xs-12 pt-2">
-                                        <label for="section_id" class="eForm-label">{{ get_phrase('Section') }}</label>
+                                        <label for="section_id" class="eForm-label">
+                                            {{ get_phrase('Section') }}
+                                            <a href="javascript:;" class="ms-1" title="{{ get_phrase('Add Section') }}" onclick="openSectionManager()">
+                                                <i class="bi bi-plus-circle"></i>
+                                            </a>
+                                        </label>
                                         <select name="section_id" id="section_id" class="form-select eForm-select eChoice-multiple-with-remove" required onchange="sectionWiseStudent(this.value)" >
                                             <option value="">{{ get_phrase('Select section') }}</option>
                                         </select>
@@ -75,7 +80,12 @@
 
                                     <div class="row p-0">
                                         <div class="form-group col-xl-10 col-lg-5 col-md-5 col-sm-12 col-xs-12 pt-2">
-                                            <label for="student_id[]" class="eForm-label">{{ get_phrase('Child') }}</label>
+                                            <label for="student_id[]" class="eForm-label">
+                                                {{ get_phrase('Child') }}
+                                                <a href="javascript:;" class="ms-1" title="{{ get_phrase('Add Student') }}" onclick="openStudentCreateModal()">
+                                                    <i class="bi bi-plus-circle"></i>
+                                                </a>
+                                            </label>
                                             <select name="student_id[]" id="student_id_1" class="form-select eForm-select eChoice-multiple-with-remove" >
                                                 <option value=""></option>
                                             </select>
@@ -215,7 +225,28 @@
         var class_id=$('#class_id').val();
         var section_id=$('#section_id').val();
 
-        if(class_id != '' && section_id != '' && id != '' && !student_array.includes(id)) {
+        if(class_id == '') {
+            toastr.warning('Select a class first');
+            return;
+        }
+
+        if(section_id == '') {
+            toastr.warning('Select a section first, or tap + to add section');
+            return;
+        }
+
+        if(id == '') {
+            var options = $('#student_id_1 option').length;
+            if(options <= 1) {
+                toastr.info('No students available. Opening create student form.');
+                openStudentCreateModal();
+            } else {
+                toastr.warning('Select a child first');
+            }
+            return;
+        }
+
+        if(!student_array.includes(id)) {
             student_array.push(id);
             $('#first_row').append(blank_field);
             $('#student_id').attr('id', 'student_id_' + child_count);
@@ -238,12 +269,24 @@
 
             document.getElementById("student_id_1").value = "";
         } else {
-            if(class_id == '' || section_id == '' || id == '') {
-                toastr.warning('Select all the field');
-            } else {
-                toastr.warning('Student already added');
-            }
+            toastr.warning('Student already added');
         }
+    }
+
+    function openSectionManager() {
+        var class_id = $('#class_id').val();
+        if(class_id == '') {
+            toastr.warning('Select a class first to manage sections');
+            return;
+        }
+
+        let url = "{{ route('admin.edit.section', ['id' => ':classId']) }}";
+        url = url.replace(':classId', class_id);
+        rightModal(url, '{{ get_phrase('Manage Sections') }}');
+    }
+
+    function openStudentCreateModal() {
+        rightModal("{{ route('admin.student.open_modal') }}", "{{ get_phrase('Create Student') }}");
     }
 
     function removeRow(elem) {

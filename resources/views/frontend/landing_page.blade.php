@@ -21,10 +21,39 @@
     $sectionItems = function ($key) use ($items) {
         return $items[$key] ?? collect();
     };
+
+    $sectionParagraphs = function ($key, $field = 'content', $default = '') use ($sectionField) {
+        $text = trim((string) $sectionField($key, $field, $default));
+
+        if ($text === '') {
+            return [];
+        }
+
+        return array_values(array_filter(array_map('trim', preg_split("/(?:\r\n|\r|\n){2,}/", $text) ?: [])));
+    };
+
+    $overviewSections = [
+        ['key' => 'origin_history', 'icon' => 'fa-landmark'],
+        ['key' => 'institutional_character', 'icon' => 'fa-medal'],
+        ['key' => 'educational_philosophy', 'icon' => 'fa-lightbulb'],
+        ['key' => 'why_choose_us', 'icon' => 'fa-compass'],
+    ];
+
+    $experienceSections = [
+        ['key' => 'online_learning_odel', 'icon' => 'fa-laptop-house'],
+        ['key' => 'student_support_services', 'icon' => 'fa-hands-helping'],
+        ['key' => 'international_students', 'icon' => 'fa-earth-africa'],
+    ];
+
+    $welcomeItems = $sectionItems('welcome_messages');
+    $leadershipItems = $sectionItems('leadership_team');
+    $partnerItems = $sectionItems('partnerships_affiliations');
+    $logoAsset = asset('assets/uploads/logo/logo.png');
+    $footerLogoAsset = asset('assets/uploads/logo/logo1.png');
 @endphp
 
 <style>
-/* ===== TDIIBT Custom Styles ===== */
+/* ===== PIIE Landing Page Styles ===== */
 :root {
     --primary-color: #1466AF;
     --secondary-color: #F15F23;
@@ -64,18 +93,38 @@
     z-index: 9999;
     padding: 0;
 }
-.header-inner { padding: 14px 0; }
+.header-inner { padding: 12px 0; gap: 18px; }
 
-.tdiibt-logo {
+.piie-brand {
     display: inline-flex;
     align-items: center;
+    gap: 10px;
     text-decoration: none;
+    flex-shrink: 0;
 }
-.tdiibt-logo img {
-    display: block;
-    width: 80px;
+.piie-brand-mark {
+    width: 136px;
     max-width: 100%;
     height: auto;
+    display: block;
+}
+.piie-brand-copy {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.1;
+}
+.piie-brand-copy strong {
+    color: var(--primary-color);
+    font-size: 18px;
+    font-weight: 900;
+    letter-spacing: 0.5px;
+}
+.piie-brand-copy span {
+    color: #5f6d7b;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
 }
 
 /* Nav */
@@ -102,7 +151,7 @@
 }
 
 /* Header Buttons */
-.header-actions { display: flex; align-items: center; gap: 10px; justify-content: flex-end; }
+.header-actions { display: flex; align-items: center; gap: 10px; justify-content: flex-end; flex-shrink: 0; }
 .btn-login {
     background: transparent;
     color: var(--primary-color) !important;
@@ -237,6 +286,145 @@
 }
 .about-highlight h5 { color: var(--primary-color); font-weight: 700; margin-bottom: 4px; }
 .about-highlight p { margin: 0; color: #555; font-size: 14px; }
+
+/* Editorial Sections */
+.story-section,
+.messages-section,
+.faq-home-section { background: #fff; }
+.insight-card,
+.narrative-panel,
+.message-card,
+.experience-card,
+.partner-tile {
+    background: #fff;
+    border: 1px solid #e7edf5;
+    border-radius: 16px;
+    padding: 28px;
+    height: 100%;
+    box-shadow: 0 10px 30px rgba(13,58,92,0.06);
+}
+.insight-card {
+    display: flex;
+    gap: 18px;
+    align-items: flex-start;
+}
+.insight-icon,
+.experience-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
+    color: #fff;
+    flex-shrink: 0;
+    font-size: 22px;
+}
+.insight-kicker,
+.partner-meta {
+    display: inline-block;
+    color: var(--secondary-color);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+}
+.insight-body h3,
+.narrative-panel h3,
+.message-card h4,
+.experience-card h3,
+.partner-tile h4 {
+    color: var(--primary-color);
+    font-weight: 800;
+    margin-bottom: 10px;
+}
+.insight-body p,
+.narrative-panel p,
+.message-card p,
+.experience-card p,
+.partner-tile p {
+    color: #4c5967;
+    line-height: 1.8;
+    margin: 0;
+}
+.narrative-panel p + p,
+.experience-card p + p { margin-top: 14px; }
+.message-card {
+    position: relative;
+    padding-top: 34px;
+}
+.message-card::before {
+    content: '\201C';
+    position: absolute;
+    top: 10px;
+    left: 22px;
+    color: rgba(20, 102, 175, 0.12);
+    font-size: 52px;
+    line-height: 1;
+    font-weight: 800;
+}
+.message-role {
+    color: var(--secondary-color);
+    font-weight: 700;
+    font-size: 13px;
+    margin-bottom: 10px;
+}
+.message-summary { margin-bottom: 12px !important; }
+.experience-section { background: var(--light-bg); }
+.experience-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: center;
+    margin-top: 28px;
+}
+.experience-badges span {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    border-radius: 999px;
+    background: #fff;
+    border: 1px solid #dfe8f2;
+    color: var(--primary-color);
+    font-weight: 700;
+    font-size: 13px;
+}
+.faq-home-section .faq-home-item {
+    background: #fff;
+    border: 1px solid #e2eaf3;
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 8px 22px rgba(13,58,92,0.05);
+}
+.faq-home-trigger {
+    width: 100%;
+    background: #fff;
+    border: none;
+    padding: 20px 22px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    text-align: left;
+    color: var(--primary-color);
+    font-weight: 700;
+}
+.faq-home-trigger span:last-child {
+    color: var(--secondary-color);
+    font-size: 18px;
+    transition: transform 0.2s ease;
+}
+.faq-home-answer {
+    padding: 0 22px 20px;
+    color: #546170;
+    line-height: 1.8;
+    display: none;
+}
+.faq-home-item.active .faq-home-answer { display: block; }
+.faq-home-item.active .faq-home-trigger span:last-child { transform: rotate(180deg); }
 
 /* Portals Section */
 .portals-section { background: var(--light-bg); }
@@ -503,6 +691,24 @@
     height: auto;
     margin-bottom: 16px;
 }
+.footer-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 14px;
+    text-decoration: none;
+    margin-bottom: 16px;
+}
+.footer-brand .piie-brand-mark {
+    width: 126px;
+}
+.footer-brand .piie-brand-copy strong {
+    color: #fff;
+    font-size: 15px;
+}
+.footer-brand .piie-brand-copy span {
+    color: #c8d4e8;
+    font-size: 10px;
+}
 .footer-items h4 { color: #fff; font-weight: 700; font-size: 1rem; margin-bottom: 16px; }
 .footer-items p { font-size: 14px; line-height: 1.8; }
 .footer-links { list-style: none; padding: 0; margin: 0; }
@@ -581,6 +787,7 @@
     .hero-section h1 { font-size: 1.7rem; }
     .hero-btns a { margin-bottom: 10px; display: block; text-align: center; }
     .header-actions .btn-apply { display: none; }
+    .insight-card { flex-direction: column; }
 }
 </style>
 
@@ -591,10 +798,10 @@
             <div class="col-lg-8 col-md-7 d-none d-md-block">
                 <a href="tel:{{ preg_replace('/\s+/', '', $setting('contact_phone_1', '+256 707390607')) }}" class="tb-item"><i class="fa-solid fa-phone"></i> {{ $setting('contact_phone_1', '+256 707390607') }}</a>
                 <a href="tel:{{ preg_replace('/\s+/', '', $setting('contact_phone_2', '+256 788099193')) }}" class="tb-item"><i class="fa-solid fa-phone"></i> {{ $setting('contact_phone_2', '+256 788099193') }}</a>
-                <a href="mailto:{{ $setting('contact_email', 'info@tdiibt.ac.ug') }}" class="tb-item"><i class="fa-solid fa-envelope"></i> {{ $setting('contact_email', 'info@tdiibt.ac.ug') }}</a>
+                <a href="mailto:{{ $setting('contact_email', 'admissions@example.com') }}" class="tb-item"><i class="fa-solid fa-envelope"></i> {{ $setting('contact_email', 'admissions@example.com') }}</a>
             </div>
             <div class="col-lg-4 col-md-5 col-12 tb-right">
-                <a href="{{ $setting('contact_website', 'http://www.tdiibt.ac.ug') }}" class="tb-item"><i class="fa-solid fa-globe"></i> {{ str_replace(['http://', 'https://'], '', $setting('contact_website', 'http://www.tdiibt.ac.ug')) }}</a>
+                <a href="{{ $setting('contact_website', '#') }}" class="tb-item"><i class="fa-solid fa-globe"></i> {{ str_replace(['http://', 'https://'], '', $setting('contact_website', 'Website update pending')) }}</a>
                 <a href="#admissions" class="tb-item d-none d-lg-inline-flex"><i class="fa-solid fa-pen-to-square"></i> Apply Now</a>
             </div>
         </div>
@@ -606,12 +813,12 @@
     <div class="container-xl">
         <div class="header-inner d-flex align-items-center justify-content-between">
             <!-- Logo -->
-            <a href="#home" class="tdiibt-logo" aria-label="TDIIBT Home">
-                <img src="{{ asset('assets/uploads/logo/logo-removebg-preview.png') }}" alt="TDIIBT Logo" class="img-fluid" style="max-width: 220px;">
+            <a href="#home" class="piie-brand" aria-label="PIIE Home">
+                <img src="{{ $logoAsset }}" alt="PIIE Logo" class="piie-brand-mark">
             </a>
 
             <!-- Desktop Nav -->
-            <nav class="d-none d-xl-flex" style="flex:1; justify-content:center;">
+            <nav class="d-none d-xl-flex" style="flex:1; justify-content:flex-start; min-width:0;">
                 <ul class="primary-menu">
                     <li class="nav-item"><a class="nav-link" href="#home">Home</a></li>
                     <li class="nav-item"><a class="nav-link" href="#about">About</a></li>
@@ -622,13 +829,6 @@
                     <li class="nav-item"><a class="nav-link" href="#team">Team</a></li>
                     <li class="nav-item"><a class="nav-link" href="#affiliations">Affiliations</a></li>
                     <li class="nav-item"><a class="nav-link" href="#contact">Contact</a></li>
-                    <li class="nav-item" style="margin-left: 10px;">
-                        <a href="{{ route('download.brochure') }}" 
-                           class="nav-link" 
-                           style="background: linear-gradient(135deg, #e87722 0%, #d96912 100%); color: #fff !important; padding: 10px 16px !important; border-radius: 4px; display: flex; align-items: center; gap: 6px; font-weight: 600;">
-                            <i class="fa-solid fa-download"></i> Brochure
-                        </a>
-                    </li>
                 </ul>
             </nav>
             <!-- Right Actions -->
@@ -727,10 +927,10 @@
         <div class="row align-items-center">
             <div class="col-lg-7">
                 <span class="hero-badge">{{ $setting('hero_badge', 'Fully Online / Virtual Institute') }}</span>
-                <h1>{{ $sectionField('hero_slider', 'title', $setting('institution_name', 'Twinehs Divine Integrated Institute of Business and Technology (TDIIBT)')) }}</h1>
-                <div class="tagline">{{ $setting('tagline', 'Quality Education | Practical Skills | Professional Excellence') }}</div>
-                <div class="motto"><i class="fa-solid fa-quote-left me-1" style="font-size:12px;opacity:0.7;"></i> {{ $setting('motto', 'Learning for Impact') }} <i class="fa-solid fa-quote-right ms-1" style="font-size:12px;opacity:0.7;"></i></div>
-                <p>{{ $sectionField('hero_slider', 'content', 'Dedicated to academic excellence, professional development, and skills enhancement. Serving students, professionals, and entrepreneurs seeking practical and career-oriented education.') }}</p>
+                <h1>{{ $sectionField('hero_slider', 'title', $setting('institution_name', 'Prime International Institute of Excellence (PIIE)')) }}</h1>
+                <div class="tagline">{{ $setting('tagline', 'Internationally Benchmarked Education for Global Excellence') }}</div>
+                <div class="motto"><i class="fa-solid fa-quote-left me-1" style="font-size:12px;opacity:0.7;"></i> {{ $setting('motto', 'Strive. Excel. Lead.') }} <i class="fa-solid fa-quote-right ms-1" style="font-size:12px;opacity:0.7;"></i></div>
+                <p>{{ $sectionField('hero_slider', 'content', 'Prime International Institute of Excellence delivers rigorous, technology-enabled higher education for learners across Uganda, East Africa, and the wider world.') }}</p>
                 <div class="hero-btns">
                     <a href="#programs" class="btn-primary-custom">Explore Programs</a>
                     <a href="#admissions" class="btn-outline-custom">Apply Now</a>
@@ -774,23 +974,23 @@
                 </div>
                 <div class="about-highlight">
                     <h5><i class="fa-solid fa-graduation-cap me-2" style="color:var(--secondary-color);"></i>Our Mission</h5>
-                    <p>To provide quality, accessible, and practical education that empowers individuals to succeed in their chosen careers.</p>
+                    <p>To deliver rigorous, innovative, and internationally benchmarked academic programmes through flexible, technology-enabled learning systems.</p>
                 </div>
                 <div class="about-highlight">
                     <h5><i class="fa-solid fa-eye me-2" style="color:var(--secondary-color);"></i>Our Vision</h5>
-                    <p>To be a leading fully online institute recognized for excellence in business and technology education in Uganda and beyond.</p>
+                    <p>To be a premier internationally recognised institution of academic excellence shaping transformational leaders and globally competitive professionals.</p>
                 </div>
                 <div class="about-highlight">
                     <h5><i class="fa-solid fa-lightbulb me-2" style="color:var(--secondary-color);"></i>Our Motto</h5>
-                    <p><strong>Learning for Impact</strong></p>
+                    <p><strong>Strive. Excel. Lead.</strong></p>
                 </div>
             </div>
             <div class="col-lg-7">
                 <div class="about-text">
-                    <h3>{{ $setting('institution_name', 'Twinehs Divine Integrated Institute of Business and Technology (TDIIBT)') }}</h3>
-                    <p>{{ $sectionField('about_institution', 'content', 'Twinehs Divine Integrated Institute of Business and Technology (TDIIBT) is dedicated to academic excellence, professional development, and skills enhancement. The institute serves students, professionals, and entrepreneurs seeking practical and career-oriented education.') }}</p>
-                    <p>TDIIBT operates as a fully online and virtual institute, enabling learners from all backgrounds and locations to access quality education through flexible, digital learning platforms. Our programs span graduate studies, undergraduate degrees, diplomas, national certificates, vocational training, short courses, and professional development programs.</p>
-                    <p>We believe that education should be transformative and relevant to today's rapidly evolving world. Every program at TDIIBT is designed with this philosophy in mind — equipping learners with both theoretical knowledge and practical skills that are immediately applicable.</p>
+                    <h3>{{ $setting('institution_name', 'Prime International Institute of Excellence (PIIE)') }}</h3>
+                    <p>{{ $sectionField('about_institution', 'content', 'Prime International Institute of Excellence is a modern higher education institution established in Uganda to deliver internationally benchmarked academic programmes through flexible, technology-enabled learning.') }}</p>
+                    <p>PIIE serves ambitious learners across Uganda, East Africa, and internationally through an Open, Distance and e-Learning model that makes access possible without compromising academic rigour.</p>
+                    <p>Every programme at PIIE is built to develop intellectual capacity, professional competence, ethical character, and the confidence to lead in a rapidly evolving global environment.</p>
                     <div class="row mt-4">
                         <div class="col-sm-4 text-center mb-3">
                             <div style="background:var(--light-bg);border-radius:10px;padding:20px 10px;">
@@ -806,13 +1006,89 @@
                         </div>
                         <div class="col-sm-4 text-center mb-3">
                             <div style="background:var(--light-bg);border-radius:10px;padding:20px 10px;">
-                                <h3 style="color:var(--secondary-color);font-weight:800;margin:0;">TDIIBT</h3>
-                                <p style="color:var(--text-muted);font-size:13px;margin:4px 0 0;">Kampala, Uganda</p>
+                                <h3 style="color:var(--secondary-color);font-weight:800;margin:0;">PIIE</h3>
+                                <p style="color:var(--text-muted);font-size:13px;margin:4px 0 0;">Wakiso District, Uganda</p>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
+        </div>
+    </div>
+</section>
+
+<!--===== INSTITUTIONAL DIRECTION =====-->
+<section class="story-section section-padding" id="direction">
+    <div class="container-xl">
+        <div class="section-title text-center">
+            <span class="section-badge">Institutional Direction</span>
+            <h2>Built With Clarity and Purpose</h2>
+            <div class="divider mx-auto"></div>
+            <p>{{ $sectionField('institutional_character', 'content', 'PIIE is defined by academic rigour, modern delivery, international orientation, and learner-centred support.') }}</p>
+        </div>
+        <div class="row g-4">
+            @foreach($overviewSections as $overview)
+                <div class="col-lg-6">
+                    <article class="insight-card">
+                        <div class="insight-icon"><i class="fa-solid {{ $overview['icon'] }}"></i></div>
+                        <div class="insight-body">
+                            <span class="insight-kicker">{{ $sectionField($overview['key'], 'subtitle', 'PIIE Overview') }}</span>
+                            <h3>{{ $sectionField($overview['key'], 'title', 'Overview') }}</h3>
+                            <p>{{ $sectionParagraphs($overview['key'])[0] ?? $sectionField($overview['key'], 'content') }}</p>
+                        </div>
+                    </article>
+                </div>
+            @endforeach
+        </div>
+        <div class="row g-4 mt-2">
+            <div class="col-lg-6">
+                <div class="narrative-panel">
+                    <span class="insight-kicker">{{ $sectionField('educational_philosophy', 'subtitle', 'Institutional Philosophy') }}</span>
+                    <h3>{{ $sectionField('educational_philosophy', 'title', 'Our Philosophy of Education') }}</h3>
+                    @foreach(array_slice($sectionParagraphs('educational_philosophy'), 0, 2) as $paragraph)
+                        <p>{{ $paragraph }}</p>
+                    @endforeach
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <div class="narrative-panel">
+                    <span class="insight-kicker">{{ $sectionField('strategic_plan', 'subtitle', 'Strategic Direction') }}</span>
+                    <h3>{{ $sectionField('strategic_plan', 'title', 'Strategic Plan') }}</h3>
+                    @foreach(array_slice($sectionParagraphs('strategic_plan'), 0, 2) as $paragraph)
+                        <p>{{ $paragraph }}</p>
+                    @endforeach
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!--===== LEADERSHIP MESSAGES =====-->
+<section class="messages-section section-padding" id="messages">
+    <div class="container-xl">
+        <div class="section-title text-center">
+            <span class="section-badge">Welcome Messages</span>
+            <h2>{{ $sectionField('welcome_messages', 'title', 'Leadership Perspectives') }}</h2>
+            <div class="divider mx-auto"></div>
+            <p>{{ $sectionField('welcome_messages', 'content', 'Institutional leadership welcomes students and stakeholders with a shared commitment to excellence.') }}</p>
+        </div>
+        <div class="row g-4">
+            @foreach($welcomeItems as $message)
+                <div class="col-lg-6">
+                    <article class="message-card">
+                        <h4>{{ $message->title }}</h4>
+                        @if(!empty($message->subtitle))
+                            <div class="message-role">{{ $message->subtitle }}</div>
+                        @endif
+                        @if(!empty($message->description))
+                            <p class="message-summary">{{ $message->description }}</p>
+                        @endif
+                        @if(!empty($message->content))
+                            <p>{{ $message->content }}</p>
+                        @endif
+                    </article>
+                </div>
+            @endforeach
         </div>
     </div>
 </section>
@@ -824,7 +1100,7 @@
             <span class="section-badge">Quick Access</span>
             <h2>Student &amp; Staff Portals</h2>
             <div class="divider mx-auto"></div>
-            <p>Access all {{ $setting('institution_name', 'TDIIBT') }} digital platforms from one place. Login with your institutional credentials.</p>
+            <p>Access all {{ $setting('institution_name', 'PIIE') }} digital platforms from one place. Login with your institutional credentials.</p>
         </div>
         <div class="row justify-content-center g-4">
             <div class="col-lg-4 col-md-6">
@@ -847,8 +1123,8 @@
                 <div class="portal-card">
                     <div class="portal-icon"><i class="fa-solid fa-envelope-open-text"></i></div>
                     <h4>Webmail</h4>
-                    <p>Access your TDIIBT institutional email for official communications, notices, and correspondence.</p>
-                    <a href="mailto:{{ $setting('contact_email', 'info@tdiibt.ac.ug') }}" class="portal-link">Open Webmail</a>
+                    <p>Access your institutional email for official communications, notices, and correspondence.</p>
+                    <a href="mailto:{{ $setting('contact_email', 'admissions@example.com') }}" class="portal-link">Open Webmail</a>
                 </div>
             </div>
         </div>
@@ -881,7 +1157,7 @@
             @endforeach
         </div>
         <div class="text-center mt-5">
-            <p style="color:var(--text-muted);font-size:14px;">For the full list of available programs, contact us at <a href="mailto:{{ $setting('contact_email', 'info@tdiibt.ac.ug') }}" style="color:var(--secondary-color);">{{ $setting('contact_email', 'info@tdiibt.ac.ug') }}</a> or call <a href="tel:{{ preg_replace('/\s+/', '', $setting('contact_phone_1', '+256 707390607')) }}" style="color:var(--secondary-color);">{{ $setting('contact_phone_1', '+256 707390607') }}</a></p>
+            <p style="color:var(--text-muted);font-size:14px;">For the full list of available programmes, contact the Admissions Office at <a href="mailto:{{ $setting('contact_email', 'admissions@example.com') }}" style="color:var(--secondary-color);">{{ $setting('contact_email', 'admissions@example.com') }}</a>@if($setting('contact_phone_1')) or call <a href="tel:{{ preg_replace('/\s+/', '', $setting('contact_phone_1')) }}" style="color:var(--secondary-color);">{{ $setting('contact_phone_1') }}</a>@endif.</p>
         </div>
     </div>
 </section>
@@ -945,7 +1221,7 @@
                 </div>
                 <div class="fee-notice">
                     <i class="fa-solid fa-triangle-exclamation"></i>
-                    <strong>Please Note:</strong> Fees may be reviewed at any time. Applicants are advised to confirm the current fee structure directly with the institute before making any payment. Contact us at <strong>{{ $setting('contact_email', 'info@tdiibt.ac.ug') }}</strong> or call <strong>{{ $setting('contact_phone_1', '+256 707390607') }} / {{ $setting('contact_phone_2', '+256 788099193') }}</strong>.
+                    <strong>Please Note:</strong> Fees may be reviewed at any time. Applicants are advised to confirm the current fee structure directly with the institute before making any payment. Contact us at <strong>{{ $setting('contact_email', 'admissions@example.com') }}</strong>@if($setting('contact_phone_1')) or call <strong>{{ $setting('contact_phone_1') }}@if($setting('contact_phone_2')) / {{ $setting('contact_phone_2') }}@endif</strong>@endif.
                 </div>
             </div>
         </div>
@@ -961,7 +1237,7 @@
                     <span class="section-badge">Admissions</span>
                     <h2>Admission Process</h2>
                     <div class="divider mx-auto"></div>
-                    <p>TDIIBT offers fully online study through our eLearning portal. The admission process is straightforward and designed to be accessible to all qualified applicants.</p>
+                    <p>PIIE offers fully online study through its ODeL delivery model. The admissions process is straightforward, merit-based, and designed to be accessible to qualified applicants.</p>
                 </div>
             </div>
         </div>
@@ -972,14 +1248,14 @@
                     <div class="step-num">1</div>
                     <div class="step-content">
                         <h5>Submit Your Application</h5>
-                        <p>Apply online through the TDIIBT Student Portal or contact the admissions office at info@tdiibt.ac.ug. Provide accurate and complete information as required.</p>
+                        <p>Apply through the PIIE admissions process, provide complete and accurate information, and upload the required academic and identity documents for review.</p>
                     </div>
                 </div>
                 <div class="admission-step">
                     <div class="step-num">2</div>
                     <div class="step-content">
                         <h5>Receive Your Provisional Admission Offer</h5>
-                        <p>Upon successful review of your application, TDIIBT will issue a provisional admission offer letter. This offer is conditional on verification of your submitted qualifications and documents.</p>
+                        <p>Upon successful review of your application, PIIE will issue a provisional admission offer letter subject to verification of submitted qualifications and supporting documents.</p>
                     </div>
                 </div>
                 <div class="admission-step">
@@ -1000,7 +1276,7 @@
                     <div class="step-num">5</div>
                     <div class="step-content">
                         <h5>Access the eLearning Portal</h5>
-                        <p>Once registered and fees are confirmed, you will receive access credentials for the TDIIBT eLearning portal to begin your online studies.</p>
+                        <p>Once registered and fees are confirmed, you will receive access credentials for the PIIE digital learning environment to begin your studies.</p>
                     </div>
                 </div>
             </div>
@@ -1016,7 +1292,7 @@
                 </ul>
                 <h4 style="color:var(--primary-color);font-weight:700;margin-top:32px;margin-bottom:16px;">Conditions of Admission</h4>
                 <ul class="requirement-list list-unstyled">
-                    <li><i class="fa-solid fa-check-circle"></i>Undertaking to adhere to all Rules and Regulations governing studentship at TDIIBT</li>
+                    <li><i class="fa-solid fa-check-circle"></i>Undertaking to adhere to all rules and regulations governing studentship at PIIE</li>
                     <li><i class="fa-solid fa-check-circle"></i>Acceptance to pay fees in accordance with the institute&apos;s fee schedule</li>
                     <li><i class="fa-solid fa-check-circle"></i>Agreement to abide by the terms and conditions set out in the declaration for admission</li>
                     <li><i class="fa-solid fa-check-circle"></i>All fees paid are non-refundable once registration has been processed</li>
@@ -1027,11 +1303,39 @@
                 </div>
                 <div style="background:var(--light-bg);border-radius:8px;padding:20px;margin-top:20px;">
                     <h6 style="color:var(--primary-color);font-weight:700;margin-bottom:12px;"><i class="fa-solid fa-envelope me-2" style="color:var(--secondary-color);"></i>Apply or Enquire</h6>
-                    <p style="font-size:14px;color:#555;margin:0;">Email: <a href="mailto:info@tdiibt.ac.ug" style="color:var(--secondary-color);">info@tdiibt.ac.ug</a><br>
-                    Phone: <a href="tel:+256707390607" style="color:var(--secondary-color);">+256 707390607</a> | <a href="tel:+256788099193" style="color:var(--secondary-color);">+256 788099193</a><br>
-                    Website: <a href="http://www.tdiibt.ac.ug" style="color:var(--secondary-color);">www.tdiibt.ac.ug</a></p>
+                    <p style="font-size:14px;color:#555;margin:0;">Email: <a href="mailto:{{ $setting('contact_email', 'admissions@example.com') }}" style="color:var(--secondary-color);">{{ $setting('contact_email', 'admissions@example.com') }}</a><br>
+                    Phone: <a href="tel:{{ preg_replace('/\s+/', '', $setting('contact_phone_1', '+256')) }}" style="color:var(--secondary-color);">{{ $setting('contact_phone_1', 'Contact update pending') }}</a>@if($setting('contact_phone_2')) | <a href="tel:{{ preg_replace('/\s+/', '', $setting('contact_phone_2')) }}" style="color:var(--secondary-color);">{{ $setting('contact_phone_2') }}</a>@endif<br>
+                    Website: <a href="{{ $setting('contact_website', '#') }}" style="color:var(--secondary-color);">{{ str_replace(['http://', 'https://'], '', $setting('contact_website', 'Website update pending')) }}</a></p>
                 </div>
             </div>
+        </div>
+    </div>
+</section>
+
+<!--===== LEARNING EXPERIENCE =====-->
+<section class="experience-section section-padding" id="experience">
+    <div class="container-xl">
+        <div class="section-title text-center">
+            <span class="section-badge">Learning Experience</span>
+            <h2>Flexible, Supported, and International</h2>
+            <div class="divider mx-auto"></div>
+            <p>{{ $sectionField('online_learning_odel', 'content', 'PIIE learning is built around flexible access, supported delivery, and internationally oriented student experience.') }}</p>
+        </div>
+        <div class="row g-4">
+            @foreach($experienceSections as $experience)
+                <div class="col-lg-4 col-md-6">
+                    <article class="experience-card">
+                        <div class="experience-icon"><i class="fa-solid {{ $experience['icon'] }}"></i></div>
+                        <h3>{{ $sectionField($experience['key'], 'title', 'PIIE Experience') }}</h3>
+                        <p>{{ $sectionParagraphs($experience['key'])[0] ?? $sectionField($experience['key'], 'content') }}</p>
+                    </article>
+                </div>
+            @endforeach
+        </div>
+        <div class="experience-badges">
+            <span><i class="fa-solid fa-clock"></i>24/7 digital access</span>
+            <span><i class="fa-solid fa-video"></i>Live and recorded facilitation</span>
+            <span><i class="fa-solid fa-user-group"></i>Support from enrolment to graduation</span>
         </div>
     </div>
 </section>
@@ -1043,12 +1347,12 @@
             <span class="section-badge">News &amp; Updates</span>
             <h2>Latest News</h2>
             <div class="divider mx-auto"></div>
-            <p>Stay informed with the latest news, academic updates, and announcements from TDIIBT.</p>
+            <p>{{ $sectionField('news_events', 'content', 'Stay informed with the latest institutional announcements, academic updates, partnership news, and events from PIIE.') }}</p>
         </div>
         <div class="news-placeholder">
             <i class="fa-solid fa-newspaper" style="font-size:48px;color:#c8d4e8;margin-bottom:16px;display:block;"></i>
             <h5 style="color:var(--primary-color);">News Coming Soon</h5>
-            <p style="margin:0;font-size:14px;">News and updates will be posted here. Check back regularly or contact us at <a href="mailto:info@tdiibt.ac.ug" style="color:var(--secondary-color);">info@tdiibt.ac.ug</a> for the latest information.</p>
+            <p style="margin:0;font-size:14px;">News and updates will be posted here. Check back regularly or contact us at <a href="mailto:{{ $setting('contact_email', 'admissions@example.com') }}" style="color:var(--secondary-color);">{{ $setting('contact_email', 'admissions@example.com') }}</a> for the latest information.</p>
         </div>
     </div>
 </section>
@@ -1060,25 +1364,19 @@
             <span class="section-badge">Leadership</span>
             <h2>Our Team</h2>
             <div class="divider mx-auto"></div>
-            <p>Meet the dedicated leadership guiding TDIIBT&apos;s academic mission.</p>
+            <p>{{ $sectionField('leadership_team', 'content', 'Meet the leadership guiding PIIE&apos;s academic mission and institutional growth.') }}</p>
         </div>
         <div class="row justify-content-center g-4">
-            <div class="col-lg-4 col-md-6">
-                <div class="team-card">
-                    <div class="team-avatar"><i class="fa-solid fa-user-tie"></i></div>
-                    <h4>{{ $setting('director_name', 'Twinamatsiko Naboth PhD(c)') }}</h4>
-                    <div class="team-role">Director</div>
-                    <p style="color:var(--text-muted);font-size:13.5px;margin-top:12px;">PhD Candidate &mdash; Leading TDIIBT&apos;s vision for accessible and quality online education in Uganda and beyond.</p>
+            @foreach($leadershipItems as $leader)
+                <div class="col-lg-3 col-md-6">
+                    <div class="team-card">
+                        <div class="team-avatar"><i class="fa-solid fa-user-tie"></i></div>
+                        <h4>{{ $leader->title }}</h4>
+                        <div class="team-role">{{ $leader->subtitle }}</div>
+                        <p style="color:var(--text-muted);font-size:13.5px;margin-top:12px;">{{ $leader->description }}</p>
+                    </div>
                 </div>
-            </div>
-            <div class="col-lg-4 col-md-6">
-                <div class="team-card">
-                    <div class="team-avatar"><i class="fa-solid fa-user-gear"></i></div>
-                    <h4>{{ $setting('institute_secretary_name', 'Mr. Bendaki Evans') }}</h4>
-                    <div class="team-role">Institute Secretary</div>
-                    <p style="color:var(--text-muted);font-size:13.5px;margin-top:12px;">Overseeing administrative operations and ensuring smooth coordination across all departments and student services.</p>
-                </div>
-            </div>
+            @endforeach
         </div>
     </div>
 </section>
@@ -1090,12 +1388,45 @@
             <span class="section-badge">Partnerships &amp; Affiliations</span>
             <h2>Our Affiliations</h2>
             <div class="divider mx-auto"></div>
-            <p>TDIIBT partners with recognized institutions and regulatory bodies to ensure quality and accreditation of its programs.</p>
+            <p>{{ $sectionField('partnerships_affiliations', 'content', 'PIIE partners with recognised institutions and regulatory bodies to strengthen programme quality, qualification credibility, and student opportunity.') }}</p>
         </div>
-        <div class="affiliation-placeholder">
-            <i class="fa-solid fa-handshake" style="font-size:48px;color:#c8d4e8;margin-bottom:16px;display:block;"></i>
-            <h5 style="color:var(--primary-color);">Affiliations &amp; Accreditations</h5>
-            <p style="margin:0;font-size:14px;">Information about institutional affiliations and accreditations will be published here. Contact us for details: <a href="mailto:info@tdiibt.ac.ug" style="color:var(--secondary-color);">info@tdiibt.ac.ug</a></p>
+        <div class="row g-4">
+            @foreach($partnerItems as $partner)
+                <div class="col-lg-4 col-md-6">
+                    <article class="partner-tile">
+                        <div class="partner-meta">Strategic Partner</div>
+                        <h4>{{ $partner->title }}</h4>
+                        <p>{{ $partner->description }}</p>
+                    </article>
+                </div>
+            @endforeach
+        </div>
+    </div>
+</section>
+
+<!--===== FAQ SECTION =====-->
+<section class="faq-home-section section-padding" id="faqs">
+    <div class="container-xl">
+        <div class="section-title text-center">
+            <span class="section-badge">Frequently Asked Questions</span>
+            <h2>{{ $sectionField('faqs', 'title', 'Your Questions, Answered') }}</h2>
+            <div class="divider mx-auto"></div>
+            <p>{{ $sectionField('faqs', 'content', 'Answers to common questions about PIIE, admissions, study model, and student support.') }}</p>
+        </div>
+        <div class="row justify-content-center">
+            <div class="col-lg-9">
+                <div class="d-grid gap-3">
+                    @foreach($sectionItems('faqs') as $faq)
+                        <div class="faq-home-item">
+                            <button type="button" class="faq-home-trigger" onclick="toggleHomeFaq(this.parentElement)">
+                                <span>{{ $faq->title }}</span>
+                                <span><i class="fa-solid fa-chevron-down"></i></span>
+                            </button>
+                            <div class="faq-home-answer">{{ $faq->description }}</div>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
         </div>
     </div>
 </section>
@@ -1113,36 +1444,36 @@
                     <div class="ci-icon"><i class="fa-solid fa-location-dot"></i></div>
                     <div class="ci-text">
                         <h5>Address</h5>
-                        <p>{{ $setting('contact_address', 'P.O. Box 202386 Kampala GPO') }}, Uganda</p>
+                        <p>{{ $setting('contact_address', 'Nansana Municipality, Wakiso District, Uganda') }}</p>
                     </div>
                 </div>
                 <div class="contact-info-item">
                     <div class="ci-icon"><i class="fa-solid fa-phone"></i></div>
                     <div class="ci-text">
                         <h5>Phone</h5>
-                        <a href="tel:{{ preg_replace('/\s+/', '', $setting('contact_phone_1', '+256 707390607')) }}">{{ $setting('contact_phone_1', '+256 707390607') }}</a><br>
-                        <a href="tel:{{ preg_replace('/\s+/', '', $setting('contact_phone_2', '+256 788099193')) }}">{{ $setting('contact_phone_2', '+256 788099193') }}</a>
+                        <a href="tel:{{ preg_replace('/\s+/', '', $setting('contact_phone_1', '+256')) }}">{{ $setting('contact_phone_1', 'Contact update pending') }}</a><br>
+                        @if($setting('contact_phone_2'))<a href="tel:{{ preg_replace('/\s+/', '', $setting('contact_phone_2')) }}">{{ $setting('contact_phone_2') }}</a>@endif
                     </div>
                 </div>
                 <div class="contact-info-item">
                     <div class="ci-icon"><i class="fa-solid fa-envelope"></i></div>
                     <div class="ci-text">
                         <h5>Email</h5>
-                        <a href="mailto:{{ $setting('contact_email', 'info@tdiibt.ac.ug') }}">{{ $setting('contact_email', 'info@tdiibt.ac.ug') }}</a>
+                        <a href="mailto:{{ $setting('contact_email', 'admissions@example.com') }}">{{ $setting('contact_email', 'admissions@example.com') }}</a>
                     </div>
                 </div>
                 <div class="contact-info-item">
                     <div class="ci-icon"><i class="fa-solid fa-globe"></i></div>
                     <div class="ci-text">
                         <h5>Website</h5>
-                        <a href="{{ $setting('contact_website', 'http://www.tdiibt.ac.ug') }}">{{ str_replace(['http://', 'https://'], '', $setting('contact_website', 'http://www.tdiibt.ac.ug')) }}</a>
+                        <a href="{{ $setting('contact_website', '#') }}">{{ str_replace(['http://', 'https://'], '', $setting('contact_website', 'Website update pending')) }}</a>
                     </div>
                 </div>
             </div>
             <div class="col-lg-7">
                 <div class="contact-form-card">
                     <h4><i class="fa-solid fa-paper-plane me-2" style="color:var(--secondary-color);"></i>Send Us a Message</h4>
-                    <form action="mailto:{{ $setting('contact_email', 'info@tdiibt.ac.ug') }}" method="get" enctype="text/plain">
+                    <form action="mailto:{{ $setting('contact_email', 'admissions@example.com') }}" method="get" enctype="text/plain">
                         <div class="row g-3">
                             <div class="col-md-6">
                                 <label style="font-size:13px;font-weight:600;color:#444;margin-bottom:5px;">Full Name</label>
@@ -1188,13 +1519,27 @@
     $mappedSections = [
         'hero_slider',
         'about_institution',
+        'origin_history',
+        'institutional_character',
+        'vision_mission_motto',
+        'core_values',
+        'educational_philosophy',
+        'why_choose_us',
+        'welcome_messages',
+        'governance_structure',
+        'strategic_plan',
         'academic_programmes',
         'programme_categories',
         'fees_structure',
         'admissions',
+        'online_learning_odel',
+        'student_support_services',
+        'international_students',
         'leadership_team',
+        'research_innovation',
         'news_events',
         'partnerships_affiliations',
+        'faqs',
         'contact_page',
         'footer_settings',
         'quick_links',
@@ -1257,9 +1602,11 @@
                 <div class="col-lg-4 col-md-6 mb-4">
                     <div class="footer-items">
                         <div class="footer-logo">
-                            <a href="#home"><img src="{{ asset('assets/uploads/logo/Logo1-removebg-preview.png') }}" alt="TDIIBT Logo"></a>
+                            <a href="#home" class="footer-brand">
+                                <img src="{{ $footerLogoAsset }}" alt="PIIE Logo" class="piie-brand-mark">
+                            </a>
                         </div>
-                        <p>{{ $setting('institution_name', 'Twinehs Divine Integrated Institute of Business and Technology (TDIIBT)') }} &mdash; dedicated to quality education, practical skills, and professional excellence.</p>
+                        <p>{{ $setting('institution_name', 'Prime International Institute of Excellence (PIIE)') }} &mdash; committed to rigorous, innovative, and internationally benchmarked higher education.</p>
                         <ul class="footer-social">
                             <li><a href="#" title="Facebook"><i class="fa-brands fa-facebook-f"></i></a></li>
                             <li><a href="#" title="Twitter/X"><i class="fa-brands fa-x-twitter"></i></a></li>
@@ -1290,7 +1637,7 @@
                         <ul class="footer-links">
                             <li><a href="{{ route('login') }}">School Management System</a></li>
                             <li><a href="{{ route('login') }}">Student Portal</a></li>
-                            <li><a href="mailto:{{ $setting('contact_email', 'info@tdiibt.ac.ug') }}">Webmail</a></li>
+                            <li><a href="mailto:{{ $setting('contact_email', 'admissions@example.com') }}">Webmail</a></li>
                         </ul>
                         <h4 style="margin-top:24px;">Programs</h4>
                         <ul class="footer-links">
@@ -1305,11 +1652,11 @@
                     <div class="footer-items">
                         <h4>Contact Details</h4>
                         <ul class="footer-contact list-unstyled">
-                            <li><i class="fa-solid fa-location-dot"></i>{{ $setting('contact_address', 'P.O. Box 202386 Kampala GPO') }}, Uganda</li>
-                            <li><i class="fa-solid fa-phone"></i><a href="tel:{{ preg_replace('/\s+/', '', $setting('contact_phone_1', '+256 707390607')) }}">{{ $setting('contact_phone_1', '+256 707390607') }}</a></li>
-                            <li><i class="fa-solid fa-phone"></i><a href="tel:{{ preg_replace('/\s+/', '', $setting('contact_phone_2', '+256 788099193')) }}">{{ $setting('contact_phone_2', '+256 788099193') }}</a></li>
-                            <li><i class="fa-solid fa-envelope"></i><a href="mailto:{{ $setting('contact_email', 'info@tdiibt.ac.ug') }}">{{ $setting('contact_email', 'info@tdiibt.ac.ug') }}</a></li>
-                            <li><i class="fa-solid fa-globe"></i><a href="{{ $setting('contact_website', 'http://www.tdiibt.ac.ug') }}">{{ str_replace(['http://', 'https://'], '', $setting('contact_website', 'http://www.tdiibt.ac.ug')) }}</a></li>
+                            <li><i class="fa-solid fa-location-dot"></i>{{ $setting('contact_address', 'Nansana Municipality, Wakiso District, Uganda') }}</li>
+                            <li><i class="fa-solid fa-phone"></i><a href="tel:{{ preg_replace('/\s+/', '', $setting('contact_phone_1', '+256')) }}">{{ $setting('contact_phone_1', 'Contact update pending') }}</a></li>
+                            @if($setting('contact_phone_2'))<li><i class="fa-solid fa-phone"></i><a href="tel:{{ preg_replace('/\s+/', '', $setting('contact_phone_2')) }}">{{ $setting('contact_phone_2') }}</a></li>@endif
+                            <li><i class="fa-solid fa-envelope"></i><a href="mailto:{{ $setting('contact_email', 'admissions@example.com') }}">{{ $setting('contact_email', 'admissions@example.com') }}</a></li>
+                            <li><i class="fa-solid fa-globe"></i><a href="{{ $setting('contact_website', '#') }}">{{ str_replace(['http://', 'https://'], '', $setting('contact_website', 'Website update pending')) }}</a></li>
                         </ul>
                     </div>
                 </div>
@@ -1317,7 +1664,7 @@
         </div>
     </div>
     <div class="footer-bottom">
-        <p style="margin:0;">{{ $setting('footer_copyright', '© Twinehs Divine Integrated Institute of Business and Technology (TDIIBT). All Rights Reserved.') }}</p>
+        <p style="margin:0;">{{ $setting('footer_copyright', '© Prime International Institute of Excellence (PIIE). All Rights Reserved.') }}</p>
     </div>
 </footer>
 
@@ -1334,6 +1681,14 @@ function toggleMobileMenu() {
 function closeMobileMenu() {
     var menu = document.getElementById('mobileMenu');
     if (menu) menu.style.display = 'none';
+}
+function toggleHomeFaq(item) {
+    document.querySelectorAll('.faq-home-item').forEach(function(entry) {
+        if (entry !== item) {
+            entry.classList.remove('active');
+        }
+    });
+    item.classList.toggle('active');
 }
 // Active nav highlight on scroll
 (function() {

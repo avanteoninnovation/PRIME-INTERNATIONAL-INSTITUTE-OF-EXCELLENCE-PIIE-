@@ -66,12 +66,16 @@
   @php
     $teacherUser = auth()->user();
     $onlineExamPermissionService = app(\App\Support\Permissions\OnlineExamPermissionService::class);
+    $canViewTeacherOnlineExams = $teacherUser ? $onlineExamPermissionService->has($teacherUser, 'view_online_exams') : false;
+    $canManageTeacherQuestionBank = $teacherUser ? $onlineExamPermissionService->has($teacherUser, 'manage_exam_questions') : false;
+    $canUseTeacherMarkingQueue = $teacherUser ? $onlineExamPermissionService->has($teacherUser, 'mark_exam_answers') : false;
     $teacherOnlineExamNavReady = $teacherUser
       ? $onlineExamPermissionService->hasAny($teacherUser, [
         'view_online_exams',
         'create_online_exams',
         'manage_exam_questions',
         'view_exam_attempts',
+        'mark_exam_answers',
         'view_exam_results',
       ])
       : false;
@@ -181,6 +185,41 @@
                     </li>
                 </ul>
             </li>
+
+            @if($teacherOnlineExamNavReady)
+              <li class="nav-links-li {{ request()->is('teacher/online-exams*') ? 'showMenu':'' }}">
+                <div class="iocn-link">
+                  <a href="#">
+                    <div class="sidebar_icon">
+                      <svg xmlns="http://www.w3.org/2000/svg" id="Layer_1" data-name="Layer 1" viewBox="0 0 24 24" width="48" height="48"><path d="M18,17.5A1.5,1.5,0,0,1,16.5,19h-1a1.5,1.5,0,0,1,0-3h1A1.5,1.5,0,0,1,18,17.5ZM13.092,14H10.908A1.5,1.5,0,0,1,8,13.5V10a4,4,0,0,1,8,0v3.5a1.5,1.5,0,0,1-2.908.5ZM11,10v1h2V10a1,1,0,0,0-2,0Zm-.569,5.947-.925.941a1.5,1.5,0,0,0-2.139,2.095s.163.187.189.211a2.757,2.757,0,0,0,3.9-.007l1.116-1.134a1.5,1.5,0,1,0-2.138-2.106ZM22,7.157V18.5A5.507,5.507,0,0,1,16.5,24h-9A5.507,5.507,0,0,1,2,18.5V5.5A5.507,5.507,0,0,1,7.5,0h7.343a5.464,5.464,0,0,1,3.889,1.611l1.657,1.657A5.464,5.464,0,0,1,22,7.157ZM18.985,7H17a2,2,0,0,1-2-2V3.015C14.947,3.012,7.5,3,7.5,3A2.5,2.5,0,0,0,5,5.5v13A2.5,2.5,0,0,0,7.5,21h9A2.5,2.5,0,0,0,19,18.5S18.988,7.053,18.985,7Z"/></svg>
+                    </div>
+                    <span class="link_name">{{ get_phrase('Online Exams') }}</span>
+                  </a>
+                  <span class="arrow">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="4.743" height="7.773" viewBox="0 0 4.743 7.773">
+                    <path id="navigate_before_FILL0_wght600_GRAD0_opsz24" d="M1.466.247,4.5,3.277a.793.793,0,0,1,.189.288.92.92,0,0,1,0,.643A.793.793,0,0,1,4.5,4.5l-3.03,3.03a.828.828,0,0,1-.609.247.828.828,0,0,1-.609-.247.875.875,0,0,1,0-1.219L2.668,3.886.247,1.466A.828.828,0,0,1,0,.856.828.828,0,0,1,.247.247.828.828,0,0,1,.856,0,.828.828,0,0,1,1.466.247Z" fill="#fff" opacity="1" />
+                    </svg>
+                  </span>
+                </div>
+                <ul class="sub-menu">
+                  @if($canViewTeacherOnlineExams)
+                    <li>
+                      <a class="{{ request()->is('teacher/online-exams') || request()->is('teacher/online-exams/*') ? 'active' : '' }}" href="{{ route('teacher.online_exams.index') }}"><span>{{ get_phrase('Online Exams') }}</span></a>
+                    </li>
+                  @endif
+                  @if($canManageTeacherQuestionBank)
+                    <li>
+                      <a class="{{ request()->is('teacher/online-exams/question-bank*') ? 'active' : '' }}" href="{{ route('teacher.online_exams.question_bank') }}"><span>{{ get_phrase('Question Bank') }}</span></a>
+                    </li>
+                  @endif
+                  @if($canUseTeacherMarkingQueue)
+                    <li>
+                      <a class="{{ request()->is('teacher/online-exams/marking*') ? 'active' : '' }}" href="{{ route('teacher.online_exams.marking') }}"><span>{{ get_phrase('Marking Queue') }}</span></a>
+                    </li>
+                  @endif
+                </ul>
+              </li>
+            @endif
 
 
             <li class="nav-links-li {{ request()->is('teacher/live-classes*') ? 'showMenu':'' }}">

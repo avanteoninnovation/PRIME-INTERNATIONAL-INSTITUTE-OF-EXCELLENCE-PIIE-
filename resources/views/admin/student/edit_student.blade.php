@@ -70,14 +70,15 @@
             </div>
 
             <?php
-            $info = json_decode($user->user_information);
+            $info = json_decode($user->user_information ?? '') ?: (object) [];
+            $birthday = !empty($info->birthday) ? date('m/d/Y', (int) $info->birthday) : date('m/d/Y');
             ?>
 
             <div class="fpb-7">
                 <label for="birthday" class="eForm-label">{{ get_phrase('Birthday') }}<span
                         class="required"></span></label>
                 <input type="text" class="form-control eForm-control inputDate" id="birthday" name="birthday"
-                    value="{{ date('m/d/Y', $info->birthday) }}" />
+                    value="{{ $birthday }}" />
             </div>
         </div>
 
@@ -86,39 +87,39 @@
             <select name="gender" id="gender" class="form-select eForm-select eChoice-multiple-with-remove"
                 required>
                 <option value="">{{ get_phrase('Select gender') }}</option>
-                <option value="Male" {{ $info->gender == 'Male' ? 'selected' : '' }}>{{ get_phrase('Male') }}
+                <option value="Male" {{ ($info->gender ?? '') == 'Male' ? 'selected' : '' }}>{{ get_phrase('Male') }}
                 </option>
-                <option value="Female" {{ $info->gender == 'Female' ? 'selected' : '' }}>{{ get_phrase('Female') }}
+                <option value="Female" {{ ($info->gender ?? '') == 'Female' ? 'selected' : '' }}>{{ get_phrase('Female') }}
                 </option>
-                <option value="Others" {{ $info->gender == 'Others' ? 'selected' : '' }}>{{ get_phrase('Others') }}
+                <option value="Others" {{ ($info->gender ?? '') == 'Others' ? 'selected' : '' }}>{{ get_phrase('Others') }}
                 </option>
             </select>
         </div>
 
         <div class="fpb-7">
             <label for="phone" class="eForm-label">{{ get_phrase('Phone number') }}</label>
-            <input type="text" class="form-control eForm-control" value="{{ $info->phone }}" id="phone"
+            <input type="text" class="form-control eForm-control" value="{{ $info->phone ?? '' }}" id="phone"
                 name = "phone" placeholder="Provide student number" required>
         </div>
         <div class="fpb-7">
             <label for="blood_group" class="eForm-label">{{ get_phrase('Blood group') }}</label>
             <select name="blood_group" id="blood_group" class="form-select eForm-select eChoice-multiple-with-remove">
                 <option value="">{{ get_phrase('Select a blood group') }}</option>
-                <option value="a+" {{ $info->blood_group == 'a+' ? 'selected' : '' }}>{{ get_phrase('A+') }}
+                <option value="a+" {{ ($info->blood_group ?? '') == 'a+' ? 'selected' : '' }}>{{ get_phrase('A+') }}
                 </option>
-                <option value="a-" {{ $info->blood_group == 'a-' ? 'selected' : '' }}>{{ get_phrase('A-') }}
+                <option value="a-" {{ ($info->blood_group ?? '') == 'a-' ? 'selected' : '' }}>{{ get_phrase('A-') }}
                 </option>
-                <option value="b+" {{ $info->blood_group == 'b+' ? 'selected' : '' }}>{{ get_phrase('B+') }}
+                <option value="b+" {{ ($info->blood_group ?? '') == 'b+' ? 'selected' : '' }}>{{ get_phrase('B+') }}
                 </option>
-                <option value="b-" {{ $info->blood_group == 'b-' ? 'selected' : '' }}>{{ get_phrase('B-') }}
+                <option value="b-" {{ ($info->blood_group ?? '') == 'b-' ? 'selected' : '' }}>{{ get_phrase('B-') }}
                 </option>
-                <option value="ab+" {{ $info->blood_group == 'ab+' ? 'selected' : '' }}>{{ get_phrase('AB+') }}
+                <option value="ab+" {{ ($info->blood_group ?? '') == 'ab+' ? 'selected' : '' }}>{{ get_phrase('AB+') }}
                 </option>
-                <option value="ab-" {{ $info->blood_group == 'ab-' ? 'selected' : '' }}>{{ get_phrase('AB-') }}
+                <option value="ab-" {{ ($info->blood_group ?? '') == 'ab-' ? 'selected' : '' }}>{{ get_phrase('AB-') }}
                 </option>
-                <option value="o+" {{ $info->blood_group == 'o+' ? 'selected' : '' }}>{{ get_phrase('O+') }}
+                <option value="o+" {{ ($info->blood_group ?? '') == 'o+' ? 'selected' : '' }}>{{ get_phrase('O+') }}
                 </option>
-                <option value="o-" {{ $info->blood_group == 'o-' ? 'selected' : '' }}>{{ get_phrase('O-') }}
+                <option value="o-" {{ ($info->blood_group ?? '') == 'o-' ? 'selected' : '' }}>{{ get_phrase('O-') }}
                 </option>
             </select>
         </div>
@@ -158,7 +159,7 @@
         <div class="fpb-7">
             <label for="phone" class="eForm-label">{{ get_phrase('Address') }}</label>
             <textarea class="form-control eForm-control" id="address" name = "address" rows="5"
-                placeholder="Provide student address" required>{{ $info->address }}</textarea>
+                placeholder="Provide student address" required>{{ $info->address ?? '' }}</textarea>
         </div>
 
         <div class="fpb-7">
@@ -176,9 +177,13 @@
 
 <script type="text/javascript">
     "use strict";
-    $(document).ready(function() {
-        $(".eChoice-multiple-with-remove").select2();
-    });
+    if (window.jQuery) {
+        $(document).ready(function() {
+            if ($.fn.select2) {
+                $(".eChoice-multiple-with-remove").select2();
+            }
+        });
+    }
 
     function classWiseSection(classId) {
         let url = "{{ route('admin.class_wise_sections', ['id' => ':classId']) }}";
@@ -191,26 +196,32 @@
         });
     }
 
-    $(function() {
-        $('.inputDate').daterangepicker({
-                singleDatePicker: true,
-                showDropdowns: true,
-                minYear: 1901,
-                maxYear: parseInt(moment().format("YYYY"), 10),
-            },
-            function(start, end, label) {
-                var years = moment().diff(start, "years");
-            }
-        );
-    });
+    if (window.jQuery && $.fn.daterangepicker && window.moment) {
+        $(function() {
+            $('.inputDate').daterangepicker({
+                    singleDatePicker: true,
+                    showDropdowns: true,
+                    minYear: 1901,
+                    maxYear: parseInt(moment().format("YYYY"), 10),
+                },
+                function(start, end, label) {
+                    var years = moment().diff(start, "years");
+                }
+            );
+        });
+    }
 </script>
 
 <script type="text/javascript">
     "use strict";
 
-    $(document).ready(function() {
-        $(".eChoice-multiple-with-remove").select2();
-    });
+    if (window.jQuery) {
+        $(document).ready(function() {
+            if ($.fn.select2) {
+                $(".eChoice-multiple-with-remove").select2();
+            }
+        });
+    }
 
     function togglepackageWiseOptions(interval) {
         if (interval === "life_time") {
@@ -224,19 +235,21 @@
         }
     }
 
-    $(document).ready(function() {
-        $("#unlimitedst").click(function() {
-            $(".limitedst").hide();
-        });
-        $("#limited").click(function() {
-            $(".limitedst").show();
-            $("#studentLimit").attr('name', 'studentLimit');
+    if (window.jQuery) {
+        $(document).ready(function() {
+            $("#unlimitedst").click(function() {
+                $(".limitedst").hide();
+            });
+            $("#limited").click(function() {
+                $(".limitedst").show();
+                $("#studentLimit").attr('name', 'studentLimit');
 
+            });
+            $("#life_time").click(function() {
+                $("#interval").hide();
+            });
         });
-        $("#life_time").click(function() {
-            $("#interval").hide();
-        });
-    });
+    }
 
 
 

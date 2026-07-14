@@ -36,15 +36,44 @@ class CommonController extends Controller
 
         $student = User::find($id);
 
-        $info = json_decode($student->user_information);
+        if (! $student) {
+            $fallback = new Enrollment();
+            $fallback['code'] = '';
+            $fallback['user_id'] = $id;
+            $fallback['parent_name'] = '';
+            $fallback['name'] = '';
+            $fallback['email'] = '';
+            $fallback['role'] = '';
+            $fallback['address'] = '';
+            $fallback['phone'] = '';
+            $fallback['birthday'] = '';
+            $fallback['gender'] = '';
+            $fallback['blood_group'] = '';
+            $fallback['student_info'] = '';
+            $fallback['photo'] = isset($api) && $api == 'api' ? get_user_image_url($id) : get_user_image($id);
+            $fallback['school_id'] = null;
+            $fallback['school_name'] = '';
+            $fallback['running_session'] = '';
+            $fallback['class_name'] = '';
+            $fallback['class_id'] = '';
+            $fallback['section_name'] = '';
+            $fallback['section_id'] = '';
+            return $fallback;
+        }
+
+        if (! $enrol_data) {
+            $enrol_data = new Enrollment();
+        }
+
+        $info = json_decode($student->user_information ?? '') ?: (object) [];
 
         $parent_details = User::find($student->parent_id);
 
         $role = Role::where('role_id', $student->role_id)->first();
 
-        $class_details = Classes::find($enrol_data->class_id);
+        $class_details = !empty($enrol_data->class_id) ? Classes::find($enrol_data->class_id) : null;
 
-        $section_details = Section::find($enrol_data->section_id);
+        $section_details = !empty($enrol_data->section_id) ? Section::find($enrol_data->section_id) : null;
 
         $active_session = get_school_settings($student->school_id)->value('running_session');
 
@@ -59,12 +88,12 @@ class CommonController extends Controller
         $enrol_data['name'] = $student->name;
         $enrol_data['email'] = $student->email;
 
-        $enrol_data['role'] = $role->name;
+        $enrol_data['role'] = $role->name ?? '';
 
-        $enrol_data['address'] = $info->address;
-        $enrol_data['phone'] = $info->phone;
-        $enrol_data['birthday'] = $info->birthday;
-        $enrol_data['gender'] = $info->gender;
+        $enrol_data['address'] = $info->address ?? '';
+        $enrol_data['phone'] = $info->phone ?? '';
+        $enrol_data['birthday'] = $info->birthday ?? '';
+        $enrol_data['gender'] = $info->gender ?? '';
         $enrol_data['blood_group'] = $info->blood_group??"";
         $enrol_data['student_info']    = $student->student_info;
         $enrol_data['photo'] = isset($api) && $api == 'api' ? get_user_image_url($id): get_user_image($id);
@@ -86,16 +115,31 @@ class CommonController extends Controller
 
         $user_details = User::find($id);
 
-        $info = json_decode($user_details->user_information);
+        if (! $user_details) {
+            return [
+                'id'          => null,
+                'name'        => '',
+                'email'       => '',
+                'address'     => '',
+                'phone'       => '',
+                'birthday'    => '',
+                'gender'      => '',
+                'blood_group' => '',
+                'photo'       => get_user_image($id),
+                'school_id'   => null,
+            ];
+        }
+
+        $info = json_decode($user_details->user_information ?? '') ?: (object) [];
         
         $user_data['id'] = $user_details->id;
         $user_data['name'] = $user_details->name;
         $user_data['email'] = $user_details->email;
 
-        $user_data['address'] = $info->address;
-        $user_data['phone'] = $info->phone;
-        $user_data['birthday'] = $info->birthday;
-        $user_data['gender'] = $info->gender;
+        $user_data['address'] = $info->address ?? '';
+        $user_data['phone'] = $info->phone ?? '';
+        $user_data['birthday'] = $info->birthday ?? '';
+        $user_data['gender'] = $info->gender ?? '';
         $user_data['blood_group'] = $info->blood_group??"";
         $user_data['photo'] = get_user_image($id);
         $user_data['school_id'] = $user_details->school_id;

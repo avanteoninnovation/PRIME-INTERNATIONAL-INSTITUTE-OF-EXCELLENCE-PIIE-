@@ -32,14 +32,21 @@
                         <select name="class_id" id="class_id" class="form-select eForm-select eChoice-multiple-with-remove" required onchange="classWiseSection(this.value)">
                             <option value="">{{ get_phrase('Select a class') }}</option>
                             @foreach($classes as $class)
-                                <option value="{{ $class->id }}">{{ $class->name }}</option>
+                                <option value="{{ $class->id }}" {{ (string)$class->id === (string)$default_class_id ? 'selected' : '' }}>{{ $class->name }}</option>
                             @endforeach
                         </select>
                     </div>
 
                     <div class="col-md-3">
-                        <select name="section_id" id="section_id" class="form-select eForm-select eChoice-multiple-with-remove" required >
-                            <option value="">{{ get_phrase('First select a class') }}</option>
+                        <select name="section_id" id="section_id" class="form-select eForm-select" required >
+                            @if(count($sections) > 0)
+                                <option value="">{{ get_phrase('Select a section') }}</option>
+                                @foreach($sections as $section)
+                                    <option value="{{ $section->id }}" {{ (string)$section->id === (string)$default_section_id ? 'selected' : '' }}>{{ $section->name }}</option>
+                                @endforeach
+                            @else
+                                <option value="">{{ get_phrase('First select a class') }}</option>
+                            @endif
                         </select>
                     </div>
 
@@ -48,9 +55,13 @@
                     </div>
 
                     <div class="card-body permission_content">
-                        <div class="empty_box center">
-                            <img class="mb-3" width="150px" src="{{ asset('assets/images/empty_box.png') }}" />
-                        </div>
+                        @if(!empty($default_class_id) && !empty($default_section_id))
+                            @include('admin.permission.list', ['teachers' => $teachers, 'class_id' => $default_class_id, 'section_id' => $default_section_id])
+                        @else
+                            <div class="empty_box center">
+                                <img class="mb-3" width="150px" src="{{ asset('assets/images/empty_box.png') }}" />
+                            </div>
+                        @endif
                     </div>
 
                 </div>
@@ -65,13 +76,30 @@
   "use strict";
 
 
-    function classWiseSection(classId) {
+    function classWiseSection(classId, callback) {
+        if (classId == "") {
+            $('#section_id').html('<option value="">{{ get_phrase('First select a class') }}</option>');
+            if (typeof callback === 'function') callback(false);
+            return;
+        }
+
         let url = "{{ route('class_wise_sections', ['id' => ":classId"]) }}";
         url = url.replace(":classId", classId);
+
         $.ajax({
             url: url,
             success: function(response){
                 $('#section_id').html(response);
+
+                // Auto-select first available section so filter can run reliably.
+                var firstSection = $('<select>' + response + '</select>').find('option[value!=""]').first().val() || '';
+                $('#section_id').val(firstSection);
+
+                if (typeof callback === 'function') callback(firstSection);
+            },
+            error: function() {
+                toastr.error('{{ get_phrase('Unable to load sections') }}');
+                if (typeof callback === 'function') callback('');
             }
         });
     }
@@ -79,20 +107,40 @@
     function filter(){
         var class_id = $('#class_id').val();
         var section_id = $('#section_id').val();
-        var value = class_id + '-' + section_id;
 
-        let url = "{{ route('admin.teacher.permission_list', ['filter' => ":value"]) }}";
-        url = url.replace(":value", value);
+        if(class_id == ""){
+            toastr.error('{{ get_phrase('Please select a class and section') }}');
+            return;
+        }
 
-        if(class_id != "" && section_id!= ""){
+        const loadPermissionList = function(selectedSectionId) {
+            if (selectedSectionId == "") {
+                toastr.error('{{ get_phrase('No section found for this class') }}');
+                return;
+            }
+
+            var value = class_id + '-' + selectedSectionId;
+            let url = "{{ route('admin.teacher.permission_list', ['filter' => ":value"]) }}";
+            url = url.replace(":value", value);
+
             $.ajax({
                 url: url,
                 success: function(response){
                     $('.permission_content').html(response);
                 }
             });
-        }else{
-            toastr.error('{{ get_phrase('Please select a class and section') }}');
+        };
+
+        if (section_id == "") {
+            classWiseSection(class_id, function(selectedSectionId) {
+                if (selectedSectionId != "") {
+                    loadPermissionList(selectedSectionId);
+                } else {
+                    toastr.error('{{ get_phrase('No section found for this class') }}');
+                }
+            });
+        } else {
+            loadPermissionList(section_id);
         }
     }
 

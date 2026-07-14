@@ -14,8 +14,11 @@
     RewriteCond %{REQUEST_URI} (.+)/$
     RewriteRule ^ %1 [L,R=301]
 
-    # Serve static assets from public/assets when app is hosted from project root
+    # Serve static assets from public when app is hosted from project root
     RewriteRule ^assets/(.*)$ public/assets/$1 [L,NC]
+    RewriteRule ^frontend/(.*)$ public/frontend/$1 [L,NC]
+    RewriteRule ^css/(.*)$ public/css/$1 [L,NC]
+    RewriteRule ^js/(.*)$ public/js/$1 [L,NC]
 
     # Front controller
     RewriteCond %{REQUEST_FILENAME} !-d

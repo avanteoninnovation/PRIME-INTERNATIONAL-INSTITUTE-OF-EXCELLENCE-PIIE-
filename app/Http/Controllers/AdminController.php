@@ -301,7 +301,8 @@ class AdminController extends Controller
             $photo = $imageName;
         } else {
             $user_information = User::where('id', $id)->value('user_information');
-            $file_name        = json_decode($user_information)->photo;
+            $decoded_info     = json_decode($user_information ?? '') ?: (object) [];
+            $file_name        = $decoded_info->photo ?? '';
 
             if ($file_name != '') {
                 $photo = $file_name;
@@ -530,9 +531,16 @@ class AdminController extends Controller
      *
      * @return \Illuminate\Contracts\Support\Renderable
      */
-    public function createTeacherModal()
+    public function createTeacherModal(Request $request)
     {
         $departments = Department::get()->where('school_id', auth()->user()->school_id);
+        if (! $request->ajax()) {
+            return view('admin.common.modal_standalone_wrapper', [
+                'page_title' => get_phrase('Create Teacher'),
+                'inner_view' => 'admin.teacher.add_teacher',
+                'view_data'  => ['departments' => $departments],
+            ]);
+        }
         return view('admin.teacher.add_teacher', ['departments' => $departments]);
     }
 
@@ -572,8 +580,8 @@ class AdminController extends Controller
                 'school_id'        => auth()->user()->school_id,
                 'user_information' => $data['user_information'],
                 'status'           => 1,
-                'department_id'    => $data['department_id'],
-                'designation'      => $data['designation'],
+                'department_id'    => $data['department_id'] ?? null,
+                'designation'      => $data['designation'] ?? '',
             ]);
         } else {
             return redirect()->back()->with('error', 'Email was already taken.');
@@ -584,10 +592,17 @@ class AdminController extends Controller
         return redirect()->back()->with('message', 'You have successfully add teacher.');
     }
 
-    public function teacherEditModal($id)
+    public function teacherEditModal(Request $request, $id)
     {
         $user        = User::find($id);
         $departments = Department::get()->where('school_id', auth()->user()->school_id);
+        if (! $request->ajax()) {
+            return view('admin.common.modal_standalone_wrapper', [
+                'page_title' => get_phrase('Edit Teacher'),
+                'inner_view' => 'admin.teacher.edit_teacher',
+                'view_data'  => ['user' => $user, 'departments' => $departments],
+            ]);
+        }
         return view('admin.teacher.edit_teacher', ['user' => $user, 'departments' => $departments]);
     }
 
@@ -604,7 +619,8 @@ class AdminController extends Controller
             $photo = $imageName;
         } else {
             $user_information = User::where('id', $id)->value('user_information');
-            $file_name        = json_decode($user_information)->photo;
+            $decoded_info     = json_decode($user_information ?? '') ?: (object) [];
+            $file_name        = $decoded_info->photo ?? '';
 
             if ($file_name != '') {
                 $photo = $file_name;
@@ -626,8 +642,8 @@ class AdminController extends Controller
             'name'             => $data['name'],
             'email'            => $data['email'],
             'user_information' => $data['user_information'],
-            'department_id'    => $data['department_id'],
-            'designation'      => $data['designation'],
+            'department_id'    => $data['department_id'] ?? null,
+            'designation'      => $data['designation'] ?? '',
         ]);
         return redirect()->back()->with('message', 'You have successfully update teacher.');
     }
@@ -672,8 +688,15 @@ class AdminController extends Controller
         return view('admin.accountant.accountant_list', compact('accountants', 'search'));
     }
 
-    public function createAccountantModal()
+    public function createAccountantModal(Request $request)
     {
+        if (! $request->ajax()) {
+            return view('admin.common.modal_standalone_wrapper', [
+                'page_title' => get_phrase('Create Accountant'),
+                'inner_view' => 'admin.accountant.add_accountant',
+                'view_data'  => [],
+            ]);
+        }
         return view('admin.accountant.add_accountant');
     }
 
@@ -722,9 +745,16 @@ class AdminController extends Controller
         return redirect()->back()->with('message', 'You have successfully add accountant.');
     }
 
-    public function accountantEditModal($id)
+    public function accountantEditModal(Request $request, $id)
     {
         $user = User::find($id);
+        if (! $request->ajax()) {
+            return view('admin.common.modal_standalone_wrapper', [
+                'page_title' => get_phrase('Edit Accountant'),
+                'inner_view' => 'admin.accountant.edit_accountant',
+                'view_data'  => ['user' => $user],
+            ]);
+        }
         return view('admin.accountant.edit_accountant', ['user' => $user]);
     }
 
@@ -741,7 +771,8 @@ class AdminController extends Controller
             $photo = $imageName;
         } else {
             $user_information = User::where('id', $id)->value('user_information');
-            $file_name        = json_decode($user_information)->photo;
+            $decoded_info     = json_decode($user_information ?? '') ?: (object) [];
+            $file_name        = $decoded_info->photo ?? '';
 
             if ($file_name != '') {
                 $photo = $file_name;
@@ -880,7 +911,8 @@ class AdminController extends Controller
             $photo = $imageName;
         } else {
             $user_information = User::where('id', $id)->value('user_information');
-            $file_name        = json_decode($user_information)->photo;
+            $decoded_info     = json_decode($user_information ?? '') ?: (object) [];
+            $file_name        = $decoded_info->photo ?? '';
 
             if ($file_name != '') {
                 $photo = $file_name;
@@ -994,11 +1026,15 @@ class AdminController extends Controller
         } else {
             return redirect()->back()->with('error', 'Email was already taken.');
         }
-        $students   = $data['student_id'];
-        $class_id   = $data['class_id'];
-        $section_id = $data['student_id'];
+        $students   = $data['student_id'] ?? [];
+        $class_id   = $data['class_id'] ?? '';
+        $section_id = $data['section_id'] ?? '';
 
         foreach ($students as $student) {
+            if (empty($student)) {
+                continue;
+            }
+
             $users = User::where('id', $student)->get();
 
             if (count($users) == 1) {
@@ -1008,9 +1044,9 @@ class AdminController extends Controller
             } else {
                 if (count($users) > 1) {
                     foreach ($users as $user) {
-                        $data = Enrollment::where('class_id', $class_id)->where('section_id', $section_id)->where('user_id', $user->id)->where('school_id', auth()->user()->school_id)->first();
+                        $enrollment = Enrollment::where('class_id', $class_id)->where('section_id', $section_id)->where('user_id', $user->id)->where('school_id', auth()->user()->school_id)->first();
 
-                        if ($data != '') {
+                        if ($enrollment != '') {
                             User::where('id', $user->id)->update([
                                 'parent_id' => $parent->id,
                             ]);
@@ -1047,7 +1083,8 @@ class AdminController extends Controller
         } else {
 
             $user_information = User::where('id', $id)->value('user_information');
-            $file_name        = json_decode($user_information)->photo;
+            $decoded_info     = json_decode($user_information ?? '') ?: (object) [];
+            $file_name        = $decoded_info->photo ?? '';
 
             if ($file_name != '') {
                 $photo = $file_name;
@@ -1076,7 +1113,7 @@ class AdminController extends Controller
         //Previous parent has been empty
         User::where('parent_id', $id)->update(['parent_id' => null]);
 
-        $students = $data['student_id'];
+        $students = $data['student_id'] ?? [];
         foreach ($students as $student) {
             if ($student != '') {
                 $user = User::where('id', $student)->first();
@@ -1199,7 +1236,8 @@ class AdminController extends Controller
             $photo = $imageName;
         } else {
             $user_information = User::where('id', $id)->value('user_information');
-            $file_name        = json_decode($user_information)->photo;
+            $decoded_info     = json_decode($user_information ?? '') ?: (object) [];
+            $file_name        = $decoded_info->photo ?? '';
 
             if ($file_name != '') {
                 $photo = $file_name;
@@ -1272,9 +1310,16 @@ class AdminController extends Controller
         return view('admin.student.student_list', compact('students', 'search', 'classes', 'class_id', 'section_id'));
     }
 
-    public function createStudentModal()
+    public function createStudentModal(Request $request)
     {
         $classes = Classes::get()->where('school_id', auth()->user()->school_id);
+        if (! $request->ajax()) {
+            return view('admin.common.modal_standalone_wrapper', [
+                'page_title' => get_phrase('Create Student'),
+                'inner_view' => 'admin.student.add_student',
+                'view_data'  => ['classes' => $classes],
+            ]);
+        }
         return view('admin.student.add_student', ['classes' => $classes]);
     }
 
@@ -1336,11 +1381,18 @@ class AdminController extends Controller
         return view('admin.student.student_profile', ['student_details' => $student_details]);
     }
 
-    public function studentEditModal($id)
+    public function studentEditModal(Request $request, $id)
     {
         $user            = User::find($id);
         $student_details = (new CommonController)->get_student_details_by_id($id);
         $classes         = Classes::get()->where('school_id', auth()->user()->school_id);
+        if (! $request->ajax()) {
+            return view('admin.common.modal_standalone_wrapper', [
+                'page_title' => get_phrase('Edit Student'),
+                'inner_view' => 'admin.student.edit_student',
+                'view_data'  => ['user' => $user, 'student_details' => $student_details, 'classes' => $classes],
+            ]);
+        }
         return view('admin.student.edit_student', ['user' => $user, 'student_details' => $student_details, 'classes' => $classes]);
     }
 
@@ -1356,7 +1408,8 @@ class AdminController extends Controller
             $photo = $imageName;
         } else {
             $user_information = User::where('id', $id)->value('user_information');
-            $file_name        = json_decode($user_information)->photo;
+            $decoded_info     = json_decode($user_information ?? '') ?: (object) [];
+            $file_name        = $decoded_info->photo ?? '';
 
             if ($file_name != '') {
                 $photo = $file_name;
@@ -1425,10 +1478,25 @@ class AdminController extends Controller
     public function teacherPermission()
     {
         $classes  = Classes::get()->where('school_id', auth()->user()->school_id);
+        $default_class_id = optional($classes->first())->id;
+        $sections = collect();
+        $default_section_id = '';
+
+        if (!empty($default_class_id)) {
+            $sections = Section::get()->where('class_id', $default_class_id);
+            $default_section_id = optional($sections->first())->id;
+        }
+
         $teachers = User::where('role_id', 3)
             ->where('school_id', auth()->user()->school_id)
             ->get();
-        return view('admin.permission.index', ['classes' => $classes, 'teachers' => $teachers]);
+        return view('admin.permission.index', [
+            'classes'            => $classes,
+            'sections'           => $sections,
+            'teachers'           => $teachers,
+            'default_class_id'   => $default_class_id,
+            'default_section_id' => $default_section_id,
+        ]);
     }
 
     public function teacherPermissionList($value = "")
@@ -1499,14 +1567,21 @@ class AdminController extends Controller
     {
         $package = Subscription::where('school_id', auth()->user()->school_id)->latest()->first();
 
-        $student_limit = $package->studentLimit;
+        // Legacy schools may not have a subscription row yet; treat as unlimited access.
+        $student_limit = $package->studentLimit ?? ($package->student_limit ?? 'unlimited');
 
         $student_count = User::where(['role_id' => 7, 'school_id' => auth()->user()->school_id])->count();
+        $department_id = $request->department_id ?? Department::where('school_id', auth()->user()->school_id)->value('id') ?? 0;
 
         if ($student_limit == 'unlimited' || $student_limit > $student_count) {
 
             $data           = $request->all();
             $active_session = get_school_settings(auth()->user()->school_id)->value('running_session');
+            if (empty($active_session)) {
+                $active_session = Session::where('school_id', auth()->user()->school_id)->value('id')
+                    ?? Session::value('id')
+                    ?? 1;
+            }
 
             if (! empty($data['photo'])) {
 
@@ -1545,11 +1620,12 @@ class AdminController extends Controller
                 ]);
 
                 Enrollment::create([
-                    'user_id'    => $user->id,
-                    'class_id'   => $data['class_id'],
-                    'section_id' => $data['section_id'],
-                    'school_id'  => auth()->user()->school_id,
-                    'session_id' => $active_session,
+                    'user_id'       => $user->id,
+                    'class_id'      => $data['class_id'],
+                    'section_id'    => $data['section_id'],
+                    'school_id'     => auth()->user()->school_id,
+                    'department_id' => $department_id,
+                    'session_id'    => $active_session,
                 ]);
 
                 if (! empty(get_settings('smtp_user')) && (get_settings('smtp_pass')) && (get_settings('smtp_host')) && (get_settings('smtp_port'))) {
@@ -1581,6 +1657,11 @@ class AdminController extends Controller
         $students_parent   = $data['parent_id'];
 
         $active_session = get_school_settings(auth()->user()->school_id)->value('running_session');
+        if (empty($active_session)) {
+            $active_session = Session::where('school_id', auth()->user()->school_id)->value('id')
+                ?? Session::value('id')
+                ?? 1;
+        }
 
         foreach ($students_name as $key => $value) {
             $duplicate_user_check = User::get()->where('email', $students_email[$key]);
@@ -1639,9 +1720,16 @@ class AdminController extends Controller
         $section_id = $data['section_id'];
         $school_id  = auth()->user()->school_id;
         $session_id = get_school_settings(auth()->user()->school_id)->value('running_session');
-        $package    = Subscription::where('school_id', auth()->user()->school_id)->first();
+        if (empty($session_id)) {
+            $session_id = Session::where('school_id', $school_id)->value('id')
+                ?? Session::value('id')
+                ?? 1;
+        }
+        $department_id = $request->department_id ?? Department::where('school_id', $school_id)->value('id') ?? 0;
+        $package    = Subscription::where('school_id', auth()->user()->school_id)->latest()->first();
 
-        $student_limit = $package->studentLimit;
+        // Keep same fallback behavior as single admission to avoid null crashes.
+        $student_limit = $package->studentLimit ?? ($package->student_limit ?? 'unlimited');
 
         $student_count = User::where(['role_id' => 7, 'school_id' => auth()->user()->school_id])->count();
 
@@ -1692,11 +1780,12 @@ class AdminController extends Controller
                             ]);
 
                             Enrollment::create([
-                                'user_id'    => $user->id,
-                                'class_id'   => $class_id,
-                                'section_id' => $section_id,
-                                'school_id'  => $school_id,
-                                'session_id' => $session_id,
+                                'user_id'       => $user->id,
+                                'class_id'      => $class_id,
+                                'section_id'    => $section_id,
+                                'school_id'     => $school_id,
+                                'department_id' => $department_id,
+                                'session_id'    => $session_id,
                             ]);
                         } else {
                             $duplication_counter++;
@@ -1744,6 +1833,11 @@ class AdminController extends Controller
     {
         $data           = $request->all();
         $active_session = get_school_settings(auth()->user()->school_id)->value('running_session');
+        if (empty($active_session)) {
+            $active_session = Session::where('school_id', auth()->user()->school_id)->value('id')
+                ?? Session::value('id')
+                ?? 1;
+        }
 
         ExamCategory::create([
             'name'       => $data['name'],
@@ -1764,6 +1858,11 @@ class AdminController extends Controller
     {
         $data           = $request->all();
         $active_session = get_school_settings(auth()->user()->school_id)->value('running_session');
+        if (empty($active_session)) {
+            $active_session = Session::where('school_id', auth()->user()->school_id)->value('id')
+                ?? Session::value('id')
+                ?? 1;
+        }
 
         ExamCategory::where('id', $id)->update([
             'name'       => $data['name'],
@@ -1818,10 +1917,19 @@ class AdminController extends Controller
         return view('admin.examination.exam_list', ['exams' => $exams, 'classes' => $classes, 'id' => $id]);
     }
 
-    public function createOfflineExam()
+    public function createOfflineExam(Request $request)
     {
         $classes         = Classes::where('school_id', auth()->user()->school_id)->get();
         $exam_categories = ExamCategory::where('school_id', auth()->user()->school_id)->get();
+
+        if (! $request->ajax()) {
+            return view('admin.common.modal_standalone_wrapper', [
+                'page_title' => get_phrase('Create Offline Exam'),
+                'inner_view' => 'admin.examination.add_offline_exam',
+                'view_data'  => ['classes' => $classes, 'exam_categories' => $exam_categories],
+            ]);
+        }
+
         return view('admin.examination.add_offline_exam', ['classes' => $classes, 'exam_categories' => $exam_categories]);
     }
 
@@ -1880,12 +1988,26 @@ class AdminController extends Controller
         }
     }
 
-    public function editOfflineExam($id)
+    public function editOfflineExam(Request $request, $id)
     {
         $exam            = Exam::find($id);
         $classes         = Classes::where('school_id', auth()->user()->school_id)->get();
         $subjects        = Subject::get()->where('class_id', $exam->class_id);
         $exam_categories = ExamCategory::where('school_id', auth()->user()->school_id)->get();
+
+        if (! $request->ajax()) {
+            return view('admin.common.modal_standalone_wrapper', [
+                'page_title' => get_phrase('Edit Offline Exam'),
+                'inner_view' => 'admin.examination.edit_offline_exam',
+                'view_data'  => [
+                    'exam'            => $exam,
+                    'classes'         => $classes,
+                    'subjects'        => $subjects,
+                    'exam_categories' => $exam_categories,
+                ],
+            ]);
+        }
+
         return view('admin.examination.edit_offline_exam', ['exam' => $exam, 'classes' => $classes, 'subjects' => $subjects, 'exam_categories' => $exam_categories]);
     }
 
@@ -2141,6 +2263,15 @@ class AdminController extends Controller
         $data = $request->all();
 
         $active_session = get_school_settings(auth()->user()->school_id)->value('running_session');
+        if (empty($active_session)) {
+            $active_session = Session::where('school_id', auth()->user()->school_id)->value('id')
+                ?? Session::value('id')
+                ?? null;
+        }
+
+        if (empty($active_session)) {
+            return redirect()->back()->with('error', 'Please create or set an active academic session before adding routine.');
+        }
 
         Routine::create([
             'class_id'        => $data['class_id'],
@@ -2174,6 +2305,15 @@ class AdminController extends Controller
         $data = $request->all();
 
         $active_session = get_school_settings(auth()->user()->school_id)->value('running_session');
+        if (empty($active_session)) {
+            $active_session = Session::where('school_id', auth()->user()->school_id)->value('id')
+                ?? Session::value('id')
+                ?? null;
+        }
+
+        if (empty($active_session)) {
+            return redirect()->back()->with('error', 'Please create or set an active academic session before updating routine.');
+        }
 
         Routine::where('id', $id)->update([
             'class_id'        => $data['class_id'],
@@ -2233,8 +2373,18 @@ class AdminController extends Controller
         $data = $request->all();
 
         $active_session = get_school_settings(auth()->user()->school_id)->value('running_session');
+        if (empty($active_session)) {
+            $active_session = Session::where('school_id', auth()->user()->school_id)->value('id')
+                ?? Session::value('id')
+                ?? null;
+        }
 
-        $file = $data['syllabus_file'];
+        if (empty($active_session)) {
+            return redirect()->back()->with('error', 'Please create or set an active academic session before adding syllabus.');
+        }
+
+        $file = $data['syllabus_file'] ?? null;
+        $filename = '';
 
         if ($file) {
             $filename  = $file->getClientOriginalName();
@@ -2270,8 +2420,19 @@ class AdminController extends Controller
         $data = $request->all();
 
         $active_session = get_school_settings(auth()->user()->school_id)->value('running_session');
+        if (empty($active_session)) {
+            $active_session = Session::where('school_id', auth()->user()->school_id)->value('id')
+                ?? Session::value('id')
+                ?? null;
+        }
 
-        $file = $data['syllabus_file'];
+        if (empty($active_session)) {
+            return redirect()->back()->with('error', 'Please create or set an active academic session before updating syllabus.');
+        }
+
+        $syllabus = Syllabus::find($id);
+        $file = $data['syllabus_file'] ?? null;
+        $filename = $syllabus->file ?? '';
 
         if ($file) {
             $filename  = $file->getClientOriginalName();
@@ -2607,6 +2768,15 @@ class AdminController extends Controller
     {
         $data           = $request->all();
         $active_session = get_school_settings(auth()->user()->school_id)->value('running_session');
+        if (empty($active_session)) {
+            $active_session = Session::where('school_id', auth()->user()->school_id)->value('id')
+                ?? Session::value('id')
+                ?? null;
+        }
+
+        if (empty($active_session)) {
+            return redirect()->back()->with('error', 'Please create or set an active academic session before adding subjects.');
+        }
 
         Subject::create([
             'name'       => $data['name'],

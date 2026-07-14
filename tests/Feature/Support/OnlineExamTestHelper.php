@@ -26,8 +26,15 @@ trait OnlineExamTestHelper
             $table->string('remember_token', 100)->nullable();
             $table->unsignedInteger('role_id')->nullable();
             $table->unsignedBigInteger('school_id')->nullable();
+            $table->string('language')->nullable();
             $table->string('account_status')->default('active');
             $table->text('menu_permission')->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('schools', function (Blueprint $table) {
+            $table->id();
+            $table->string('title')->nullable();
             $table->timestamps();
         });
 
@@ -35,6 +42,14 @@ trait OnlineExamTestHelper
             $table->id();
             $table->unsignedBigInteger('school_id');
             $table->string('name')->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('sessions', function (Blueprint $table) {
+            $table->id();
+            $table->string('session_title')->nullable();
+            $table->string('status')->nullable();
+            $table->unsignedBigInteger('school_id')->nullable();
             $table->timestamps();
         });
 
@@ -54,6 +69,34 @@ trait OnlineExamTestHelper
             $table->unsignedBigInteger('school_id');
             $table->unsignedBigInteger('department_id')->nullable();
             $table->unsignedBigInteger('session_id')->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('teacher_permissions', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('class_id')->nullable();
+            $table->unsignedBigInteger('section_id')->nullable();
+            $table->unsignedBigInteger('school_id')->nullable();
+            $table->unsignedBigInteger('teacher_id')->nullable();
+            $table->tinyInteger('marks')->default(0);
+            $table->tinyInteger('attendance')->default(0);
+            $table->dateTime('updated_at')->nullable();
+        });
+
+        Schema::create('message_thrades', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('sender_id')->nullable();
+            $table->unsignedBigInteger('reciver_id')->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('chats', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('message_thrade')->nullable();
+            $table->unsignedBigInteger('sender_id')->nullable();
+            $table->unsignedBigInteger('reciver_id')->nullable();
+            $table->tinyInteger('read_status')->default(0);
+            $table->text('message')->nullable();
             $table->timestamps();
         });
 
@@ -161,7 +204,7 @@ trait OnlineExamTestHelper
             $table->timestamps();
         });
 
-        Schema::create('question_bank', function (Blueprint $table) {
+        Schema::create('question_banks', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('school_id')->index();
             $table->unsignedBigInteger('subject_id')->nullable();
@@ -228,6 +271,13 @@ trait OnlineExamTestHelper
         DB::table('addons')->insert([
             'unique_identifier' => 'transport',
             'status' => '0',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('schools')->insert([
+            'id' => 1,
+            'title' => 'Test School',
             'created_at' => now(),
             'updated_at' => now(),
         ]);

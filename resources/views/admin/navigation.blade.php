@@ -3,6 +3,14 @@
     use App\Support\Permissions\OnlineExamPermissionService;
 
     $user = Auth()->user();
+    $faviconSetting = trim((string) get_settings('favicon'));
+    $whiteLogoSetting = trim((string) get_settings('white_logo'));
+    $faviconAsset = $faviconSetting !== ''
+        ? asset('assets/uploads/logo/' . $faviconSetting)
+        : asset('assets/uploads/logo/favicon.png');
+    $whiteLogoAsset = $whiteLogoSetting !== ''
+        ? asset('assets/uploads/logo/' . $whiteLogoSetting)
+        : asset('assets/uploads/logo/logo1.png');
     $menu_permission =
         empty($user->menu_permission) || $user->menu_permission == 'null'
             ? []
@@ -101,7 +109,7 @@
     <meta content="" name="author" />
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <!-- all the css files -->
-    <link rel="shortcut icon" href="{{ asset('assets/uploads/logo/' . get_settings('favicon')) }}" />
+    <link rel="shortcut icon" href="{{ $faviconAsset }}" />
     <!-- Bootstrap CSS -->
     <link rel="stylesheet" type="text/css" href="{{ asset('assets/vendors/bootstrap-5.1.3/css/bootstrap.min.css') }}" />
 
@@ -117,7 +125,7 @@
     <!-- Select2 css -->
     <link rel="stylesheet" href="{{ asset('assets/css/select2.min.css') }}" />
     <!--Light box Image Gallery-->
-    <link rel="stylesheet" type="text/css" href="/ekattor8_v9/Ekattor8/public/assets/css/lightbox.css">
+    <link rel="stylesheet" type="text/css" href="{{ asset('assets/css/lightbox.css') }}">
     <!-- SummerNote Css -->
     <link rel="stylesheet" href="{{ asset('assets/css/summernote-lite.min.css') }}" />
 
@@ -141,7 +149,7 @@
         <div class="logo-details mt-4 mb-3">
             <div class="img_wrapper">
                 <img height="40px" class=""
-                    src="{{ asset('assets/uploads/logo/' . get_settings('white_logo')) }}" alt="" />
+                    src="{{ $whiteLogoAsset }}" alt="{{ get_settings('navbar_title') ?: 'PIIE' }}" />
             </div>
             <span class="logo_name">{{ get_settings('navbar_title') }}</span>
         </div>
@@ -1610,9 +1618,7 @@
     <script src="{{ asset('assets/calender/main.js') }}"></script>
     <script src="{{ asset('assets/calender/locales-all.js') }}"></script>
 
-    <!-- Dragula js -->
-    <script src="{{ asset('assets/js/dragula.min.js') }}"></script>
-    <script src="{{ asset('assets/js/onDomChange.js') }}"></script>
+    <!-- Sorting helpers -->
     <script src="{{ asset('assets/js/Sortable.min.js') }}"></script>
     <script src="{{ asset('assets/js/jquery-sortable.js') }}"></script>
     <!-- SummerNote Js -->
@@ -1627,8 +1633,6 @@
 
     <!--html2canvas Script-->
     <script src="{{ asset('assets/js/html2canvas.min.js') }}"></script>
-    <!---Image Gallery--->
-    <script src="/ekattor8_v9/Ekattor8/public/assets/js/lightbox-plus-jquery.js"></script>
     <script>
         // JavaScript to handle language selection
         document.addEventListener('DOMContentLoaded', function() {

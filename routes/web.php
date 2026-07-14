@@ -336,6 +336,9 @@ Route::controller(AdminController::class)->middleware('admin', 'auth')->group(fu
     Route::get('admin/upgrade_subscription', 'upgreadeSubscription')->name('admin.subscription.upgrade_subscription');
 
     //Admissions routes
+    Route::get('admin/offline_admission', function () {
+        return redirect()->route('admin.offline_admission.single', ['type' => 'single']);
+    })->middleware('admin_permission');
     Route::get('admin/offline_admission/{type}', 'offlineAdmissionForm')->name('admin.offline_admission.single')->middleware('admin_permission')->middleware('admin_permission');
     Route::post('admin/offline_admission', 'offlineAdmissionCreate')->name('admin.offline_admission.create');
     Route::post('admin/offline_admission/bulk', 'offlineAdmissionBulkCreate')->name('admin.offline_admission.bulk_create');
@@ -1219,6 +1222,38 @@ Route::controller(OnlineExamController::class)->middleware('auth', 'student')->g
     Route::get('student/online-exams/{id}/take',    'takeExam')->name('student.online_exam.take');
     Route::post('student/online-exams/{id}/submit', 'submitExam')->name('student.online_exam.submit');
     Route::get('student/online-exams/result/{id}',  'examResult')->name('student.online_exam.result');
+});
+
+// ── Teacher CBT exam routes ───────────────────────────────────
+Route::controller(OnlineExamController::class)->middleware('auth', 'teacher')->group(function () {
+    Route::get('teacher/online-exams', 'teacherIndex')->name('teacher.online_exams.index');
+    Route::get('teacher/online-exams/create', 'teacherCreate')->name('teacher.online_exams.create');
+    Route::post('teacher/online-exams', 'teacherStore')->name('teacher.online_exams.store');
+    Route::get('teacher/online-exams/{exam}', 'teacherShow')->name('teacher.online_exams.show');
+    Route::get('teacher/online-exams/{exam}/edit', 'teacherEdit')->name('teacher.online_exams.edit');
+    Route::put('teacher/online-exams/{exam}', 'teacherUpdate')->name('teacher.online_exams.update');
+    Route::delete('teacher/online-exams/{exam}', 'teacherDestroy')->name('teacher.online_exams.destroy');
+
+    Route::get('teacher/online-exams/{exam}/preview', 'teacherPreview')->name('teacher.online_exams.preview');
+    Route::post('teacher/online-exams/{exam}/submit-review', 'teacherSubmitForReview')->name('teacher.online_exams.submit_review');
+    Route::post('teacher/online-exams/{exam}/publish', 'teacherPublish')->name('teacher.online_exams.publish');
+    Route::post('teacher/online-exams/{exam}/unpublish', 'teacherUnpublish')->name('teacher.online_exams.unpublish');
+    Route::post('teacher/online-exams/{exam}/cancel', 'teacherCancel')->name('teacher.online_exams.cancel');
+
+    Route::get('teacher/online-exams/{exam}/questions', 'teacherQuestions')->name('teacher.online_exams.questions.index');
+    Route::post('teacher/online-exams/{exam}/questions', 'teacherStoreQuestion')->name('teacher.online_exams.questions.store');
+    Route::put('teacher/online-exams/questions/{question}', 'teacherUpdateQuestion')->name('teacher.online_exams.questions.update');
+    Route::delete('teacher/online-exams/questions/{question}', 'teacherDeleteQuestion')->name('teacher.online_exams.questions.destroy');
+    Route::post('teacher/online-exams/{exam}/questions/reorder', 'teacherReorderQuestions')->name('teacher.online_exams.questions.reorder');
+
+    Route::get('teacher/online-exams/question-bank', 'teacherQuestionBank')->name('teacher.online_exams.question_bank');
+    Route::post('teacher/online-exams/{exam}/question-bank/import', 'teacherImportQuestion')->name('teacher.online_exams.question_bank.import');
+
+    Route::get('teacher/online-exams/{exam}/attempts', 'teacherAttempts')->name('teacher.online_exams.attempts');
+    Route::get('teacher/online-exams/{exam}/results', 'teacherResults')->name('teacher.online_exams.results');
+    Route::get('teacher/online-exams/marking/queue', 'teacherMarking')->name('teacher.online_exams.marking');
+    Route::post('teacher/online-exams/answers/{answer}/mark', 'teacherMarkAnswer')->name('teacher.online_exams.answers.mark');
+    Route::post('teacher/online-exams/results/{submission}/finalize', 'teacherFinalizeResult')->name('teacher.online_exams.results.finalize');
 });
 
 // ── Assignments (admin/teacher) ───────────────────────────────

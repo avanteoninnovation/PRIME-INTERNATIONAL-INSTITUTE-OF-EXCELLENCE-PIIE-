@@ -26,7 +26,12 @@
         </div>
 
         <div class="fpb-7">
-            <label for="subject_id_on_create" class="eForm-label">{{ get_phrase('Subject') }}</label>
+            <label for="subject_id_on_create" class="eForm-label">
+                {{ get_phrase('Subject') }}
+                <a href="{{ route('teacher.subject.create') }}" class="ms-1" title="{{ get_phrase('Add Subject') }}">
+                    <i class="bi bi-plus-circle"></i>
+                </a>
+            </label>
             <select class="form-select eForm-select eChoice-multiple-with-remove" id="subject_id_on_create" name="subject_id" requied>
                 <option>{{ get_phrase('Select a subject') }}</option>
             </select>

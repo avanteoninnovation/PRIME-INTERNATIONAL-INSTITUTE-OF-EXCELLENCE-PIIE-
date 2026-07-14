@@ -29,10 +29,17 @@ use App\Models\TeacherPermission;
 				}
 		    ?>
 		    <?php 
-		        $info = json_decode($teacher->user_information);
-		        $user_image = $info->photo;
-		        if(!empty($info->photo)){
-		            $user_image = 'uploads/user-images/'.$info->photo;
+		        $info = null;
+		        if (!empty($teacher->user_information)) {
+		            $decoded_info = json_decode($teacher->user_information);
+		            if (is_object($decoded_info)) {
+		                $info = $decoded_info;
+		            }
+		        }
+
+		        $photo = $info->photo ?? '';
+		        if(!empty($photo)){
+		            $user_image = 'uploads/user-images/'.$photo;
 		        }else{
 		            $user_image = 'uploads/user-images/thumbnail.png';
 		        }

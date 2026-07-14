@@ -80,23 +80,27 @@
 <script type="text/javascript">
 
     "use strict";
-    
-    $(document).ready(function () {
-      $(".eChoice-multiple-with-remove").select2();
-    });
 
-    $(function () {
-      $('.inputDate').daterangepicker(
-        {
-          singleDatePicker: true,
-          showDropdowns: true,
-          minYear: 1901,
-          maxYear: parseInt(moment().format("YYYY"), 10),
-        },
-        function (start, end, label) {
-          var years = moment().diff(start, "years");
+    if (window.jQuery) {
+      $(document).ready(function () {
+        if ($.fn.select2) {
+          $(".eChoice-multiple-with-remove").select2();
         }
-      );
-    });
+
+        if ($.fn.daterangepicker && window.moment) {
+          $('.inputDate').daterangepicker(
+            {
+              singleDatePicker: true,
+              showDropdowns: true,
+              minYear: 1901,
+              maxYear: parseInt(moment().format("YYYY"), 10),
+            },
+            function (start) {
+              moment().diff(start, "years");
+            }
+          );
+        }
+      });
+    }
 
 </script>

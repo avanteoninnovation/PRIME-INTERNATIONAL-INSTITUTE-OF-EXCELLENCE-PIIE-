@@ -13,6 +13,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use PDF;
 
 class TranscriptController extends Controller
 {
@@ -53,65 +54,79 @@ class TranscriptController extends Controller
 
     public function show($id)
     {
-        $student  = User::where('school_id', $this->school_id)->findOrFail($id);
+        return view('admin.transcripts.show', $this->buildTranscriptViewData($id));
+    }
+
+    public function downloadPdf($id)
+    {
+        $data = $this->buildTranscriptViewData($id);
+        $studentCode = preg_replace('/[^A-Za-z0-9_-]+/', '-', (string) ($data['student']->code ?: $data['student']->id));
+        $pdf = PDF::loadView('admin.transcripts.pdf', $data);
+
+        return $pdf->download('Transcript_' . trim($studentCode, '-') . '.pdf');
+    }
+
+    private function buildTranscriptViewData($id): array
+    {
+        $student = User::where('school_id', $this->school_id)->findOrFail($id);
         $school_id = $this->school_id;
 
-        // Get current session
-        $session_id = DB::table('sessions')->where('school_id', $school_id)->where('status', 1)->value('id');
+        $enrollment = Enrollment::where('user_id', $id)
+            ->where('school_id', $school_id)
+            ->latest()
+            ->first();
 
-        // Enrollment info
-        $enrollment = Enrollment::where('user_id', $id)->where('school_id', $school_id)->latest()->first();
-        $programme  = $enrollment?->class_id
+        $programme = $enrollment?->class_id
             ? Programme::whereHas('classes', fn($q) => $q->where('classes.id', $enrollment->class_id))->first()
             : null;
 
-        // All exam categories for this session
         $exam_categories = ExamCategory::where('school_id', $school_id)->get();
 
-        // Subjects for the student's class
         $subjects = $enrollment?->class_id
             ? Subject::where('class_id', $enrollment->class_id)->where('school_id', $school_id)->get()
             : collect();
 
-        // Marks per exam category
         $gradebook = [];
         if ($enrollment) {
             $raw = Gradebook::where('student_id', $id)
                 ->where('school_id', $school_id)
                 ->get();
-            foreach ($raw as $r) {
-                $marks_data = is_string($r->marks) ? json_decode($r->marks, true) : [];
-                $gradebook[$r->exam_category_id] = $marks_data ?? [];
+
+            foreach ($raw as $record) {
+                $marks_data = is_string($record->marks) ? json_decode($record->marks, true) : [];
+                $gradebook[$record->exam_category_id] = $marks_data ?? [];
             }
         }
 
-        // Grade scale for display
         $grades = Grade::where('school_id', $school_id)->orderByDesc('mark_from')->get();
 
-        // Calculate overall average
         $total_obtained = 0;
         $total_possible = 0;
         foreach ($gradebook as $cat_marks) {
-            if (is_array($cat_marks)) {
-                foreach ($cat_marks as $m) {
-                    $total_obtained += (float)($m['obtained'] ?? 0);
-                    $total_possible += (float)($m['total'] ?? 100);
-                }
+            if (!is_array($cat_marks)) {
+                continue;
+            }
+
+            foreach ($cat_marks as $mark) {
+                $total_obtained += (float) ($mark['obtained'] ?? 0);
+                $total_possible += (float) ($mark['total'] ?? 100);
             }
         }
+
         $overall_percent = $total_possible > 0 ? round($total_obtained / $total_possible * 100, 2) : 0;
-        $overall_grade   = $this->getGrade($overall_percent, $grades);
+        $overall_grade = $this->getGrade($overall_percent, $grades);
 
-        return view('admin.transcripts.show', compact(
-            'student', 'enrollment', 'programme', 'exam_categories',
-            'subjects', 'gradebook', 'grades', 'overall_percent', 'overall_grade'
-        ));
-    }
-
-    public function downloadPdf($id)
-    {
-        // Redirect to show with print parameter (use browser print for now)
-        return redirect()->route('admin.transcripts.show', $id)->with('print', true);
+        return compact(
+            'student',
+            'enrollment',
+            'programme',
+            'exam_categories',
+            'subjects',
+            'gradebook',
+            'grades',
+            'overall_percent',
+            'overall_grade'
+        );
     }
 
     private function getGrade(float $percent, $grades): ?Grade

@@ -18,7 +18,8 @@ class UpdateOnlineExamQuestionRequest extends FormRequest
             return false;
         }
 
-        $id = (int) ($this->route('question_id') ?? $this->route('id') ?? 0);
+        $questionParam = $this->route('question');
+        $id = (int) ($this->route('question_id') ?? $this->route('id') ?? (is_object($questionParam) ? ($questionParam->id ?? 0) : $questionParam) ?? 0);
         $this->question = OnlineExamQuestion::with('exam')->find($id);
         if (!$this->question) {
             return false;

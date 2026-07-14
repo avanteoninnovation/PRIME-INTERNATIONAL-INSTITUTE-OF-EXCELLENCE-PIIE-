@@ -88,13 +88,13 @@
                     <div class="tab-pane fade show active" id="pills-jHome" role="tabpanel"
                         aria-labelledby="pills-jHome-tab">
                         <div class="text name_title">
-                            <h4>{{ get_phrase('Name') }} : {{ $student_details->name }}</h4>
-                            <h4>{{ get_phrase('Class') }} : {{ null_checker($student_details->class_name) }}</h4>
-                            <h4>{{ get_phrase('Section') }} : {{ null_checker($student_details->section_name) }}</h4>
-                            <h4>{{ get_phrase('Parent') }} : {{ null_checker($student_details->parent_name) }}</h4>
+                            <h4>{{ get_phrase('Name') }} : {{ $student_details['name'] }}</h4>
+                            <h4>{{ get_phrase('Class') }} : {{ null_checker($student_details['class_name']) }}</h4>
+                            <h4>{{ get_phrase('Section') }} : {{ null_checker($student_details['section_name']) }}</h4>
+                            <h4>{{ get_phrase('Parent') }} : {{ null_checker($student_details['parent_name']) }}</h4>
                             <h4>{{ get_phrase('Blood') }} :
-                                {{ null_checker(strtoupper($student_details->blood_group)) }}</h4>
-                            <h4>{{ get_phrase('Contact') }} : {{ null_checker($student_details->phone) }}</h4>
+                                {{ null_checker(strtoupper($student_details['blood_group'] ?? '')) }}</h4>
+                            <h4>{{ get_phrase('Contact') }} : {{ null_checker($student_details['phone']) }}</h4>
                         </div>
                     </div>
                     <div class="tab-pane fade" id="pills-jProfile" role="tabpanel" aria-labelledby="pills-jProfile-tab">
@@ -124,11 +124,11 @@
                             <div class="row">
                                 <div class="col-lg-6">
                                     @php
-                                        $student_details = json_decode($student_details->student_info);
+                                        $student_info = json_decode($student_details['student_info'] ?? '');
                                     @endphp
                                     <ul>
-                                        @if(!empty($student_details))
-                                        @foreach ($student_details as $key => $student_detail)
+                                        @if(!empty($student_info))
+                                        @foreach ($student_info as $key => $student_detail)
                                             <h4>{{ ++$key }} . {{ $student_detail }}</h4>
                                         @endforeach
                                         @endif

@@ -24,7 +24,12 @@
         </div>
 
         <div class="fpb-7">
-            <label for="subject_id_on_syllabus_creation" class="eForm-label">{{ get_phrase('Subject') }}</label>
+            <label for="subject_id_on_syllabus_creation" class="eForm-label">
+                {{ get_phrase('Subject') }}
+                <a href="javascript:;" class="ms-1" title="{{ get_phrase('Add Subject') }}" onclick="rightModal('{{ route('admin.subject.open_modal') }}', '{{ get_phrase('Create Subject') }}')">
+                    <i class="bi bi-plus-circle"></i>
+                </a>
+            </label>
             <select name="subject_id" id = "subject_id_on_syllabus_creation" class="form-select eForm-select eChoice-multiple-with-remove"  required>
                 <option value="">{{ get_phrase('Select subject') }}</option>
             </select>

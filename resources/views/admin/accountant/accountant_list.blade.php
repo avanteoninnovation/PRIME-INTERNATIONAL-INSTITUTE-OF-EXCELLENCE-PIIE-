@@ -116,10 +116,10 @@
                 <tbody>
                     @foreach($accountants as $accountant)
                     <?php 
-                        $info = json_decode($accountant->user_information);
-                        $user_image = $info->photo;
-                        if(!empty($info->photo)){
-                            $user_image = 'uploads/user-images/'.$info->photo;
+                      $info = json_decode($accountant->user_information ?? '') ?: (object) [];
+                      $photo = $info->photo ?? '';
+                      if(!empty($photo)){
+                        $user_image = 'uploads/user-images/'.$photo;
                         }else{
                             $user_image = 'uploads/user-images/thumbnail.png';
                         }
@@ -152,9 +152,9 @@
                         </td>
                         <td>
                           <div class="dAdmin_info_name min-w-250px">
-                            <p><span>{{ get_phrase('Phone') }}:</span> {{ $info->phone }}</p>
+                            <p><span>{{ get_phrase('Phone') }}:</span> {{ $info->phone ?? '—' }}</p>
                             <p>
-                              <span>{{ get_phrase('Address') }}:</span> {{ $info->address }}
+                              <span>{{ get_phrase('Address') }}:</span> {{ $info->address ?? '—' }}
                             </p>
                           </div>
                         </td>
@@ -237,10 +237,10 @@
     <tbody>
         @foreach($accountants as $key => $accountant)
         <?php 
-            $info = json_decode($accountant->user_information);
-            $user_image = $info->photo;
-            if(!empty($info->photo)){
-                $user_image = 'uploads/user-images/'.$info->photo;
+          $info = json_decode($accountant->user_information ?? '') ?: (object) [];
+          $photo = $info->photo ?? '';
+          if(!empty($photo)){
+            $user_image = 'uploads/user-images/'.$photo;
             }else{
                 $user_image = 'uploads/user-images/thumbnail.png';
             }
@@ -273,9 +273,9 @@
             </td>
             <td>
               <div class="dAdmin_info_name min-w-250px">
-                <p><span>{{ get_phrase('Phone') }}:</span> {{ $info->phone }}</p>
+                <p><span>{{ get_phrase('Phone') }}:</span> {{ $info->phone ?? '—' }}</p>
                 <p>
-                  <span>{{ get_phrase('Address') }}:</span> {{ $info->address }}
+                  <span>{{ get_phrase('Address') }}:</span> {{ $info->address ?? '—' }}
                 </p>
               </div>
             </td>

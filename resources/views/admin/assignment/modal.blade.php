@@ -8,7 +8,11 @@
             <div class="fpb-7 mt-2"><label class="eForm-label">{{ get_phrase('Description') }}</label>
                 <textarea class="form-control eForm-control" name="description" rows="3">{{ $assignment->description ?? '' }}</textarea></div>
             <div class="row mt-2">
-                <div class="col-6 fpb-7"><label class="eForm-label">{{ get_phrase('Subject') }}</label>
+                <div class="col-6 fpb-7"><label class="eForm-label">{{ get_phrase('Subject') }}
+                        <a href="javascript:;" class="ms-1" title="{{ get_phrase('Add Subject') }}" onclick="rightModal('{{ route('admin.subject.open_modal') }}', '{{ get_phrase('Create Subject') }}')">
+                            <i class="bi bi-plus-circle"></i>
+                        </a>
+                    </label>
                     <select class="form-control eForm-control" name="subject_id">
                         <option value="">{{ get_phrase('Select Subject') }}</option>
                         @foreach($subjects as $s)

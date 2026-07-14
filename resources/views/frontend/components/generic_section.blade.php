@@ -50,10 +50,6 @@
                                     <img src="{{ asset('assets/uploads/website/'.$item->image) }}" 
                                          alt="{{ $item->title }}" 
                                          class="card-image">
-                                @else
-                                    <div style="width:100%; height:200px; background:linear-gradient(135deg, var(--light-bg), var(--lighter-bg)); border-radius:var(--radius-md); margin-bottom:16px; display:flex; align-items:center; justify-content:center; color:var(--text-light);">
-                                        <i class="fas fa-image" style="font-size:40px;"></i>
-                                    </div>
                                 @endif
                                 
                                 <!-- Item Badge -->
@@ -82,9 +78,9 @@
 
                                 <!-- Item Content Preview -->
                                 @if(!empty($item->content))
-                                    <p style="font-size:13px; color:var(--text-secondary); margin-bottom:12px; line-height:1.6;">
-                                        {{ substr($item->content, 0, 120) }}{{ strlen($item->content) > 120 ? '...' : '' }}
-                                    </p>
+                                    <div style="font-size:13px; color:var(--text-secondary); margin-bottom:12px; line-height:1.7;">
+                                        {!! nl2br(e($item->content)) !!}
+                                    </div>
                                 @endif
 
                                 <!-- Item Button -->
@@ -99,7 +95,7 @@
                     @endif
                 @endforeach
             </div>
-        @else
+        @elseif(empty($section->content) && empty($section->image))
             <div style="background:var(--light-bg); border:2px dashed var(--border-color); border-radius:var(--radius-lg); padding:40px; text-align:center; color:var(--text-secondary);">
                 <i class="fas fa-inbox" style="font-size:32px; margin-bottom:12px; opacity:0.5;"></i>
                 <p style="margin:0; font-size:15px;">No items added for this section yet.</p>

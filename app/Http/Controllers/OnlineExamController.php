@@ -11,7 +11,9 @@ use App\Models\OnlineExam;
 use App\Models\OnlineExamQuestion;
 use App\Models\OnlineExamSubmission;
 use App\Models\QuestionBank;
+use App\Models\Session;
 use App\Models\Subject;
+use App\Models\TeacherPermission;
 use App\Http\Requests\OnlineExam\CameraReadinessRequest;
 use App\Http\Requests\OnlineExam\ManualMarkAnswerRequest;
 use App\Http\Requests\OnlineExam\ProctoringEventRequest;
@@ -22,6 +24,8 @@ use App\Http\Requests\OnlineExam\StoreOnlineExamRequest;
 use App\Http\Requests\OnlineExam\SubmitOnlineExamRequest;
 use App\Http\Requests\OnlineExam\UpdateOnlineExamQuestionRequest;
 use App\Http\Requests\OnlineExam\UpdateOnlineExamRequest;
+use App\Support\Permissions\OnlineExamAuthorizer;
+use App\Support\Permissions\OnlineExamPermissionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -438,6 +442,692 @@ class OnlineExamController extends Controller
         });
 
         return response()->json(['status' => 'success', 'message' => get_phrase('Question added to bank')]);
+    }
+
+    // ── Teacher: online exams ─────────────────────────────────────────────
+
+    public function teacherIndex(Request $request)
+    {
+        $this->authorize('viewAny', OnlineExam::class);
+
+        $user = Auth::user();
+        $authorizer = app(OnlineExamAuthorizer::class);
+        $permissionService = app(OnlineExamPermissionService::class);
+        $canEditAll = $authorizer->can($user, 'edit_all_online_exams');
+        $assignedClassIds = $this->teacherAssignedClassIds((int) $user->id);
+
+        $query = OnlineExam::forSchool($this->school_id)
+            ->with(['subject', 'classRoom'])
+            ->withCount('questions', 'submissions');
+
+        if (!$canEditAll) {
+            $query->where(function ($q) use ($user, $assignedClassIds) {
+                $q->where('creator_id', $user->id)
+                    ->orWhere('created_by', $user->id);
+
+                if (!empty($assignedClassIds)) {
+                    $q->orWhereIn('class_id', $assignedClassIds);
+                }
+            });
+        }
+
+        $search = trim((string) $request->input('title', ''));
+        $subjectId = (int) $request->input('subject_id', 0);
+        $classId = (int) $request->input('class_id', 0);
+        $workflowState = trim((string) $request->input('workflow_state', ''));
+        $lifecycleState = trim((string) $request->input('lifecycle_state', ''));
+        $dateFrom = $request->input('date_from');
+        $dateTo = $request->input('date_to');
+        $tab = trim((string) $request->input('tab', ''));
+
+        $query->when($search !== '', function ($q) use ($search) {
+            $q->where('title', 'like', '%' . $search . '%');
+        });
+
+        if ($subjectId > 0) {
+            $query->where('subject_id', $subjectId);
+        }
+
+        if ($classId > 0) {
+            $query->where('class_id', $classId);
+        }
+
+        if ($workflowState !== '') {
+            $query->where('workflow_state', $workflowState);
+        }
+
+        if ($lifecycleState !== '') {
+            $this->applyLifecycleFilter($query, $lifecycleState);
+        }
+
+        if (!empty($dateFrom)) {
+            $query->whereDate('start_datetime', '>=', $dateFrom);
+        }
+
+        if (!empty($dateTo)) {
+            $query->whereDate('end_datetime', '<=', $dateTo);
+        }
+
+        if ($tab !== '') {
+            $this->applyTabFilter($query, $tab);
+        }
+
+        $exams = $query->latest()->paginate(20)->appends($request->all());
+
+        $subjects = $this->teacherAssignableSubjects((int) $user->id, $assignedClassIds);
+        $classes = $this->teacherAssignableClasses($assignedClassIds);
+        $sessions = Session::where('school_id', $this->school_id)->orderByDesc('id')->get();
+
+        return view('teacher.online_exam.index', compact(
+            'exams',
+            'subjects',
+            'classes',
+            'sessions',
+            'search',
+            'subjectId',
+            'classId',
+            'workflowState',
+            'lifecycleState',
+            'dateFrom',
+            'dateTo',
+            'tab',
+            'canEditAll'
+        ))->with([
+            'canPublish' => $permissionService->has($user, 'publish_online_exams'),
+            'canCreate' => $permissionService->has($user, 'create_online_exams'),
+            'canManageQuestions' => $permissionService->has($user, 'manage_exam_questions'),
+            'canMark' => $permissionService->has($user, 'mark_exam_answers'),
+        ]);
+    }
+
+    public function teacherCreate()
+    {
+        $this->authorize('create', OnlineExam::class);
+
+        $user = Auth::user();
+        $assignedClassIds = $this->teacherAssignedClassIds((int) $user->id);
+        $subjects = $this->teacherAssignableSubjects((int) $user->id, $assignedClassIds);
+        $classes = $this->teacherAssignableClasses($assignedClassIds);
+        $sessions = Session::where('school_id', $this->school_id)->orderByDesc('id')->get();
+
+        return view('teacher.online_exam.create', [
+            'exam' => null,
+            'subjects' => $subjects,
+            'classes' => $classes,
+            'sessions' => $sessions,
+            'structureLocked' => false,
+            'readinessErrors' => [],
+        ]);
+    }
+
+    public function teacherStore(StoreOnlineExamRequest $request)
+    {
+        $this->authorize('create', OnlineExam::class);
+
+        $user = Auth::user();
+        $validated = $request->validated();
+
+        $payload = [
+            'title' => $validated['title'],
+            'instructions' => $validated['instructions'] ?? null,
+            'subject_id' => $validated['subject_id'],
+            'class_id' => $validated['class_id'] ?? null,
+            'exam_type' => $validated['exam_type'],
+            'start_datetime' => $validated['start_datetime'],
+            'end_datetime' => $validated['end_datetime'],
+            'duration_mins' => (int) ($validated['duration_mins'] ?? 0),
+            'total_marks' => (int) $validated['total_marks'],
+            'pass_mark' => (int) $validated['pass_mark'],
+            'max_attempts' => (int) ($validated['max_attempts'] ?? 1),
+            'shuffle_questions' => (bool) ($validated['shuffle_questions'] ?? false),
+            'shuffle_options' => (bool) ($validated['shuffle_options'] ?? false),
+            'allow_previous_navigation' => (bool) ($validated['allow_previous_navigation'] ?? true),
+            'result_release_policy' => $validated['result_release_policy'] ?? 'immediate',
+            'webcam_required' => (bool) ($validated['webcam_required'] ?? false),
+            'fullscreen_required' => (bool) ($validated['fullscreen_required'] ?? false),
+            'auto_submit' => (bool) ($validated['auto_submit'] ?? true),
+            'workflow_state' => 'draft',
+            'is_published' => 0,
+            'school_id' => $this->school_id,
+            'created_by' => $user->id,
+            'creator_id' => $user->id,
+            'updater_id' => $user->id,
+        ];
+
+        $exam = DB::transaction(fn() => OnlineExam::create($payload));
+        AuditLog::record('create', 'Online Exams', "Teacher created exam: {$exam->title}");
+
+        return redirect()->route('teacher.online_exams.edit', $exam->id)->with('success', get_phrase('Exam created as draft.'));
+    }
+
+    public function teacherShow(OnlineExam $exam)
+    {
+        $this->authorize('view', $exam);
+        abort_unless((int) $exam->school_id === (int) $this->school_id, 404);
+
+        $exam->load([
+            'subject',
+            'classRoom',
+            'questions',
+            'submissions.student',
+        ]);
+
+        return view('teacher.online_exam.show', [
+            'exam' => $exam,
+            'structureLocked' => $exam->isStructurallyLocked(),
+            'readinessErrors' => $exam->publicationReadinessErrors(),
+        ]);
+    }
+
+    public function teacherEdit(OnlineExam $exam)
+    {
+        $this->authorize('update', $exam);
+        abort_unless((int) $exam->school_id === (int) $this->school_id, 404);
+
+        $user = Auth::user();
+        $assignedClassIds = $this->teacherAssignedClassIds((int) $user->id);
+        $subjects = $this->teacherAssignableSubjects((int) $user->id, $assignedClassIds);
+        $classes = $this->teacherAssignableClasses($assignedClassIds);
+        $sessions = Session::where('school_id', $this->school_id)->orderByDesc('id')->get();
+
+        return view('teacher.online_exam.edit', [
+            'exam' => $exam,
+            'subjects' => $subjects,
+            'classes' => $classes,
+            'sessions' => $sessions,
+            'structureLocked' => $exam->isStructurallyLocked(),
+            'readinessErrors' => $exam->publicationReadinessErrors(),
+        ]);
+    }
+
+    public function teacherUpdate(UpdateOnlineExamRequest $request, OnlineExam $exam)
+    {
+        $this->authorize('update', $exam);
+        abort_unless((int) $exam->school_id === (int) $this->school_id, 404);
+
+        $validated = $request->validated();
+
+        DB::transaction(function () use ($exam, $validated) {
+            $exam->update([
+                'title' => $validated['title'],
+                'instructions' => $validated['instructions'] ?? null,
+                'subject_id' => $validated['subject_id'],
+                'class_id' => $validated['class_id'] ?? null,
+                'exam_type' => $validated['exam_type'],
+                'start_datetime' => $validated['start_datetime'],
+                'end_datetime' => $validated['end_datetime'],
+                'duration_mins' => (int) ($validated['duration_mins'] ?? 0),
+                'total_marks' => (int) $validated['total_marks'],
+                'pass_mark' => (int) $validated['pass_mark'],
+                'max_attempts' => (int) ($validated['max_attempts'] ?? $exam->max_attempts),
+                'shuffle_questions' => (bool) ($validated['shuffle_questions'] ?? false),
+                'shuffle_options' => (bool) ($validated['shuffle_options'] ?? false),
+                'allow_previous_navigation' => (bool) ($validated['allow_previous_navigation'] ?? true),
+                'result_release_policy' => $validated['result_release_policy'] ?? 'immediate',
+                'webcam_required' => (bool) ($validated['webcam_required'] ?? false),
+                'fullscreen_required' => (bool) ($validated['fullscreen_required'] ?? false),
+                'auto_submit' => (bool) ($validated['auto_submit'] ?? true),
+                'updater_id' => Auth::id(),
+            ]);
+        });
+
+        AuditLog::record('update', 'Online Exams', "Teacher updated exam: {$exam->title}");
+        return redirect()->route('teacher.online_exams.edit', $exam->id)->with('success', get_phrase('Exam updated.'));
+    }
+
+    public function teacherDestroy(OnlineExam $exam)
+    {
+        $this->authorize('delete', $exam);
+        abort_unless((int) $exam->school_id === (int) $this->school_id, 404);
+
+        if (!in_array((string) $exam->workflow_state, ['draft', 'pending_review'], true)) {
+            return redirect()->back()->withErrors(['exam' => get_phrase('Only draft or pending review exams can be deleted.')]);
+        }
+
+        if ($exam->submissions()->exists()) {
+            return redirect()->back()->withErrors(['exam' => get_phrase('Cannot delete an exam that already has attempts.')]);
+        }
+
+        DB::transaction(function () use ($exam) {
+            $exam->questions()->delete();
+            $exam->delete();
+        });
+
+        AuditLog::record('delete', 'Online Exams', "Teacher deleted exam: {$exam->title}");
+        return redirect()->route('teacher.online_exams.index')->with('success', get_phrase('Exam deleted.'));
+    }
+
+    public function teacherPreview(OnlineExam $exam)
+    {
+        $this->authorize('view', $exam);
+        abort_unless((int) $exam->school_id === (int) $this->school_id, 404);
+
+        $questions = OnlineExamQuestion::forExam($exam->id)
+            ->ordered()
+            ->get()
+            ->map(function (OnlineExamQuestion $question) {
+                $question->correct_ans = null;
+                return $question;
+            });
+
+        return view('teacher.online_exam.preview', compact('exam', 'questions'));
+    }
+
+    public function teacherSubmitForReview(OnlineExam $exam)
+    {
+        $this->authorize('update', $exam);
+        abort_unless((int) $exam->school_id === (int) $this->school_id, 404);
+
+        $errors = $exam->publicationReadinessErrors();
+        if (!empty($errors)) {
+            return redirect()->back()->withErrors(['readiness' => implode(' ', $errors)]);
+        }
+
+        DB::transaction(function () use ($exam) {
+            $exam->update([
+                'workflow_state' => 'pending_review',
+                'is_published' => 0,
+                'reviewed_at' => now(),
+                'updater_id' => Auth::id(),
+            ]);
+        });
+
+        AuditLog::record('update', 'Online Exams', "Teacher submitted exam for review: {$exam->title}");
+        return redirect()->back()->with('success', get_phrase('Exam submitted for review.'));
+    }
+
+    public function teacherPublish(OnlineExam $exam)
+    {
+        $this->authorize('publish', $exam);
+        abort_unless((int) $exam->school_id === (int) $this->school_id, 404);
+
+        $errors = $exam->publicationReadinessErrors();
+        if (!empty($errors)) {
+            return redirect()->back()->withErrors(['readiness' => implode(' ', $errors)]);
+        }
+
+        DB::transaction(function () use ($exam) {
+            $exam->update([
+                'workflow_state' => 'published',
+                'is_published' => 1,
+                'reviewed_by' => Auth::id(),
+                'reviewed_at' => now(),
+                'updater_id' => Auth::id(),
+            ]);
+        });
+
+        AuditLog::record('update', 'Online Exams', "Teacher published exam: {$exam->title}");
+        return redirect()->back()->with('success', get_phrase('Exam published.'));
+    }
+
+    public function teacherUnpublish(OnlineExam $exam)
+    {
+        $this->authorize('unpublish', $exam);
+        abort_unless((int) $exam->school_id === (int) $this->school_id, 404);
+
+        if ($exam->submissions()->exists()) {
+            return redirect()->back()->withErrors(['exam' => get_phrase('Cannot unpublish an exam with attempts.')]);
+        }
+
+        DB::transaction(function () use ($exam) {
+            $exam->update([
+                'workflow_state' => 'draft',
+                'is_published' => 0,
+                'updater_id' => Auth::id(),
+            ]);
+        });
+
+        AuditLog::record('update', 'Online Exams', "Teacher unpublished exam: {$exam->title}");
+        return redirect()->back()->with('success', get_phrase('Exam unpublished.'));
+    }
+
+    public function teacherCancel(Request $request, OnlineExam $exam)
+    {
+        $this->authorize('cancel', $exam);
+        abort_unless((int) $exam->school_id === (int) $this->school_id, 404);
+
+        $validated = $request->validate([
+            'reason' => ['required', 'string', 'max:1000'],
+        ]);
+
+        DB::transaction(function () use ($exam, $validated) {
+            $exam->update([
+                'workflow_state' => 'cancelled',
+                'is_published' => 0,
+                'cancelled_at' => now(),
+                'cancellation_reason' => $validated['reason'],
+                'updater_id' => Auth::id(),
+            ]);
+        });
+
+        AuditLog::record('update', 'Online Exams', "Teacher cancelled exam: {$exam->title}");
+        return redirect()->back()->with('success', get_phrase('Exam cancelled.'));
+    }
+
+    public function teacherQuestions(OnlineExam $exam)
+    {
+        $this->authorize('manageQuestions', $exam);
+        abort_unless((int) $exam->school_id === (int) $this->school_id, 404);
+
+        $user = Auth::user();
+        $questions = OnlineExamQuestion::forExam($exam->id)->ordered()->get();
+        $bank = QuestionBank::visibleToTeacher((int) $user->id, $this->school_id)
+            ->when(!empty($exam->subject_id), fn($q) => $q->where('subject_id', $exam->subject_id))
+            ->latest('id')
+            ->limit(150)
+            ->get();
+
+        return view('teacher.online_exam.questions', [
+            'exam' => $exam,
+            'questions' => $questions,
+            'bank' => $bank,
+            'questionMarksTotal' => (int) $questions->sum('marks'),
+            'structureLocked' => $exam->isStructurallyLocked(),
+        ]);
+    }
+
+    public function teacherStoreQuestion(StoreOnlineExamQuestionRequest $request, OnlineExam $exam)
+    {
+        $this->authorize('manageQuestions', $exam);
+        abort_unless((int) $exam->school_id === (int) $this->school_id, 404);
+
+        $validated = $request->validated();
+
+        DB::transaction(function () use ($exam, $validated) {
+            $nextSort = ((int) OnlineExamQuestion::forExam($exam->id)->max('sort_order')) + 1;
+            OnlineExamQuestion::create([
+                'online_exam_id' => $exam->id,
+                'question' => $validated['question'],
+                'type' => $validated['type'],
+                'option_a' => $validated['option_a'] ?? null,
+                'option_b' => $validated['option_b'] ?? null,
+                'option_c' => $validated['option_c'] ?? null,
+                'option_d' => $validated['option_d'] ?? null,
+                'correct_ans' => $validated['correct_ans'] ?? null,
+                'marks' => $validated['marks'],
+                'sort_order' => $nextSort,
+            ]);
+        });
+
+        AuditLog::record('create', 'Online Exams', "Teacher added question in exam #{$exam->id}");
+        return redirect()->back()->with('success', get_phrase('Question added.'));
+    }
+
+    public function teacherUpdateQuestion(UpdateOnlineExamQuestionRequest $request, OnlineExamQuestion $question)
+    {
+        $question->loadMissing('exam');
+        abort_unless($question->exam && (int) $question->exam->school_id === (int) $this->school_id, 404);
+        $this->authorize('update', $question);
+
+        $validated = $request->validated();
+
+        DB::transaction(function () use ($question, $validated) {
+            $question->update([
+                'question' => $validated['question'],
+                'type' => $validated['type'],
+                'option_a' => $validated['option_a'] ?? null,
+                'option_b' => $validated['option_b'] ?? null,
+                'option_c' => $validated['option_c'] ?? null,
+                'option_d' => $validated['option_d'] ?? null,
+                'correct_ans' => $validated['correct_ans'] ?? null,
+                'marks' => $validated['marks'],
+            ]);
+        });
+
+        AuditLog::record('update', 'Online Exams', "Teacher updated question #{$question->id}");
+        return redirect()->back()->with('success', get_phrase('Question updated.'));
+    }
+
+    public function teacherDeleteQuestion(OnlineExamQuestion $question)
+    {
+        $question->loadMissing('exam');
+        abort_unless($question->exam && (int) $question->exam->school_id === (int) $this->school_id, 404);
+        $this->authorize('delete', $question);
+
+        DB::transaction(function () use ($question) {
+            $question->delete();
+        });
+
+        AuditLog::record('delete', 'Online Exams', "Teacher deleted question #{$question->id}");
+        return redirect()->back()->with('success', get_phrase('Question deleted.'));
+    }
+
+    public function teacherReorderQuestions(Request $request, OnlineExam $exam)
+    {
+        $this->authorize('manageQuestions', $exam);
+        abort_unless((int) $exam->school_id === (int) $this->school_id, 404);
+
+        if ($exam->isStructurallyLocked()) {
+            return redirect()->back()->withErrors(['questions' => get_phrase('Questions are locked after attempts have started.')]);
+        }
+
+        $validated = $request->validate([
+            'question_ids' => ['required', 'array', 'min:1'],
+            'question_ids.*' => ['required', 'integer'],
+        ]);
+
+        $allowedIds = OnlineExamQuestion::forExam($exam->id)->pluck('id')->map(fn($id) => (int) $id)->all();
+        foreach ($validated['question_ids'] as $questionId) {
+            if (!in_array((int) $questionId, $allowedIds, true)) {
+                return redirect()->back()->withErrors(['questions' => get_phrase('Invalid question order payload.')]);
+            }
+        }
+
+        DB::transaction(function () use ($validated) {
+            foreach ($validated['question_ids'] as $index => $questionId) {
+                OnlineExamQuestion::where('id', (int) $questionId)->update([
+                    'sort_order' => $index + 1,
+                ]);
+            }
+        });
+
+        AuditLog::record('update', 'Online Exams', "Teacher reordered questions in exam #{$exam->id}");
+        return redirect()->back()->with('success', get_phrase('Question order updated.'));
+    }
+
+    public function teacherQuestionBank(Request $request)
+    {
+        $user = Auth::user();
+        $permissionService = app(OnlineExamPermissionService::class);
+        abort_unless($permissionService->has($user, 'manage_exam_questions'), 403);
+
+        $assignedClassIds = $this->teacherAssignedClassIds((int) $user->id);
+        $search = trim((string) $request->input('search', ''));
+        $subjectId = (int) $request->input('subject_id', 0);
+
+        $query = QuestionBank::visibleToTeacher((int) $user->id, $this->school_id)
+            ->with('subject')
+            ->where(function ($q) use ($assignedClassIds) {
+                if (empty($assignedClassIds)) {
+                    $q->whereNull('subject_id');
+                    return;
+                }
+
+                $q->whereNull('subject_id')
+                    ->orWhereIn('subject_id', Subject::where('school_id', $this->school_id)
+                        ->whereIn('class_id', $assignedClassIds)
+                        ->pluck('id'));
+            });
+
+        $query->when($search !== '', function ($q) use ($search) {
+            $q->where('question', 'like', '%' . $search . '%');
+        });
+
+        if ($subjectId > 0) {
+            $query->where('subject_id', $subjectId);
+        }
+
+        $questions = $query->orderByDesc('id')->paginate(20)->appends($request->all());
+        $subjects = $this->teacherAssignableSubjects((int) $user->id, $assignedClassIds);
+
+        return view('teacher.online_exam.question_bank', compact('questions', 'subjects', 'search', 'subjectId'));
+    }
+
+    public function teacherImportQuestion(Request $request, OnlineExam $exam)
+    {
+        $this->authorize('manageQuestions', $exam);
+        abort_unless((int) $exam->school_id === (int) $this->school_id, 404);
+
+        if ($exam->isStructurallyLocked()) {
+            return redirect()->back()->withErrors(['questions' => get_phrase('Questions are locked after attempts have started.')]);
+        }
+
+        $validated = $request->validate([
+            'question_bank_ids' => ['required', 'array', 'min:1'],
+            'question_bank_ids.*' => ['required', 'integer', 'exists:question_banks,id'],
+        ]);
+
+        $user = Auth::user();
+        $bankQuestions = QuestionBank::visibleToTeacher((int) $user->id, $this->school_id)
+            ->whereIn('id', $validated['question_bank_ids'])
+            ->get();
+
+        $imported = 0;
+        DB::transaction(function () use ($exam, $bankQuestions, &$imported) {
+            $nextSort = ((int) OnlineExamQuestion::forExam($exam->id)->max('sort_order')) + 1;
+            foreach ($bankQuestions as $bankQuestion) {
+                OnlineExamQuestion::create([
+                    'online_exam_id' => $exam->id,
+                    'question_bank_id' => $bankQuestion->id,
+                    'question' => $bankQuestion->question,
+                    'type' => $bankQuestion->type,
+                    'option_a' => $bankQuestion->option_a,
+                    'option_b' => $bankQuestion->option_b,
+                    'option_c' => $bankQuestion->option_c,
+                    'option_d' => $bankQuestion->option_d,
+                    'correct_ans' => $bankQuestion->correct_ans,
+                    'marks' => $bankQuestion->marks,
+                    'sort_order' => $nextSort,
+                ]);
+                $nextSort++;
+                $imported++;
+            }
+        });
+
+        AuditLog::record('create', 'Online Exams', "Teacher imported {$imported} question(s) from bank into exam #{$exam->id}");
+        return redirect()->back()->with('success', get_phrase('Questions imported from bank.'));
+    }
+
+    public function teacherAttempts(OnlineExam $exam)
+    {
+        $this->authorize('viewAttempts', $exam);
+        abort_unless((int) $exam->school_id === (int) $this->school_id, 404);
+
+        $submissions = OnlineExamSubmission::where('online_exam_id', $exam->id)
+            ->where('school_id', $this->school_id)
+            ->with('student')
+            ->withCount('proctoringEvents')
+            ->orderByDesc('submitted_at')
+            ->paginate(30);
+
+        return view('teacher.online_exam.attempts', compact('exam', 'submissions'));
+    }
+
+    public function teacherResults(OnlineExam $exam)
+    {
+        $this->authorize('viewAttempts', $exam);
+        abort_unless((int) $exam->school_id === (int) $this->school_id, 404);
+
+        $submissions = OnlineExamSubmission::where('online_exam_id', $exam->id)
+            ->where('school_id', $this->school_id)
+            ->with('student')
+            ->orderByDesc('submitted_at')
+            ->paginate(30);
+
+        return view('teacher.online_exam.results', compact('exam', 'submissions'));
+    }
+
+    public function teacherMarking(Request $request)
+    {
+        $user = Auth::user();
+        $permissionService = app(OnlineExamPermissionService::class);
+        abort_unless($permissionService->has($user, 'mark_exam_answers'), 403);
+
+        $authorizer = app(OnlineExamAuthorizer::class);
+        $canEditAll = $authorizer->can($user, 'edit_all_online_exams');
+
+        $query = OnlineExamAnswer::query()
+            ->with(['submission.student', 'submission.exam', 'question'])
+            ->whereHas('submission', function ($submissionQ) use ($canEditAll, $user) {
+                $submissionQ->where('school_id', $this->school_id)
+                    ->whereHas('exam', function ($examQ) use ($canEditAll, $user) {
+                        if (!$canEditAll) {
+                            $examQ->where(function ($ownedQ) use ($user) {
+                                $ownedQ->where('creator_id', $user->id)
+                                    ->orWhere('created_by', $user->id);
+                            });
+                        }
+                    });
+            })
+            ->whereHas('question', function ($questionQ) {
+                $questionQ->whereIn('type', ['short', 'essay', 'fill_blank']);
+            });
+
+        $status = trim((string) $request->input('status', 'pending'));
+        if ($status === 'marked') {
+            $query->whereNotNull('awarded_marks');
+        } else {
+            $query->whereNull('awarded_marks');
+        }
+
+        $answers = $query->orderBy('id')->paginate(25)->appends($request->all());
+
+        return view('teacher.online_exam.marking', compact('answers', 'status'));
+    }
+
+    public function teacherMarkAnswer(ManualMarkAnswerRequest $request, OnlineExamAnswer $answer)
+    {
+        $answer->loadMissing(['submission.exam', 'question']);
+        abort_unless((int) $answer->submission->school_id === (int) $this->school_id, 404);
+        $this->authorize('mark', $answer);
+
+        if (!in_array($answer->question?->type, ['short', 'essay', 'fill_blank'], true)) {
+            return redirect()->back()->withErrors(['answer' => get_phrase('Only written answers can be manually marked.')]);
+        }
+
+        $validated = $request->validated();
+        DB::transaction(function () use ($answer, $validated) {
+            $answer->update([
+                'awarded_marks' => $validated['awarded_marks'],
+                'marked_by' => Auth::id(),
+                'marked_at' => now(),
+                'teacher_comment' => $validated['teacher_comment'] ?? null,
+            ]);
+
+            $this->recomputeSubmissionScore($answer->submission);
+        });
+
+        AuditLog::record('update', 'Online Exams', "Teacher marked answer #{$answer->id}");
+        return redirect()->back()->with('success', get_phrase('Answer marked.'));
+    }
+
+    public function teacherFinalizeResult(OnlineExamSubmission $submission)
+    {
+        $submission->loadMissing(['exam', 'answerRows.question']);
+        abort_unless((int) $submission->school_id === (int) $this->school_id, 404);
+        $this->authorize('grade', $submission);
+
+        $pendingManual = $submission->answerRows
+            ->filter(fn(OnlineExamAnswer $answer) => in_array($answer->question?->type, ['short', 'essay', 'fill_blank'], true))
+            ->filter(fn(OnlineExamAnswer $answer) => is_null($answer->awarded_marks))
+            ->count();
+
+        if ($pendingManual > 0) {
+            return redirect()->back()->withErrors(['submission' => get_phrase('Finalize is blocked until all written answers are marked.')]);
+        }
+
+        DB::transaction(function () use ($submission) {
+            $locked = OnlineExamSubmission::whereKey($submission->id)->lockForUpdate()->firstOrFail();
+            $this->recomputeSubmissionScore($locked);
+
+            $locked->update([
+                'status' => OnlineExamSubmission::STATUS_FINALIZED,
+                'submitted_via' => $locked->submitted_via ?: 'teacher',
+            ]);
+        });
+
+        AuditLog::record('update', 'Online Exams', "Teacher finalized result for submission #{$submission->id}");
+        return redirect()->back()->with('success', get_phrase('Result finalized.'));
     }
 
     // ── Student: take exam ─────────────────────────────────────────────────
@@ -966,6 +1656,109 @@ class OnlineExamController extends Controller
         $expected = strtolower(trim((string) $question->correct_ans));
         $given = strtolower(trim((string) $answer->selected_option));
         return $expected !== '' && $expected === $given;
+    }
+
+    private function teacherAssignedClassIds(int $teacherId): array
+    {
+        return TeacherPermission::where('teacher_id', $teacherId)
+            ->where('school_id', $this->school_id)
+            ->pluck('class_id')
+            ->filter()
+            ->map(fn($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function teacherAssignableSubjects(int $teacherId, array $assignedClassIds)
+    {
+        if (empty($assignedClassIds)) {
+            return collect();
+        }
+
+        return Subject::where('school_id', $this->school_id)
+            ->whereIn('class_id', $assignedClassIds)
+            ->orderBy('name')
+            ->get();
+    }
+
+    private function teacherAssignableClasses(array $assignedClassIds)
+    {
+        if (empty($assignedClassIds)) {
+            return collect();
+        }
+
+        return Classes::where('school_id', $this->school_id)
+            ->whereIn('id', $assignedClassIds)
+            ->orderBy('name')
+            ->get();
+    }
+
+    private function applyLifecycleFilter($query, string $lifecycleState): void
+    {
+        $now = now();
+        if ($lifecycleState === 'active') {
+            $query->where('workflow_state', 'published')
+                ->where(function ($q) use ($now) {
+                    $q->whereNull('start_datetime')->orWhere('start_datetime', '<=', $now);
+                })
+                ->where(function ($q) use ($now) {
+                    $q->whereNull('end_datetime')->orWhere('end_datetime', '>=', $now);
+                });
+            return;
+        }
+
+        if ($lifecycleState === 'completed') {
+            $query->where('workflow_state', 'published')
+                ->whereNotNull('end_datetime')
+                ->where('end_datetime', '<', $now);
+            return;
+        }
+
+        if ($lifecycleState === 'cancelled') {
+            $query->where('workflow_state', 'cancelled');
+        }
+    }
+
+    private function applyTabFilter($query, string $tab): void
+    {
+        $now = now();
+        if ($tab === 'drafts') {
+            $query->where('workflow_state', 'draft');
+            return;
+        }
+
+        if ($tab === 'pending_review') {
+            $query->where('workflow_state', 'pending_review');
+            return;
+        }
+
+        if ($tab === 'published') {
+            $query->where('workflow_state', 'published');
+            return;
+        }
+
+        if ($tab === 'active') {
+            $query->where('workflow_state', 'published')
+                ->where(function ($q) use ($now) {
+                    $q->whereNull('start_datetime')->orWhere('start_datetime', '<=', $now);
+                })
+                ->where(function ($q) use ($now) {
+                    $q->whereNull('end_datetime')->orWhere('end_datetime', '>=', $now);
+                });
+            return;
+        }
+
+        if ($tab === 'completed') {
+            $query->where('workflow_state', 'published')
+                ->whereNotNull('end_datetime')
+                ->where('end_datetime', '<', $now);
+            return;
+        }
+
+        if ($tab === 'cancelled') {
+            $query->where('workflow_state', 'cancelled');
+        }
     }
 
     private function findExamOrFail(int $examId): OnlineExam

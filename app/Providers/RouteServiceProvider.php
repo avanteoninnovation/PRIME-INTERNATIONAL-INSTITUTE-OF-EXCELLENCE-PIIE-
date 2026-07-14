@@ -51,8 +51,11 @@ class RouteServiceProvider extends ServiceProvider
 
 
 
-            if (DB::connection()->getDatabaseName() != 'db_name') {
-                if (Schema::hasTable('addons')) {
+            try {
+                $databaseName = DB::connection()->getDatabaseName();
+
+                // Skip optional addon route registration when DB is not configured yet.
+                if (!empty($databaseName) && $databaseName !== 'db_name' && $databaseName !== 'forge' && Schema::hasTable('addons')) {
                     if (addon_status('hr_management') == 1) {
                         Route::middleware('web')
                             ->namespace($this->namespace)
@@ -83,7 +86,7 @@ class RouteServiceProvider extends ServiceProvider
                             ->namespace($this->namespace)
                             ->group(base_path('routes/Addon/inventory_manager.php'));
                     }
-                    
+
                     if (addon_status('transport') == 1) {
                         Route::middleware('web')
                             ->namespace($this->namespace)
@@ -106,6 +109,8 @@ class RouteServiceProvider extends ServiceProvider
                         ->group(base_path('routes/Addon/assignment-routes.php'));
                     }
                 }
+            } catch (\Throwable $th) {
+                // Do not block core routes if addon metadata cannot be loaded.
             }
         });
     }

@@ -17,7 +17,8 @@ class ManualMarkAnswerRequest extends FormRequest
             return false;
         }
 
-        $answerId = (int) ($this->route('answer') ?? $this->input('answer_id') ?? 0);
+        $answerParam = $this->route('answer');
+        $answerId = (int) ((is_object($answerParam) ? ($answerParam->id ?? 0) : $answerParam) ?? $this->input('answer_id') ?? 0);
         $this->answer = OnlineExamAnswer::with(['question', 'submission.exam'])->find($answerId);
 
         return $this->answer && app(OnlineExamAuthorizer::class)->canMarkAnswer($user, $this->answer);

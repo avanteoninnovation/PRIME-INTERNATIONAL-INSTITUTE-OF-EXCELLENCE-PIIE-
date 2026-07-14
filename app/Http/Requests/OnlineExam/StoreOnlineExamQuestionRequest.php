@@ -18,7 +18,8 @@ class StoreOnlineExamQuestionRequest extends FormRequest
             return false;
         }
 
-        $examId = (int) ($this->route('id') ?? $this->route('exam_id') ?? 0);
+        $examParam = $this->route('exam');
+        $examId = (int) ($this->route('id') ?? $this->route('exam_id') ?? (is_object($examParam) ? ($examParam->id ?? 0) : $examParam) ?? 0);
         $this->exam = OnlineExam::find($examId);
         if (!$this->exam) {
             return false;

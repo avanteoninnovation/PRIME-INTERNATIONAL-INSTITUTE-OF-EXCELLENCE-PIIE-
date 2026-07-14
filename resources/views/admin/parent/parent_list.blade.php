@@ -115,14 +115,13 @@
                 <tbody>
                     @foreach($parents as $key => $parent)
                     <?php 
-                        $info = json_decode($parent->user_information);
-                        $user_image = $info->photo;
-                        if(!empty($info->photo)){
-                            $user_image = 'uploads/user-images/'.$info->photo;
-                        }else{
-                            $user_image = 'uploads/user-images/thumbnail.png';
-                        }
-                        $childs = DB::table('users')->where('parent_id', $parent->id)->get();
+                      $info = json_decode($parent->user_information ?? '') ?: (object) [];
+                      if (!empty($info->photo)) {
+                        $user_image = 'uploads/user-images/' . $info->photo;
+                      } else {
+                        $user_image = 'uploads/user-images/thumbnail.png';
+                      }
+                      $childs = DB::table('users')->where('parent_id', $parent->id)->get();
                     ?>
                       <tr>
                         <th scope="row">
@@ -153,9 +152,9 @@
                         </td>
                         <td>
                           <div class="dAdmin_info_name min-w-250px">
-                            <p><span>{{ get_phrase('Phone') }}:</span> {{ $info->phone }}</p>
+                            <p><span>{{ get_phrase('Phone') }}:</span> {{ $info->phone ?? '' }}</p>
                             <p>
-                              <span>{{ get_phrase('Address') }}:</span> {{ $info->address }}
+                              <span>{{ get_phrase('Address') }}:</span> {{ $info->address ?? '' }}
                             </p>
                           </div>
                         </td>
@@ -239,13 +238,12 @@
     <tbody>
         @foreach($parents as $key => $parent)
         <?php 
-            $info = json_decode($parent->user_information);
-            $user_image = $info->photo;
-            if(!empty($info->photo)){
-                $user_image = 'uploads/user-images/'.$info->photo;
-            }else{
-                $user_image = 'uploads/user-images/thumbnail.png';
-            }
+          $info = json_decode($parent->user_information ?? '') ?: (object) [];
+          if (!empty($info->photo)) {
+            $user_image = 'uploads/user-images/' . $info->photo;
+          } else {
+            $user_image = 'uploads/user-images/thumbnail.png';
+          }
         ?>
           <tr>
             <th scope="row">
@@ -275,9 +273,9 @@
             </td>
             <td>
               <div class="dAdmin_info_name min-w-250px">
-                <p><span>{{ get_phrase('Phone') }}:</span> {{ $info->phone }}</p>
+                <p><span>{{ get_phrase('Phone') }}:</span> {{ $info->phone ?? '' }}</p>
                 <p>
-                  <span>{{ get_phrase('Address') }}:</span> {{ $info->address }}
+                  <span>{{ get_phrase('Address') }}:</span> {{ $info->address ?? '' }}
                 </p>
               </div>
             </td>
