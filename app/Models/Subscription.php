@@ -17,4 +17,14 @@ class Subscription extends Model
     protected $fillable = [
         'package_id', 'school_id', 'paid_amount', 'payment_method', 'transaction_keys', 'expire_date', 'studentLimit', 'date_added', 'active', 'status'
     ];
+
+    public function school()
+    {
+        return $this->belongsTo(School::class, 'school_id');
+    }
+
+    public function package()
+    {
+        return $this->belongsTo(Package::class, 'package_id');
+    }
 }

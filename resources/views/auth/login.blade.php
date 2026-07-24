@@ -72,6 +72,34 @@
     display: block;
   }
 
+  /* ===== PASSWORD INPUT WITH TOGGLE ===== */
+  .password-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  .password-wrapper .login-input {
+    padding-right: 48px;
+  }
+
+  .password-toggle {
+    position: absolute;
+    right: 14px;
+    background: none;
+    border: none;
+    color: #6c8caa;
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 6px 4px;
+    transition: color 0.2s;
+    z-index: 2;
+  }
+
+  .password-toggle:hover {
+    color: #1a3c5e;
+  }
+
   .login-input {
     border: 1.5px solid #dce4ef;
     border-radius: 8px;
@@ -81,13 +109,53 @@
     color: #1a3c5e;
     background: #f5f8fc;
     box-sizing: border-box;
-    transition: border-color .2s;
+    transition: border-color .2s, background .2s;
     outline: none;
   }
 
   .login-input:focus {
     border-color: #1a3c5e;
     background: #fff;
+  }
+
+  /* ===== REMEMBER ME CHECKBOX ===== */
+  .form-options-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 12px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .remember-me {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.82rem;
+    color: #4a5a72;
+    cursor: pointer;
+  }
+
+  .remember-me input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: #1a3c5e;
+    cursor: pointer;
+    margin: 0;
+    flex-shrink: 0;
+  }
+
+  .forgot-link {
+    font-size: 0.78rem;
+    color: #6c8caa;
+    text-decoration: none;
+    transition: color 0.2s;
+  }
+
+  .forgot-link:hover {
+    color: #1a3c5e;
+    text-decoration: underline;
   }
 
   .quick-login-label {
@@ -159,6 +227,41 @@
     font-size: 0.82rem;
     color: #c0392b;
     margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* ===== SUCCESS MESSAGE ===== */
+  .success-msg {
+    background: #f0fff4;
+    border: 1px solid #b8e6c8;
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 0.82rem;
+    color: #1a7a3a;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* ===== RESPONSIVE ===== */
+  @media (max-width: 480px) {
+    .login-card {
+      padding: 32px 20px 28px;
+    }
+    .form-options-row {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+    .quick-login-grid {
+      gap: 6px;
+    }
+    .ql-btn {
+      font-size: 0.7rem;
+      padding: 4px 12px;
+    }
   }
 </style>
 
@@ -177,28 +280,60 @@
     {{-- Validation errors --}}
     @if ($errors->any())
       <div class="error-msg">
-        <i class="bi bi-exclamation-circle me-1"></i>
+        <i class="bi bi-exclamation-circle"></i>
         {{ $errors->first() }}
+      </div>
+    @endif
+
+    {{-- Success message (e.g., password reset) --}}
+    @if(session('success'))
+      <div class="success-msg">
+        <i class="bi bi-check-circle"></i>
+        {{ session('success') }}
+      </div>
+    @endif
+
+    {{-- Status message (e.g., account disabled) --}}
+    @if(session('status'))
+      <div class="error-msg">
+        <i class="bi bi-info-circle"></i>
+        {{ session('status') }}
       </div>
     @endif
 
     <form method="POST" action="{{ route('login') }}" id="loginForm">
       @csrf
 
+      {{-- Email --}}
       <div class="mb-3">
         <label class="login-label">Email</label>
         <input type="email" name="email" id="emailInput" class="login-input"
-               value="{{ old('email') }}" placeholder="Enter your email" required>
+               value="{{ old('email') }}" placeholder="Enter your email" required autofocus>
       </div>
 
+      {{-- Password with Show/Hide Toggle --}}
       <div class="mb-1">
         <label class="login-label">Password</label>
-        <input type="password" name="password" id="passwordInput" class="login-input"
-               placeholder="Enter your password" required>
+        <div class="password-wrapper">
+          <input type="password" name="password" id="passwordInput" class="login-input"
+                 placeholder="Enter your password" required>
+          <button type="button" class="password-toggle" id="togglePasswordBtn" 
+                  onclick="togglePasswordVisibility()" aria-label="Toggle password visibility">
+            <i class="bi bi-eye" id="passwordIcon"></i>
+          </button>
+        </div>
       </div>
 
-      <div class="text-end mt-1">
-        <a href="{{ route('password.request') }}" style="font-size:.78rem;color:#6c8caa;">Forgot password?</a>
+      {{-- Remember Me & Forgot Password --}}
+      <div class="form-options-row">
+        <label class="remember-me">
+          <input type="checkbox" name="remember" id="rememberCheckbox" 
+                 {{ old('remember') ? 'checked' : '' }}>
+          {{ get_phrase('Remember Me') }}
+        </label>
+        <a href="{{ route('password.request') }}" class="forgot-link">
+          {{ get_phrase('Forgot password?') }}
+        </a>
       </div>
 
       {{-- Quick Login Buttons --}}
@@ -228,14 +363,89 @@
 </div>
 
 <script>
+// ============================================================
+// 1. TOGGLE PASSWORD VISIBILITY
+// ============================================================
+function togglePasswordVisibility() {
+  const passwordInput = document.getElementById('passwordInput');
+  const icon = document.getElementById('passwordIcon');
+  
+  if (passwordInput.type === 'password') {
+    passwordInput.type = 'text';
+    icon.className = 'bi bi-eye-slash';
+  } else {
+    passwordInput.type = 'password';
+    icon.className = 'bi bi-eye';
+  }
+}
+
+// Allow toggling with keyboard (Enter/Space on the button)
+document.addEventListener('DOMContentLoaded', function() {
+  const toggleBtn = document.getElementById('togglePasswordBtn');
+  if (toggleBtn) {
+    toggleBtn.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        togglePasswordVisibility();
+      }
+    });
+  }
+});
+
+// ============================================================
+// 2. QUICK LOGIN
+// ============================================================
 function quickLogin(btn) {
   // Deactivate all buttons
-  document.querySelectorAll('.ql-btn').forEach(function(b){ b.classList.remove('active'); });
+  document.querySelectorAll('.ql-btn').forEach(function(b) {
+    b.classList.remove('active');
+  });
   // Activate clicked
   btn.classList.add('active');
-  // Fill form fields only — user clicks Sign In themselves
+  
+  // Fill form fields
   document.getElementById('emailInput').value = btn.dataset.email;
   document.getElementById('passwordInput').value = btn.dataset.password;
+  
+  // Optionally auto-submit (uncomment if you want instant login)
+  // document.getElementById('loginForm').submit();
 }
+
+// ============================================================
+// 3. REMEMBER ME - Auto-check if email exists in localStorage
+// ============================================================
+document.addEventListener('DOMContentLoaded', function() {
+  const rememberCheckbox = document.getElementById('rememberCheckbox');
+  const emailInput = document.getElementById('emailInput');
+  
+  // If there's a saved email, populate it and check the box
+  const savedEmail = localStorage.getItem('savedLoginEmail');
+  if (savedEmail) {
+    emailInput.value = savedEmail;
+    rememberCheckbox.checked = true;
+  }
+  
+  // When form is submitted, save or clear the email
+  document.getElementById('loginForm').addEventListener('submit', function() {
+    if (rememberCheckbox.checked) {
+      localStorage.setItem('savedLoginEmail', emailInput.value);
+    } else {
+      localStorage.removeItem('savedLoginEmail');
+    }
+  });
+});
+
+// ============================================================
+// 4. ENTER KEY SUPPORT - Works natively with form
+// ============================================================
+
+// ============================================================
+// 5. AUTO-FILL FOR DEVELOPMENT (Remove in production)
+// ============================================================
+// Uncomment below lines for quick testing
+// document.addEventListener('DOMContentLoaded', function() {
+//   document.getElementById('emailInput').value = 'superadmin@piie.test';
+//   document.getElementById('passwordInput').value = 'password123';
+// });
 </script>
 @endsection

@@ -1,463 +1,531 @@
-@extends('admin.navigation')
-   
+@extends('layouts.app')
+
 @section('content')
+<style>
+    /* ============================================ */
+    /* FIXED DASHBOARD STYLES - Text Not Cut Off    */
+    /* ============================================ */
 
-@php
-	$class_wise_attandance = array();
-	$total_student = 0;
-	$todays_total_attandance = 0;
-	$all_classes = DB::table('classes')->where('school_id', auth()->user()->school_id)->get();
-	$currently_session_id = DB::table('sessions')->where('status', 1)->value('id');
+    /* Dashboard Stats Cards */
+    .dashboard-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 16px;
+        margin-bottom: 24px;
+    }
 
-	foreach($all_classes as $class){
-		$total_student += DB::table('enrollments')->where('session_id', $currently_session_id)->where('class_id', $class->id)->where('school_id', auth()->user()->school_id)->get()->count();
+    .stat-card {
+        background: #ffffff;
+        border-radius: 12px;
+        padding: 18px 20px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        border-left: 4px solid #1a3a6b;
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: visible;
+    }
 
-		$start_date = strtotime(date('d M Y'));
-		$end_date = $start_date + 86400;
-		$today_attanded = DB::table('daily_attendances')->where('class_id', $class->id)->where('timestamp', '>=', $start_date)->where('timestamp', '<', $end_date)->get();
-		array_push($class_wise_attandance, array("class_name" => $class->name, "today_attended" => $today_attanded->count()));
-		$todays_total_attandance += $today_attanded->count();
-	}
-@endphp
+    .stat-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+    }
 
-	<!-- Mani section header and breadcrumb -->
-	<div class="mainSection-title">
-	<div class="row">
-	  <div class="col-12">
-	    <div
-	      class="d-flex justify-content-between align-items-center flex-wrap gr-15"
-	    >
-	      <div class="d-flex flex-column">
-	        <h4>{{ get_phrase('Dashboard') }}</h4>
-	        <ul class="d-flex align-items-center eBreadcrumb-2">
-	          <li><a href="#">{{ get_phrase('Home') }}</a></li>
-	          <li><a href="#">{{ get_phrase('Dashboard') }}</a></li>
-	        </ul>
-	      </div>
-	    </div>
-	  </div>
-	</div>
-	</div>
+    .stat-card .stat-number {
+        font-size: 24px;
+        font-weight: 700;
+        color: #1a2332;
+        margin-bottom: 2px;
+        display: block;
+    }
 
-	<!-- Start Alerts -->
-	<div class="row">
-	<div class="col-12">
-	  <div class="eSection-dashboardItems">
-	    <div class="row flex-wrap">
-	      <!-- Dashboard Short Details -->
-	      <div class="col-lg-6">
-	        <div class="dashboard_ShortListItems">
-	          <div class="row">
-	            <div class="col-md-6">
-	              <div class="dashboard_ShortListItem">
-	                <div
-	                  class="dsHeader d-flex justify-content-between align-items-center"
-	                >
-	                  <h5 class="title">{{ get_phrase('Students') }}</h5>
-	                  <a href="{{ route('admin.student') }}" class="ds_link ds_sutdent">
-	                    <svg
-	                      xmlns="http://www.w3.org/2000/svg"
-	                      width="10.146"
-	                      height="4.764"
-	                      viewBox="0 0 10.146 4.764"
-	                    >
-	                      <path
-	                        id="Read_more_icon"
-	                        data-name="Read more icon"
-	                        d="M11.337,5.978l-.84.84.941.947H3.573V8.955h7.865L10.5,9.9l.84.846L13.719,8.36Z"
-	                        transform="translate(-3.573 -5.978)"
-	                        fill="#000000"
-	                      />
-	                    </svg>
-	                  </a>
-	                </div>
-	                <div
-	                  class="dsBody d-flex justify-content-between align-items-center"
-	                >
-	                  <div class="ds_item_details">
-	                    <h4 class="total_no">{{ DB::table('users')->where('role_id', 7)->where('school_id', auth()->user()->school_id)->get()->count() }}</h4>
-	                    <p class="total_info">{{ get_phrase('Total Student') }}</p>
-	                  </div>
-	                  <div class="ds_item_icon">
-	                    <img
-	                      src="{{ asset('assets/images/Student_icon.png') }}"
-	                      alt=""
-	                    />
-	                  </div>
-	                </div>
-	              </div>
-	            </div>
-	            <div class="col-md-6">
-	              <div class="dashboard_ShortListItem">
-	                <div
-	                  class="dsHeader d-flex justify-content-between align-items-center"
-	                >
-	                  <h5 class="title">{{ get_phrase('Teacher') }}</h5>
-	                  <a href="{{ route('admin.teacher') }}" class="ds_link ds_teacher">
-	                    <svg
-	                      xmlns="http://www.w3.org/2000/svg"
-	                      width="10.146"
-	                      height="4.764"
-	                      viewBox="0 0 10.146 4.764"
-	                    >
-	                      <path
-	                        id="Read_more_icon"
-	                        data-name="Read more icon"
-	                        d="M11.337,5.978l-.84.84.941.947H3.573V8.955h7.865L10.5,9.9l.84.846L13.719,8.36Z"
-	                        transform="translate(-3.573 -5.978)"
-	                        fill="#000000"
-	                      />
-	                    </svg>
-	                  </a>
-	                </div>
-	                <div
-	                  class="dsBody d-flex justify-content-between align-items-center"
-	                >
-	                  <div class="ds_item_details">
-	                    <h4 class="total_no">{{ DB::table('users')->where('role_id', 3)->where('school_id', auth()->user()->school_id)->get()->count() }}</h4>
-	                    <p class="total_info">{{ get_phrase('Total Teacher') }}</p>
-	                  </div>
-	                  <div class="ds_item_icon">
-	                    <img
-	                      src="{{ asset('assets/images/Teacher_icon.png') }}"
-	                      alt=""
-	                    />
-	                  </div>
-	                </div>
-	              </div>
-	            </div>
-	            <div class="col-md-6">
-	              <div class="dashboard_ShortListItem">
-	                <div
-	                  class="dsHeader d-flex justify-content-between align-items-center"
-	                >
-	                  <h5 class="title">{{ get_phrase('Parents') }}</h5>
-	                  <a href="{{ route('admin.parent') }}" class="ds_link ds_parent">
-	                    <svg
-	                      xmlns="http://www.w3.org/2000/svg"
-	                      width="10.146"
-	                      height="4.764"
-	                      viewBox="0 0 10.146 4.764"
-	                    >
-	                      <path
-	                        id="Read_more_icon"
-	                        data-name="Read more icon"
-	                        d="M11.337,5.978l-.84.84.941.947H3.573V8.955h7.865L10.5,9.9l.84.846L13.719,8.36Z"
-	                        transform="translate(-3.573 -5.978)"
-	                        fill="#000000"
-	                      />
-	                    </svg>
-	                  </a>
-	                </div>
-	                <div
-	                  class="dsBody d-flex justify-content-between align-items-center"
-	                >
-	                  <div class="ds_item_details">
-	                    <h4 class="total_no">{{ DB::table('users')->where('role_id', 6)->where('school_id', auth()->user()->school_id)->get()->count() }}</h4>
-	                    <p class="total_info">{{ get_phrase('Total Parent') }}</p>
-	                  </div>
-	                  <div class="ds_item_icon">
-	                    <img
-	                      src="{{ asset('assets/images/Parents_icon.png') }}"
-	                      alt=""
-	                    />
-	                  </div>
-	                </div>
-	              </div>
-	            </div>
-	            <div class="col-md-6">
-	              <div class="dashboard_ShortListItem">
-	                <div
-	                  class="dsHeader d-flex justify-content-between align-items-center"
-	                >
-	                  <h5 class="title">{{ get_phrase('Staff') }}</h5>
-	                </div>
-	                <div
-	                  class="dsBody d-flex justify-content-between align-items-center"
-	                >
-	                  <div class="ds_item_details">
-	                  	@php $admin = DB::table('users')->where('role_id', 2)->where('school_id', auth()->user()->school_id)->get()->count() @endphp
-	                  	@php $teacher = DB::table('users')->where('role_id', 3)->where('school_id', auth()->user()->school_id)->get()->count() @endphp
-						@php $accountant = DB::table('users')->where('role_id', 4)->where('school_id', auth()->user()->school_id)->get()->count() @endphp
-						@php $librarian = DB::table('users')->where('role_id', 5)->where('school_id', auth()->user()->school_id)->get()->count() @endphp
-	                    <h4 class="total_no">{{ $admin + $teacher + $accountant + $librarian }}</h4>
-	                    <p class="total_info">{{ get_phrase('Total Staff') }}</p>
-	                  </div>
-	                  <div class="ds_item_icon">
-	                    <img
-	                      src="{{ asset('assets/images/Staff_icon.png') }}"
-	                      alt=""
-	                    />
-	                  </div>
-	                </div>
-	              </div>
-	            </div>
-	          </div>
-	        </div>
-	      </div>
-	      <!-- Attendance -->
-	      <div class="col-lg-6">
-	        <div class="dashboard_report dashboard_attendance">
-	          <div class="ds_report_header d-flex justify-content-between align-items-start">
-	            <div class="ds_report_left">
-	              <h4 class="title">{{ get_phrase('Todays Attendance') }}</h4>
-	              <div
-	                class="ds_report_count d-flex align-items-center"
-	              >
-	                <span class="total_no">{{ $todays_total_attandance }}</span>
-	                <div class="ds_attend_percent">
-	                  <div class="icon">
-	                    <svg
-	                      xmlns="http://www.w3.org/2000/svg"
-	                      width="16.507"
-	                      height="10.25"
-	                      viewBox="0 0 16.507 10.25"
-	                    >
-	                      <g
-	                        id="Group_2395"
-	                        data-name="Group 2395"
-	                        transform="translate(-343.381 -436.505)"
-	                      >
-	                        <path
-	                          id="Path_1631"
-	                          data-name="Path 1631"
-	                          d="M0,4.347l4.83-3.26L6.279,5.072,12.076,0"
-	                          transform="matrix(0.998, -0.07, 0.07, 0.998, 344.122, 440.793)"
-	                          fill="none"
-	                          stroke="#fff"
-	                          stroke-linecap="round"
-	                          stroke-width="1"
-	                        />
-	                        <g
-	                          id="Polygon_2"
-	                          data-name="Polygon 2"
-	                          transform="matrix(0.643, 0.766, -0.766, 0.643, 356.596, 436.505)"
-	                          fill="#fff"
-	                        >
-	                          <path
-	                            d="M 4.187728404998779 3.341484308242798 L 0.9342562556266785 3.341484308242798 L 2.560992240905762 0.9013835787773132 L 4.187728404998779 3.341484308242798 Z"
-	                            stroke="none"
-	                          />
-	                          <path
-	                            d="M 2.560992240905762 1.802777767181396 L 1.868520259857178 2.841484546661377 L 3.253464221954346 2.841484546661377 L 2.560992240905762 1.802777767181396 M 2.560992240905762 4.529953002929688e-06 L 5.121982097625732 3.841484308242798 L 2.384185791015625e-06 3.841484308242798 L 2.560992240905762 4.529953002929688e-06 Z"
-	                            stroke="none"
-	                            fill="#fff"
-	                          />
-	                        </g>
-	                      </g>
-	                    </svg>
-	                  </div>
-	                  @if($total_student > 0)
-	                  	<span>{{ (100 / $total_student) * $todays_total_attandance }}%</span>
-	                  @else
-	                  <span>0%</span>
-	                  @endif
-	                </div>
-	              </div>
-	            </div>
-	            <a href="{{ route('admin.daily_attendance') }}" class="all_report_btn">{{ get_phrase('Go to Attendance') }}</a>
-	          </div>
-	          <div class="ds_report_list">
-				<div id="chartdiv" class="chartdiv"></div>
-			  </div>
-	        </div>
-	      </div>
-	      <!-- Imcome Report -->
+    .stat-card .stat-label {
+        font-size: 12px;
+        color: #6c757d;
+        font-weight: 500;
+        display: block;
+        white-space: normal;
+        word-wrap: break-word;
+    }
 
-		  @php
-		  	$total_income = 0;
-		  	$first_day_of_this_month = strtotime(date('1 M Y', time()));
-		  	$last_day_of_this_month = strtotime(date('Y-m-t', time()));
-			$monthly_incomes = DB::table('student_fee_managers')->where('school_id', auth()->user()->school_id)->where('status', 'paid')->where('timestamp', '>=', $first_day_of_this_month)->where('timestamp', '<=', $last_day_of_this_month)->get();
-			foreach($monthly_incomes as $monthly_income):
-				$total_income += $monthly_income->total_amount;
-			endforeach;
-		  @endphp
+    .stat-card .stat-icon {
+        position: absolute;
+        right: 14px;
+        top: 50%;
+        transform: translateY(-50%);
+        font-size: 28px;
+        opacity: 0.08;
+        color: #1a3a6b;
+    }
 
-	      <div class="col-lg-7 col-md-6">
-	        <div class="dashboard_report dashboard_income_report">
-	          <div
-	            class="ds_report_header d-flex justify-content-between align-items-start"
-	          >
-	            <div class="ds_report_left">
-	              <h4 class="title">{{ get_phrase('Income Report') }}</h4>
-	              <div
-	                class="ds_report_count d-flex align-items-center"
-	              >
-	                <span class="total_no">{{ currency($total_income) }}</span>
-	              </div>
-	            </div>
-	            <div class="verticalMenu">
-	              <button
-	                type="button"
-	                class="eBtn dropdown-toggle"
-	                data-bs-toggle="dropdown"
-	                aria-expanded="false"
-	              >
-	                <svg
-	                  xmlns="http://www.w3.org/2000/svg"
-	                  width="5"
-	                  height="20.999"
-	                  viewBox="0 0 5 20.999"
-	                >
-	                  <path
-	                    id="Union_6"
-	                    data-name="Union 6"
-	                    d="M-4856,309.5a2.5,2.5,0,0,1,2.5-2.5,2.5,2.5,0,0,1,2.5,2.5,2.5,2.5,0,0,1-2.5,2.5A2.5,2.5,0,0,1-4856,309.5Zm0-8a2.5,2.5,0,0,1,2.5-2.5,2.5,2.5,0,0,1,2.5,2.5,2.5,2.5,0,0,1-2.5,2.5A2.5,2.5,0,0,1-4856,301.5Zm0-8a2.5,2.5,0,0,1,2.5-2.5,2.5,2.5,0,0,1,2.5,2.5,2.5,2.5,0,0,1-2.5,2.5A2.5,2.5,0,0,1-4856,293.5Z"
-	                    transform="translate(4856 -291)"
-	                    fill="#cffbe3"
-	                  />
-	                </svg>
-	              </button>
-	              <ul
-	                class="dropdown-menu dropdown-menu-end eDropdown-menu-2"
-	              >
-	                <li><a class="dropdown-item" href="#">{{ get_phrase('Year') }}</a></li>
-	                <li><a class="dropdown-item" href="#">{{ get_phrase('Month') }}</a></li>
-	                <li><a class="dropdown-item" href="#">{{ get_phrase('Week') }}</a></li>
-	              </ul>
-	            </div>
-	          </div>
-	          <div class="ds_report_list"></div>
-	        </div>
-	      </div>
-	      <!-- Upcoming Events -->
-	      <div class="col-lg-5 col-md-6">
-	        <div class="dashboard_report dashboard_upcoming_events">
-	          <div
-	            class="ds_report_header d-flex justify-content-between align-items-start"
-	          >
-	            <div class="ds_report_left">
-	              <h4 class="title">{{ get_phrase('Upcoming Events') }}</h4>
-	            </div>
-	            
-	          </div>
-	          <div class="ds_report_list pt-38">
-	            <ul class="upcoming_events_items d-flex flex-column">
+    .stat-card.blue { border-left-color: #1a3a6b; }
+    .stat-card.gold { border-left-color: #c8860a; }
+    .stat-card.green { border-left-color: #198754; }
+    .stat-card.red { border-left-color: #dc3545; }
+    .stat-card.purple { border-left-color: #6f42c1; }
+    .stat-card.teal { border-left-color: #20c997; }
 
-					@php $upcoming_events = DB::table('frontend_events')->where('school_id', auth()->user()->school_id)->where('timestamp', '>', time())->where('status', 1)->take(3)->orderBy('id', 'DESC')->get(); @endphp
-					@foreach($upcoming_events as $upcoming_event)
-					<li>
-						<div
-						class="upcoming_events_item d-flex justify-content-between align-items-start"
-						>
-						<div class="events_info">
-							<a href="#" class="title">{{ $upcoming_event->title }}</a>
-							<p class="date">{{ date('D, M d Y', $upcoming_event->timestamp) }}</p>
-						</div>
-						
-						</div>
-					</li>
-					@endforeach
-	            </ul>
-	            <div class="text-end">
-	              <a href="{{route('admin.events.list')}}" class="all_report_btn_2">{{ get_phrase('See all') }}</a>
-	            </div>
-	          </div>
-	        </div>
-	      </div>
-	    </div>
-	  </div>
-	</div>
-	</div>
+    .stat-card.blue .stat-icon { color: #1a3a6b; }
+    .stat-card.gold .stat-icon { color: #c8860a; }
+    .stat-card.green .stat-icon { color: #198754; }
+    .stat-card.red .stat-icon { color: #dc3545; }
+    .stat-card.purple .stat-icon { color: #6f42c1; }
+    .stat-card.teal .stat-icon { color: #20c997; }
 
+    /* Card Styles */
+    .card-dashboard {
+        background: #ffffff;
+        border-radius: 12px;
+        border: 1px solid #e9ecef;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+        margin-bottom: 20px;
+        overflow: visible;
+    }
 
-<!-- Resources -->
-<script src="{{asset('assets/amchart/index.js')}}"></script>
-<script src="{{asset('assets/amchart/xy.js')}}"></script>
-<script src="{{asset('assets/amchart/animated.js')}}"></script>
+    .card-dashboard .card-header {
+        padding: 14px 18px;
+        border-bottom: 1px solid #e9ecef;
+        background: #fafbfc;
+        font-weight: 600;
+        font-size: 14px;
+        color: #1a2332;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
 
-<!-- Chart code -->
-<script>
-"use strict";
+    .card-dashboard .card-body {
+        padding: 16px 18px;
+        overflow: visible;
+    }
 
-am5.ready(function() {
+    /* Badge Status */
+    .badge-status {
+        padding: 2px 10px;
+        border-radius: 12px;
+        font-size: 10px;
+        font-weight: 600;
+        display: inline-block;
+        white-space: nowrap;
+    }
 
-// Create root element
-var root = am5.Root.new("chartdiv");
+    .badge-status.active { background: #d1f5e0; color: #198754; }
+    .badge-status.inactive { background: #fce4e4; color: #842029; }
 
+    /* School Item */
+    .school-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 0;
+        border-bottom: 1px solid #f5f5f5;
+        overflow: visible;
+    }
 
-// Set themes
-root.setThemes([
-  am5themes_Animated.new(root)
-]);
+    .school-item:last-child {
+        border-bottom: none;
+    }
 
+    .school-item .school-avatar {
+        width: 36px;
+        height: 36px;
+        border-radius: 8px;
+        background: #1a3a6b;
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 14px;
+        flex-shrink: 0;
+    }
 
-// Create chart
-var chart = root.container.children.push(am5xy.XYChart.new(root, {
-  panX: true,
-  panY: true,
-  wheelX: "panX",
-  wheelY: "zoomX",
-  pinchZoomX:true
-}));
+    .school-item .school-info {
+        flex: 1;
+        min-width: 0;
+    }
 
-// Add cursor
-var cursor = chart.set("cursor", am5xy.XYCursor.new(root, {}));
-cursor.lineY.set("visible", false);
+    .school-item .school-info .school-name {
+        font-weight: 600;
+        color: #1a2332;
+        font-size: 13px;
+        white-space: normal;
+        word-wrap: break-word;
+    }
 
+    .school-item .school-info .school-details {
+        font-size: 11px;
+        color: #6c757d;
+        white-space: normal;
+        word-wrap: break-word;
+    }
 
-// Create axes
-var xRenderer = am5xy.AxisRendererX.new(root, { minGridDistance: 30 });
-xRenderer.labels.template.setAll({
-  rotation: -90,
-  centerY: am5.p50,
-  centerX: am5.p100,
-  paddingRight: 15
-});
+    /* Event Item */
+    .event-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 0;
+        border-bottom: 1px solid #f5f5f5;
+    }
 
-var xAxis = chart.xAxes.push(am5xy.CategoryAxis.new(root, {
-  maxDeviation: 0.3,
-  categoryField: "class_name",
-  renderer: xRenderer,
-  tooltip: am5.Tooltip.new(root, {})
-}));
+    .event-item:last-child {
+        border-bottom: none;
+    }
 
-var yAxis = chart.yAxes.push(am5xy.ValueAxis.new(root, {
-  maxDeviation: 0.3,
-  renderer: am5xy.AxisRendererY.new(root, {})
-}));
+    .event-item .event-date {
+        min-width: 40px;
+        font-size: 11px;
+        color: #6c757d;
+        text-align: center;
+        line-height: 1.3;
+    }
 
+    .event-item .event-date .day {
+        font-size: 18px;
+        font-weight: 700;
+        color: #1a2332;
+        display: block;
+    }
 
-// Create series
-var series = chart.series.push(am5xy.ColumnSeries.new(root, {
-  name: "Series 1",
-  xAxis: xAxis,
-  yAxis: yAxis,
-  valueYField: "today_attended",
-  sequencedInterpolation: true,
-  categoryXField: "class_name",
-  tooltip: am5.Tooltip.new(root, {
-    labelText:"{valueY}"
-  })
-}));
+    .event-item .event-info {
+        flex: 1;
+        min-width: 0;
+    }
 
-series.columns.template.setAll({ cornerRadiusTL: 5, cornerRadiusTR: 5 });
-series.columns.template.adapters.add("fill", function(fill, target) {
-  return chart.get("colors").getIndex(series.columns.indexOf(target));
-});
+    .event-item .event-info .title {
+        font-weight: 500;
+        color: #1a2332;
+        font-size: 13px;
+        white-space: normal;
+        word-wrap: break-word;
+    }
 
-series.columns.template.adapters.add("stroke", function(stroke, target) {
-  return chart.get("colors").getIndex(series.columns.indexOf(target));
-});
+    .event-item .event-info .meta {
+        font-size: 11px;
+        color: #6c757d;
+    }
 
+    /* Table */
+    .table-superadmin {
+        width: 100%;
+        font-size: 13px;
+        border-collapse: collapse;
+    }
 
-// Set data
-var data = <?php echo json_encode($class_wise_attandance); ?>;
+    .table-superadmin thead th {
+        background: #f8f9fa;
+        padding: 10px 14px;
+        text-align: left;
+        font-weight: 600;
+        color: #1a2332;
+        border-bottom: 2px solid #e9ecef;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        white-space: nowrap;
+    }
 
-xAxis.data.setAll(data);
-series.data.setAll(data);
+    .table-superadmin tbody td {
+        padding: 10px 14px;
+        border-bottom: 1px solid #f0f0f0;
+        vertical-align: middle;
+        color: #495057;
+        white-space: normal;
+        word-wrap: break-word;
+    }
 
+    .table-superadmin tbody tr:hover {
+        background: #f8f9fa;
+    }
 
-// Make stuff animate on load
-// https://www.amcharts.com/docs/v5/concepts/animations/
-series.appear(1000);
-chart.appear(1000, 100);
+    /* Two Column Layout */
+    .row-two {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+        margin-bottom: 24px;
+    }
 
-}); // end am5.ready()
-</script>
+    @media (max-width: 992px) {
+        .row-two {
+            grid-template-columns: 1fr;
+        }
+    }
 
-<!-- HTML -->
+    @media (max-width: 768px) {
+        .dashboard-stats {
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+        .stat-card {
+            padding: 14px 16px;
+        }
+        .stat-card .stat-number {
+            font-size: 20px;
+        }
+    }
 
+    @media (max-width: 480px) {
+        .dashboard-stats {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    /* Section Header */
+    .section-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 20px;
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+
+    .section-header .section-title {
+        font-size: 20px;
+        font-weight: 700;
+        color: #1a2332;
+        margin: 0;
+    }
+
+    .section-header .section-title small {
+        font-size: 14px;
+        font-weight: 400;
+        color: #6c757d;
+        display: block;
+        margin-top: 2px;
+    }
+
+    .btn-primary-custom {
+        padding: 8px 18px;
+        border-radius: 8px;
+        border: none;
+        background: #1a3a6b;
+        color: #ffffff;
+        font-weight: 500;
+        font-size: 13px;
+        transition: all 0.3s ease;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .btn-primary-custom:hover {
+        background: #0d1f3c;
+        color: #ffffff;
+        text-decoration: none;
+    }
+
+    .btn-outline-primary-custom {
+        padding: 8px 18px;
+        border-radius: 8px;
+        border: 1.5px solid #1a3a6b;
+        background: transparent;
+        color: #1a3a6b;
+        font-weight: 500;
+        font-size: 13px;
+        transition: all 0.3s ease;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .btn-outline-primary-custom:hover {
+        background: #1a3a6b;
+        color: #ffffff;
+        text-decoration: none;
+    }
+</style>
+
+<div class="container-fluid">
+
+    <!-- ============================================ -->
+    <!-- WELCOME SECTION                             -->
+    <!-- ============================================ -->
+    <div class="section-header">
+        <div>
+            <h1 class="section-title">
+                Dashboard
+                <small>Home - Dashboard</small>
+            </h1>
+        </div>
+        <div class="section-actions">
+            <a href="{{ route('superadmin.school.add') }}" class="btn-primary-custom">
+                <i class="fas fa-plus"></i> Add School
+            </a>
+            <a href="{{ route('superadmin.package') }}" class="btn-outline-primary-custom">
+                <i class="fas fa-cube"></i> Packages
+            </a>
+        </div>
+    </div>
+
+    <!-- ============================================ -->
+    <!-- STATS CARDS                                 -->
+    <!-- ============================================ -->
+    <div class="dashboard-stats">
+        <div class="stat-card blue">
+            <span class="stat-number">{{ $totalSchools ?? 0 }}</span>
+            <span class="stat-label">Total Schools</span>
+            <i class="fas fa-school stat-icon"></i>
+        </div>
+
+        <div class="stat-card gold">
+            <span class="stat-number">{{ $activeSchools ?? 0 }}</span>
+            <span class="stat-label">Active Schools</span>
+            <i class="fas fa-check-circle stat-icon"></i>
+        </div>
+
+        <div class="stat-card green">
+            <span class="stat-number">{{ $totalAdmins ?? 0 }}</span>
+            <span class="stat-label">Total Admins</span>
+            <i class="fas fa-user-shield stat-icon"></i>
+        </div>
+
+        <div class="stat-card purple">
+            <span class="stat-number">{{ $totalSubscriptions ?? 0 }}</span>
+            <span class="stat-label">Active Subscriptions</span>
+            <i class="fas fa-crown stat-icon"></i>
+        </div>
+
+        <div class="stat-card red">
+            <span class="stat-number">{{ $pendingRequests ?? 0 }}</span>
+            <span class="stat-label">Pending Requests</span>
+            <i class="fas fa-clock stat-icon"></i>
+        </div>
+
+        <div class="stat-card teal">
+            <span class="stat-number">UGX {{ number_format($totalRevenue ?? 0) }}</span>
+            <span class="stat-label">Total Revenue</span>
+            <i class="fas fa-coins stat-icon"></i>
+        </div>
+    </div>
+
+    <!-- ============================================ -->
+    <!-- TWO COLUMN LAYOUT                           -->
+    <!-- ============================================ -->
+    <div class="row-two">
+
+        <!-- ============================================ -->
+        <!-- LEFT COLUMN - Recent Schools                 -->
+        <!-- ============================================ -->
+        <div class="card-dashboard">
+            <div class="card-header">
+                <span><i class="fas fa-school" style="color: #1a3a6b; margin-right: 8px;"></i>Recent Schools</span>
+                <a href="{{ route('superadmin.school.list') }}" style="font-size: 12px; color: #1a3a6b; text-decoration: none; font-weight: 500;">View All →</a>
+            </div>
+            <div class="card-body">
+                @if(isset($recentSchools) && count($recentSchools) > 0)
+                    @foreach($recentSchools as $school)
+                    <div class="school-item">
+                        <div class="school-avatar">{{ substr($school->title ?? 'S', 0, 2) }}</div>
+                        <div class="school-info">
+                            <div class="school-name">{{ $school->title ?? 'School Name' }}</div>
+                            <div class="school-details">
+                                {{ $school->email ?? '' }} 
+                                <span class="badge-status {{ $school->status == 1 ? 'active' : 'inactive' }}">
+                                    {{ $school->status == 1 ? 'Active' : 'Inactive' }}
+                                </span>
+                            </div>
+                        </div>
+                        <a href="{{ route('superadmin.edit.school', $school->id) }}" style="color: #adb5bd; font-size: 12px; flex-shrink: 0;">
+                            <i class="fas fa-chevron-right"></i>
+                        </a>
+                    </div>
+                    @endforeach
+                @else
+                    <div style="text-align: center; padding: 30px 20px; color: #6c757d;">
+                        <i class="fas fa-school" style="font-size: 28px; opacity: 0.2; display: block; margin-bottom: 8px;"></i>
+                        <p style="font-size: 13px; margin: 0;">No schools found.</p>
+                    </div>
+                @endif
+            </div>
+        </div>
+
+        <!-- ============================================ -->
+        <!-- RIGHT COLUMN - Upcoming Events               -->
+        <!-- ============================================ -->
+        <div class="card-dashboard">
+            <div class="card-header">
+                <span><i class="fas fa-calendar-alt" style="color: #c8860a; margin-right: 8px;"></i>Upcoming Events</span>
+                <a href="{{ route('admin.academic_calendar.index') }}" style="font-size: 12px; color: #1a3a6b; text-decoration: none; font-weight: 500;">See all →</a>
+            </div>
+            <div class="card-body">
+                @if(isset($upcomingEvents) && count($upcomingEvents) > 0)
+                    @foreach($upcomingEvents as $event)
+                    <div class="event-item">
+                        <div class="event-date">
+                            <span class="day">{{ \Carbon\Carbon::parse($event->event_date)->format('d') }}</span>
+                            {{ \Carbon\Carbon::parse($event->event_date)->format('M') }}
+                        </div>
+                        <div class="event-info">
+                            <div class="title">{{ $event->title }}</div>
+                            <div class="meta">{{ \Carbon\Carbon::parse($event->event_date)->format('l, M d Y') }}</div>
+                        </div>
+                        <span style="padding: 2px 10px; border-radius: 12px; font-size: 9px; font-weight: 600; background: #dbeafe; color: #1a3a6b; flex-shrink: 0;">
+                            {{ $event->event_type ?? 'Event' }}
+                        </span>
+                    </div>
+                    @endforeach
+                @else
+                    <div style="text-align: center; padding: 20px; color: #6c757d; font-size: 13px;">
+                        No upcoming events
+                    </div>
+                @endif
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================ -->
+    <!-- ACTIVE SUBSCRIPTIONS TABLE                  -->
+    <!-- ============================================ -->
+    <div class="card-dashboard">
+        <div class="card-header">
+            <span><i class="fas fa-crown" style="color: #c8860a; margin-right: 8px;"></i>Active Subscriptions</span>
+            <a href="{{ route('superadmin.subscription.report') }}" style="font-size: 12px; color: #1a3a6b; text-decoration: none; font-weight: 500;">View All →</a>
+        </div>
+        <div class="card-body" style="padding: 0;">
+            <div style="overflow-x: auto;">
+                <table class="table-superadmin">
+                    <thead>
+                        <tr>
+                            <th>School</th>
+                            <th>Package</th>
+                            <th>Amount</th>
+                            <th>Expiry Date</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if(isset($activeSubscriptions) && count($activeSubscriptions) > 0)
+                            @foreach($activeSubscriptions as $sub)
+                            <tr>
+                                <td><strong>{{ $sub->school->title ?? 'N/A' }}</strong></td>
+                                <td>{{ $sub->package->name ?? 'N/A' }}</td>
+                                <td>UGX {{ number_format($sub->paid_amount ?? 0) }}</td>
+                                <td>{{ \Carbon\Carbon::parse($sub->expire_date)->format('M d, Y') }}</td>
+                                <td>
+                                    <span class="badge-status active">
+                                        {{ $sub->active ? 'Active' : 'Expired' }}
+                                    </span>
+                                </td>
+                            </tr>
+                            @endforeach
+                        @else
+                            <tr>
+                                <td colspan="5" style="text-align: center; padding: 30px 20px; color: #6c757d;">
+                                    <i class="fas fa-crown" style="font-size: 24px; opacity: 0.2; display: block; margin-bottom: 8px;"></i>
+                                    No active subscriptions found.
+                                </td>
+                            </tr>
+                        @endif
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+</div>
 
 @endsection

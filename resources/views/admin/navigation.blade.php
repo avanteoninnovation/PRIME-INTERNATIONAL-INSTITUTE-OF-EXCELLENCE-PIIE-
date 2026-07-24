@@ -5,12 +5,19 @@
     $user = Auth()->user();
     $faviconSetting = trim((string) get_settings('favicon'));
     $whiteLogoSetting = trim((string) get_settings('white_logo'));
+    $darkLogoSetting = trim((string) get_settings('dark_logo'));
+    
     $faviconAsset = $faviconSetting !== ''
         ? asset('assets/uploads/logo/' . $faviconSetting)
         : asset('assets/uploads/logo/favicon.png');
-    $whiteLogoAsset = $whiteLogoSetting !== ''
+        
+    // Try white logo first, fallback to dark logo, then default
+    $logoAsset = $whiteLogoSetting !== ''
         ? asset('assets/uploads/logo/' . $whiteLogoSetting)
-        : asset('assets/uploads/logo/logo1.png');
+        : ($darkLogoSetting !== ''
+            ? asset('assets/uploads/logo/' . $darkLogoSetting)
+            : asset('assets/uploads/logo/logo1.png'));
+            
     $menu_permission =
         empty($user->menu_permission) || $user->menu_permission == 'null'
             ? []
@@ -100,46 +107,261 @@
 <html lang="en">
 
 <head>
-    <!-- New -->
     <title>{{ get_phrase('Admin') . ' | ' . get_settings('system_title') }}</title>
-    <!-- all the meta tags -->
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta content="" name="description" />
     <meta content="" name="author" />
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <!-- all the css files -->
     <link rel="shortcut icon" href="{{ $faviconAsset }}" />
-    <!-- Bootstrap CSS -->
     <link rel="stylesheet" type="text/css" href="{{ asset('assets/vendors/bootstrap-5.1.3/css/bootstrap.min.css') }}" />
-
-    <!--Custom css-->
     <link rel="stylesheet" type="text/css" href="{{ asset('assets/css/swiper-bundle.min.css') }}" />
-
-
     <link rel="stylesheet" type="text/css" href="{{ asset('assets/css/style.css') }}" />
     <link rel="stylesheet" type="text/css" href="{{ asset('assets/css/main.css') }}" />
     <link rel="stylesheet" type="text/css" href="{{ asset('assets/css/custom.css') }}" />
-    <!-- Datepicker css -->
     <link rel="stylesheet" href="{{ asset('assets/css/daterangepicker.css') }}" />
-    <!-- Select2 css -->
     <link rel="stylesheet" href="{{ asset('assets/css/select2.min.css') }}" />
-    <!--Light box Image Gallery-->
     <link rel="stylesheet" type="text/css" href="{{ asset('assets/css/lightbox.css') }}">
-    <!-- SummerNote Css -->
     <link rel="stylesheet" href="{{ asset('assets/css/summernote-lite.min.css') }}" />
-
-    <link rel="stylesheet" type="text/css"
-        href="{{ asset('assets/vendors/bootstrap-icons-1.8.1/bootstrap-icons.css') }}" />
-
-    <!--Toaster css-->
+    <link rel="stylesheet" type="text/css" href="{{ asset('assets/vendors/bootstrap-icons-1.8.1/bootstrap-icons.css') }}" />
     <link rel="stylesheet" type="text/css" href="{{ asset('assets/css/toastr.min.css') }}" />
-
-    <!-- Calender css -->
     <link rel="stylesheet" type="text/css" href="{{ asset('assets/calender/main.css') }}" />
-
     <script src="{{ asset('assets/vendors/jquery/jquery-3.6.0.min.js') }}"></script>
 
+    <style>
+        /* ============================================ */
+        /* ENHANCED SIDEBAR STYLES                      */
+        /* ============================================ */
+
+        .sidebar {
+            background: #1a2332 !important;
+            width: 280px !important;
+            transition: all 0.3s ease;
+        }
+
+        .sidebar .logo-details {
+            padding: 20px 25px !important;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            margin-bottom: 10px !important;
+        }
+
+        .sidebar .logo-details .img_wrapper {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .sidebar .logo-details .img_wrapper img {
+            max-height: 45px !important;
+            width: auto !important;
+            object-fit: contain;
+        }
+
+        .sidebar .logo-details .logo_name {
+            font-size: 16px !important;
+            font-weight: 600 !important;
+            color: #ffffff !important;
+            margin-left: 12px !important;
+            letter-spacing: 0.5px;
+        }
+
+        /* Section Headers */
+        .nav-section-header {
+            padding: 12px 25px 6px 25px;
+            font-size: 11px;
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.35);
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
+            margin-top: 4px;
+        }
+
+        .nav-section-header:first-of-type {
+            border-top: none;
+            margin-top: 0;
+        }
+
+        /* Navigation Items */
+        .nav-links {
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+
+        .nav-links-li {
+            list-style: none;
+            margin: 2px 0 !important;
+        }
+
+        .nav-links-li .iocn-link a {
+            display: flex;
+            align-items: center;
+            padding: 10px 20px !important;
+            color: rgba(255, 255, 255, 0.7) !important;
+            text-decoration: none !important;
+            transition: all 0.3s ease;
+            border-radius: 0 !important;
+            font-size: 14px;
+            font-weight: 400;
+        }
+
+        .nav-links-li .iocn-link a:hover {
+            color: #ffffff !important;
+            background: rgba(255, 255, 255, 0.06) !important;
+        }
+
+        .nav-links-li .iocn-link a .sidebar_icon {
+            width: 22px;
+            height: 22px;
+            margin-right: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .nav-links-li .iocn-link a .sidebar_icon svg {
+            width: 20px;
+            height: 20px;
+            stroke: rgba(255, 255, 255, 0.6);
+            transition: stroke 0.3s ease;
+        }
+
+        .nav-links-li .iocn-link a:hover .sidebar_icon svg {
+            stroke: #ffffff;
+        }
+
+        .nav-links-li .iocn-link a .link_name {
+            font-size: 14px;
+            font-weight: 400;
+            color: rgba(255, 255, 255, 0.7);
+            transition: color 0.3s ease;
+        }
+
+        .nav-links-li .iocn-link a:hover .link_name {
+            color: #ffffff;
+        }
+
+        /* Active state */
+        .nav-links-li .iocn-link a.active {
+            background: rgba(52, 110, 235, 0.15) !important;
+            color: #ffffff !important;
+            border-left: 3px solid #346eeb;
+        }
+
+        .nav-links-li .iocn-link a.active .sidebar_icon svg {
+            stroke: #346eeb !important;
+        }
+
+        .nav-links-li .iocn-link a.active .link_name {
+            color: #ffffff !important;
+            font-weight: 500;
+        }
+
+        /* Sub-menu */
+        .sub-menu {
+            display: none;
+            padding: 0 !important;
+            margin: 0 !important;
+            background: rgba(0, 0, 0, 0.15) !important;
+        }
+
+        .sub-menu li {
+            list-style: none;
+        }
+
+        .sub-menu li a {
+            display: flex;
+            align-items: center;
+            padding: 8px 20px 8px 56px !important;
+            color: rgba(255, 255, 255, 0.6) !important;
+            text-decoration: none !important;
+            font-size: 13px;
+            transition: all 0.3s ease;
+            border-left: 2px solid transparent;
+        }
+
+        .sub-menu li a:hover {
+            color: #ffffff !important;
+            background: rgba(255, 255, 255, 0.04) !important;
+        }
+
+        .sub-menu li a.active {
+            color: #346eeb !important;
+            border-left: 2px solid #346eeb;
+            background: rgba(52, 110, 235, 0.08) !important;
+        }
+
+        .sub-menu li a span {
+            position: relative;
+        }
+
+        /* Arrow */
+        .arrow {
+            margin-left: auto;
+            padding-right: 10px;
+            transition: transform 0.3s ease;
+        }
+
+        .arrow svg {
+            width: 10px;
+            height: 10px;
+            fill: rgba(255, 255, 255, 0.3);
+            transition: fill 0.3s ease;
+        }
+
+        .showMenu .arrow {
+            transform: rotate(90deg);
+        }
+
+        .showMenu .sub-menu {
+            display: block !important;
+        }
+
+        /* Special styling for section headers in nav */
+        .nav-section-header + .nav-links-li .iocn-link a {
+            padding-top: 4px;
+        }
+
+        /* Hover effect for section headers */
+        .nav-section-header:hover {
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        /* Logout item special styling */
+        .nav-links-li:last-child .iocn-link a {
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
+            margin-top: 6px;
+            padding-top: 14px;
+        }
+
+        .nav-links-li:last-child .iocn-link a .sidebar_icon svg {
+            stroke: #e74c3c;
+        }
+
+        .nav-links-li:last-child .iocn-link a:hover .sidebar_icon svg {
+            stroke: #ff6b6b;
+        }
+
+        /* Logo area */
+        .logo-details {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        /* Responsive fixes */
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 100% !important;
+            }
+        }
+
+        /* Dark mode support for icons in submenu */
+        .sub-menu li a .sidebar_icon {
+            display: none;
+        }
+    </style>
 
 </head>
 
@@ -148,10 +370,10 @@
     <div class="sidebar">
         <div class="logo-details mt-4 mb-3">
             <div class="img_wrapper">
-                <img height="40px" class=""
-                    src="{{ $whiteLogoAsset }}" alt="{{ get_settings('navbar_title') ?: 'PIIE' }}" />
+                <img height="45px" class=""
+                    src="{{ $logoAsset }}" alt="{{ get_settings('navbar_title') ?: 'PIIE' }}" />
             </div>
-            <span class="logo_name">{{ get_settings('navbar_title') }}</span>
+            <span class="logo_name">{{ get_settings('navbar_title') ?: 'HEMS Portal' }}</span>
         </div>
         <div class="closeIcon">
             <span>
@@ -159,1189 +381,593 @@
             </span>
         </div>
         <ul class="nav-links">
-            <!-- sidebar title -->
+            
+            <!-- ============================================ -->
+            <!-- MAIN SECTION - No header needed              -->
+            <!-- ============================================ -->
+
+            <!-- Dashboard -->
             <li class="nav-links-li {{ request()->is('admin/dashboard') ? 'showMenu' : '' }}">
                 <div class="iocn-link">
-                    <a href="{{ route('admin.dashboard') }}">
+                    <a href="{{ route('admin.dashboard') }}" class="{{ request()->is('admin/dashboard') ? 'active' : '' }}">
                         <div class="sidebar_icon">
-                            <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
-                                version="1.1" id="Capa_1" x="0px" y="0px" viewBox="0 0 512 512"
-                                style="enable-background:new 0 0 512 512;" xml:space="preserve" width="48"
-                                height="48">
-                                <g>
-                                    <path
-                                        d="M117.333,234.667C52.532,234.667,0,182.135,0,117.333S52.532,0,117.333,0s117.333,52.532,117.333,117.333   C234.596,182.106,182.106,234.596,117.333,234.667z M117.333,64C87.878,64,64,87.878,64,117.333s23.878,53.333,53.333,53.333   s53.333-23.878,53.333-53.333S146.789,64,117.333,64z" />
-                                    <path
-                                        d="M394.667,234.667c-64.801,0-117.333-52.532-117.333-117.333S329.865,0,394.667,0S512,52.532,512,117.333   C511.929,182.106,459.439,234.596,394.667,234.667z M394.667,64c-29.455,0-53.333,23.878-53.333,53.333   s23.878,53.333,53.333,53.333S448,146.789,448,117.333S424.122,64,394.667,64z" />
-                                    <path
-                                        d="M117.333,512C52.532,512,0,459.468,0,394.667s52.532-117.333,117.333-117.333s117.333,52.532,117.333,117.333   C234.596,459.439,182.106,511.929,117.333,512z M117.333,341.333C87.878,341.333,64,365.211,64,394.667S87.878,448,117.333,448   s53.333-23.878,53.333-53.333S146.789,341.333,117.333,341.333z" />
-                                    <path
-                                        d="M394.667,512c-64.801,0-117.333-52.532-117.333-117.333s52.532-117.333,117.333-117.333S512,329.865,512,394.667   C511.929,459.439,459.439,511.929,394.667,512z M394.667,341.333c-29.455,0-53.333,23.878-53.333,53.333S365.211,448,394.667,448   S448,424.122,448,394.667S424.122,341.333,394.667,341.333z" />
-                                </g>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="3" y="3" width="7" height="7"></rect>
+                                <rect x="14" y="3" width="7" height="7"></rect>
+                                <rect x="3" y="14" width="7" height="7"></rect>
+                                <rect x="14" y="14" width="7" height="7"></rect>
                             </svg>
-
                         </div>
                         <span class="link_name">{{ get_phrase('Dashboard') }}</span>
                     </a>
                 </div>
             </li>
-            <!-- Sidebar menu -->
-            @if (empty($user->menu_permission) ||
-                    in_array('admin.admin', $menu_permission) ||
-                    in_array('admin.teacher', $menu_permission) ||
-                    in_array('admin.accountant', $menu_permission) ||
-                    in_array('admin.librarian', $menu_permission) ||
-                    in_array('admin.parent', $menu_permission) ||
-                    in_array('admin.student', $menu_permission) ||
-                    in_array('admin.teacher.permission', $menu_permission))
-                <li
-                    class="nav-links-li {{ request()->is('admin/admin*') || request()->is('admin/teacher*') || request()->is('admin/accountant*') || request()->is('admin/librarian*') || request()->is('admin/parent*') || request()->is('admin/student') || request()->is('admin/permission*') ? 'showMenu' : '' }}">
-                    <div class="iocn-link">
-                        <a href="#">
-                            <div class="sidebar_icon">
-                                <svg xmlns="http://www.w3.org/2000/svg" id="Layer_1" data-name="Layer 1"
-                                    viewBox="0 0 24 24" width="48" height="48">
-                                    <path
-                                        d="M16.5,24a1.5,1.5,0,0,1-1.489-1.335,3.031,3.031,0,0,0-6.018,0,1.5,1.5,0,0,1-2.982-.33,6.031,6.031,0,0,1,11.982,0,1.5,1.5,0,0,1-1.326,1.656A1.557,1.557,0,0,1,16.5,24Zm6.167-9.009a1.5,1.5,0,0,0,1.326-1.656A5.815,5.815,0,0,0,18.5,8a1.5,1.5,0,0,0,0,3,2.835,2.835,0,0,1,2.509,2.665A1.5,1.5,0,0,0,22.5,15,1.557,1.557,0,0,0,22.665,14.991ZM2.991,13.665A2.835,2.835,0,0,1,5.5,11a1.5,1.5,0,0,0,0-3A5.815,5.815,0,0,0,.009,13.335a1.5,1.5,0,0,0,1.326,1.656A1.557,1.557,0,0,0,1.5,15,1.5,1.5,0,0,0,2.991,13.665ZM12.077,16a3.5,3.5,0,1,0-3.5-3.5A3.5,3.5,0,0,0,12.077,16Zm6-9a3.5,3.5,0,1,0-3.5-3.5A3.5,3.5,0,0,0,18.077,7Zm-12,0a3.5,3.5,0,1,0-3.5-3.5A3.5,3.5,0,0,0,6.077,7Z" />
-                                </svg>
-                            </div>
-                            <span class="link_name">{{ get_phrase('Users') }}</span>
-                        </a>
-                        <span class="arrow">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="4.743" height="7.773"
-                                viewBox="0 0 4.743 7.773">
-                                <path id="navigate_before_FILL0_wght600_GRAD0_opsz24"
-                                    d="M1.466.247,4.5,3.277a.793.793,0,0,1,.189.288.92.92,0,0,1,0,.643A.793.793,0,0,1,4.5,4.5l-3.03,3.03a.828.828,0,0,1-.609.247.828.828,0,0,1-.609-.247.875.875,0,0,1,0-1.219L2.668,3.886.247,1.466A.828.828,0,0,1,0,.856.828.828,0,0,1,.247.247.828.828,0,0,1,.856,0,.828.828,0,0,1,1.466.247Z"
-                                    fill="#fff" opacity="1" />
-                            </svg>
-                        </span>
-                    </div>
-                    <ul class="sub-menu">
-                        @if (empty($user->menu_permission) || in_array('admin.admin', $menu_permission))
-                            <li><a class="{{ request()->is('admin/admin*') ? 'active' : '' }}"
-                                    href="{{ route('admin.admin') }}"><span>
-                                        {{ get_phrase('Admin') }}
-                                    </span></a></li>
-                        @endif
-                        @if (empty($user->menu_permission) || in_array('admin.teacher', $menu_permission))
-                            <li><a class="{{ request()->is('admin/teacher*') ? 'active' : '' }}"
-                                    href="{{ route('admin.teacher') }}"><span>
-                                        {{ get_phrase('Teacher') }}
-                                    </span></a></li>
-                        @endif
-                        @if (empty($user->menu_permission) || in_array('admin.accountant', $menu_permission))
-                            <li><a class="{{ request()->is('admin/accountant*') ? 'active' : '' }}"
-                                    href="{{ route('admin.accountant') }}"><span>
-                                        {{ get_phrase('Accountant') }}
-                                    </span></a></li>
-                        @endif
-                        @if (empty($user->menu_permission) || in_array('admin.librarian', $menu_permission))
-                            <li><a class="{{ request()->is('admin/librarian*') ? 'active' : '' }}"
-                                    href="{{ route('admin.librarian') }}"><span>
-                                        {{ get_phrase('Librarian') }}
-                                    </span></a></li>
-                        @endif
-                        @if (empty($user->menu_permission) || in_array('admin.parent', $menu_permission))
-                            <li><a class="{{ request()->is('admin/parent*') ? 'active' : '' }}"
-                                    href="{{ route('admin.parent') }}"><span>
-                                        {{ get_phrase('Parent') }}
-                                    </span></a></li>
-                        @endif
-                        @if (empty($user->menu_permission) || in_array('admin.student', $menu_permission))
-                            <li><a class="{{ request()->is('admin/student') ? 'active' : '' }}"
-                                    href="{{ route('admin.student') }}"><span>
-                                        {{ get_phrase('Student') }}
-                                    </span></a></li>
-                        @endif
-                        @if (empty($user->menu_permission) || in_array('admin.warden', $menu_permission))
-                            <li><a class="{{ request()->is('admin/warden') ? 'active' : '' }}"
-                                    href="{{ route('admin.warden') }}"><span>
-                                        {{ get_phrase('Warden') }}
-                                    </span></a></li>
-                        @endif
-                        @if (empty($user->menu_permission) || in_array('admin.permission', $menu_permission))
-                            <li><a class="{{ request()->is('admin/permission*') ? 'active' : '' }}"
-                                    href="{{ route('admin.teacher.permission') }}"><span>
-                                        {{ get_phrase('Teacher Permission') }}
-                                    </span></a></li>
-                        @endif
-                    </ul>
-                </li>
-            @endif
 
-            @if (empty($user->menu_permission) || in_array('admin.offline_admission.single', $menu_permission))
-                <li class="nav-links-li {{ request()->is('admin/offline_admission*') ? 'showMenu' : '' }}">
-                    <div class="iocn-link">
-                        <a class="{{ request()->is('admin/offline_admission*') ? 'active' : '' }}"
-                            href="{{ route('admin.offline_admission.single', ['type' => 'single']) }}">
-                            <div class="sidebar_icon">
-                                <svg xmlns="http://www.w3.org/2000/svg" id="Isolation_Mode"
-                                    data-name="Isolation Mode" viewBox="0 0 24 24" width="48" height="48">
-                                    <path
-                                        d="M11,14H5a5.006,5.006,0,0,0-5,5v5H3V19a2,2,0,0,1,2-2h6a2,2,0,0,1,2,2v5h3V19A5.006,5.006,0,0,0,11,14Z" />
-                                    <path
-                                        d="M8,12A6,6,0,1,0,2,6,6.006,6.006,0,0,0,8,12ZM8,3A3,3,0,1,1,5,6,3,3,0,0,1,8,3Z" />
-                                    <polygon
-                                        points="21 10 21 7 18 7 18 10 15 10 15 13 18 13 18 16 21 16 21 13 24 13 24 10 21 10" />
-                                </svg>
-                            </div>
-                            <span class="link_name">
-                                {{ get_phrase('Admissions') }}
-                            </span>
-                        </a>
-                    </div>
-                </li>
-            @endif
-
-            @if (addon_status('transport') == 1)
-                <li
-                    class="nav-links-li {{ request()->is('admin/driver/list*') || request()->is('admin/vehicle/list*') || request()->is('admin/assign/student/list*') ? 'showMenu' : '' }}">
-                    <div class="iocn-link">
-                        <a href="#">
-                            <div class="sidebar_icon">
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512" width="48"
-                                    height="48" id="Layer_1" data-name="Layer 1">
-                                    <path
-                                        d="M288 0C422.4 0 512 35.2 512 80V96l0 32c17.7 0 32 14.3 32 32v64c0 17.7-14.3 32-32 32l0 160c0 17.7-14.3 32-32 32v32c0 17.7-14.3 32-32 32H416c-17.7 0-32-14.3-32-32V448H192v32c0 17.7-14.3 32-32 32H128c-17.7 0-32-14.3-32-32l0-32c-17.7 0-32-14.3-32-32l0-160c-17.7 0-32-14.3-32-32V160c0-17.7 14.3-32 32-32h0V96h0V80C64 35.2 153.6 0 288 0zM128 160v96c0 17.7 14.3 32 32 32H272V128H160c-17.7 0-32 14.3-32 32zM304 288H416c17.7 0 32-14.3 32-32V160c0-17.7-14.3-32-32-32H304V288zM144 400a32 32 0 1 0 0-64 32 32 0 1 0 0 64zm288 0a32 32 0 1 0 0-64 32 32 0 1 0 0 64zM384 80c0-8.8-7.2-16-16-16H208c-8.8 0-16 7.2-16 16s7.2 16 16 16H368c8.8 0 16-7.2 16-16z" />
-                                </svg>
-                            </div>
-                            <span class="link_name">
-                                {{ get_phrase('Transport') }}
-                            </span>
-                        </a>
-                        <span class="arrow">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="4.743" height="7.773"
-                                viewBox="0 0 4.743 7.773">
-                                <path id="navigate_before_FILL0_wght600_GRAD0_opsz24"
-                                    d="M1.466.247,4.5,3.277a.793.793,0,0,1,.189.288.92.92,0,0,1,0,.643A.793.793,0,0,1,4.5,4.5l-3.03,3.03a.828.828,0,0,1-.609.247.828.828,0,0,1-.609-.247.875.875,0,0,1,0-1.219L2.668,3.886.247,1.466A.828.828,0,0,1,0,.856.828.828,0,0,1,.247.247.828.828,0,0,1,.856,0,.828.828,0,0,1,1.466.247Z"
-                                    fill="#fff" opacity="1" />
-                            </svg>
-                        </span>
-                    </div>
-                    <ul class="sub-menu">
-                        <li>
-                            <a class="{{ request()->is('admin/driver/list') ? 'active' : '' }}"
-                                href="{{ route('admin.driver.list') }}"><span>{{ get_phrase('Driver') }}</span></a>
-                        </li>
-                        <li>
-                            <a class="{{ request()->is('admin/vehicle/list') ? 'active' : '' }}"
-                                href="{{ route('admin.vehicle.list') }}"><span>{{ get_phrase('Vehicle') }}</span></a>
-                        </li>
-                        <li>
-                            <a class="{{ request()->is('admin/assign/student/list') ? 'active' : '' }}"
-                                href="{{ route('admin.assign.student.list') }}"><span>{{ get_phrase('Assign student') }}</span></a>
-                        </li>
-
-                    </ul>
-                </li>
-            @endif
-
-            @if (empty($user->menu_permission) ||
-                    in_array('admin.exam_category', $menu_permission) ||
-                    in_array('admin.offline_exam', $menu_permission) ||
-                    in_array('admin.marks', $menu_permission) ||
-                    in_array('admin.grade_list', $menu_permission) ||
-                    in_array('admin.promotion', $menu_permission) ||
-                    in_array('admin.online_exams', $menu_permission) ||
-                    in_array('admin.online_exams.index', $menu_permission) ||
-                    in_array('admin.question_bank', $menu_permission) ||
-                    in_array('admin.question_bank.index', $menu_permission))
-                <li
-                    class="nav-links-li {{ request()->is('admin/exam_category*') || request()->is('admin/offline_exam*') || request()->is('admin/marks') || request()->is('admin/grade') || request()->is('admin/promotion*') || request()->is('admin/admit-card-list') || request()->is('admin/admitCardFilter') || request()->is('admin/print-admit-card') ? 'showMenu' : '' }}">
-                    <div class="iocn-link">
-                        <a href="#">
-                            <div class="sidebar_icon">
-                                <svg xmlns="http://www.w3.org/2000/svg" id="Layer_1" data-name="Layer 1"
-                                    viewBox="0 0 24 24" width="48" height="48">
-                                    <path
-                                        d="M18,17.5A1.5,1.5,0,0,1,16.5,19h-1a1.5,1.5,0,0,1,0-3h1A1.5,1.5,0,0,1,18,17.5ZM13.092,14H10.908A1.5,1.5,0,0,1,8,13.5V10a4,4,0,0,1,8,0v3.5a1.5,1.5,0,0,1-2.908.5ZM11,10v1h2V10a1,1,0,0,0-2,0Zm-.569,5.947-.925.941a1.5,1.5,0,0,0-2.139,2.095s.163.187.189.211a2.757,2.757,0,0,0,3.9-.007l1.116-1.134a1.5,1.5,0,1,0-2.138-2.106ZM22,7.157V18.5A5.507,5.507,0,0,1,16.5,24h-9A5.507,5.507,0,0,1,2,18.5V5.5A5.507,5.507,0,0,1,7.5,0h7.343a5.464,5.464,0,0,1,3.889,1.611l1.657,1.657A5.464,5.464,0,0,1,22,7.157ZM18.985,7H17a2,2,0,0,1-2-2V3.015C14.947,3.012,7.5,3,7.5,3A2.5,2.5,0,0,0,5,5.5v13A2.5,2.5,0,0,0,7.5,21h9A2.5,2.5,0,0,0,19,18.5S18.988,7.053,18.985,7Z" />
-                                </svg>
-                            </div>
-                            <span class="link_name">
-                                {{ get_phrase('Examination') }}
-                            </span>
-                        </a>
-                        <span class="arrow">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="4.743" height="7.773"
-                                viewBox="0 0 4.743 7.773">
-                                <path id="navigate_before_FILL0_wght600_GRAD0_opsz24"
-                                    d="M1.466.247,4.5,3.277a.793.793,0,0,1,.189.288.92.92,0,0,1,0,.643A.793.793,0,0,1,4.5,4.5l-3.03,3.03a.828.828,0,0,1-.609.247.828.828,0,0,1-.609-.247.875.875,0,0,1,0-1.219L2.668,3.886.247,1.466A.828.828,0,0,1,0,.856.828.828,0,0,1,.247.247.828.828,0,0,1,.856,0,.828.828,0,0,1,1.466.247Z"
-                                    fill="#fff" opacity="1" />
-                            </svg>
-                        </span>
-                    </div>
-                    <ul class="sub-menu">
-                        @if (empty($user->menu_permission) || in_array('admin.exam_category', $menu_permission))
-                            <li>
-                                <a class="{{ request()->is('admin/exam_category*') ? 'active' : '' }}"
-                                    href="{{ route('admin.exam_category') }}"><span>{{ get_phrase('Exam Category') }}</span></a>
-                            </li>
-                        @endif
-                        @if (empty($user->menu_permission) || in_array('admin.offline_exam', $menu_permission))
-                            <li>
-                                <a class="{{ request()->is('admin/offline_exam*') ? 'active' : '' }}"
-                                    href="{{ route('admin.offline_exam') }}"><span>{{ get_phrase('Offline Exam') }}</span></a>
-                            </li>
-                        @endif
-                        @if (empty($user->menu_permission) || in_array('admin.marks', $menu_permission))
-                            <li>
-                                <a class="{{ request()->is('admin/marks') ? 'active' : '' }}"
-                                    href="{{ route('admin.marks') }}"><span>{{ get_phrase('Marks') }}</span></a>
-                            </li>
-                        @endif
-                        @if (empty($user->menu_permission) || in_array('admin.grade_list', $menu_permission))
-                            <li>
-                                <a class="{{ request()->is('admin/grade') ? 'active' : '' }}"
-                                    href="{{ route('admin.grade_list') }}"><span>{{ get_phrase('Grades') }}</span></a>
-                            </li>
-                        @endif
-                        @if (empty($user->menu_permission) || in_array('admin.promotion', $menu_permission))
-                            <li>
-                                <a class="{{ request()->is('admin/promotion*') ? 'active' : '' }}"
-                                    href="{{ route('admin.promotion') }}"><span>{{ get_phrase('Promotion') }}</span></a>
-                            </li>
-                        @endif
-                        @if (empty($user->menu_permission) || in_array('admin.admit_card_list', $menu_permission))
-                            <li>
-                                <a class="{{ request()->is('admin/admit-card-list*') ? 'active' : '' }}"
-                                    href="{{ route('admin.examination.admit_card_list') }}"><span>{{ get_phrase('Admit Card') }}</span></a>
-                            </li>
-                        @endif
-                        @if (empty($user->menu_permission) || in_array('admin.admit_card_print', $menu_permission))
-                            <li>
-                                <a class="{{ request()->is('admin/print-admit-card*') || request()->is('admin/admitCardFilter') ? 'active' : '' }}"
-                                    href="{{ route('admin.examination.admit_card_print') }}"><span>{{ get_phrase('Print Admit Card') }}</span></a>
-                            </li>
-                        @endif
-                        @if ((empty($user->menu_permission) || in_array('admin.online_exams', $menu_permission) || in_array('admin.online_exams.index', $menu_permission)) && $canViewOnlineExamsNav)
-                            <li>
-                                <a class="{{ request()->is('admin/online-exams*') ? 'active' : '' }}"
-                                    href="{{ route('admin.online_exams.index') }}"><span>{{ get_phrase('Online Exams / CBT') }}</span></a>
-                            </li>
-                        @endif
-                        @if ((empty($user->menu_permission) || in_array('admin.question_bank', $menu_permission) || in_array('admin.question_bank.index', $menu_permission)) && $canManageQuestionBankNav)
-                            <li>
-                                <a class="{{ request()->is('admin/question-bank*') ? 'active' : '' }}"
-                                    href="{{ route('admin.question_bank.index') }}"><span>{{ get_phrase('Question Bank') }}</span></a>
-                            </li>
-                        @endif
-                    </ul>
-                </li>
-            @endif
-
-            @if (empty($user->menu_permission) ||
-                    in_array('admin.daily_attendance', $menu_permission) ||
-                    in_array('admin.class_list', $menu_permission) ||
-                    in_array('admin.routine', $menu_permission) ||
-                    in_array('admin.gradebook', $menu_permission) ||
-                    in_array('admin.syllabus', $menu_permission) ||
-                    in_array('admin.class_room_list', $menu_permission) ||
-                    in_array('admin.department_list', $menu_permission))
-                <li
-                    class="nav-links-li {{ request()->is('admin/attendance*') || request()->is('admin/class_list*') || request()->is('admin/routine*') || request()->is('admin/subject*') || request()->is('admin/syllabus*') || request()->is('admin/gradebook*') || request()->is('admin/class_room*') || request()->is('admin/department*') ? 'showMenu' : '' }}">
-                    <div class="iocn-link">
-                        <a href="#">
-                            <div class="sidebar_icon">
-                                <svg xmlns="http://www.w3.org/2000/svg" id="Layer_1" data-name="Layer 1"
-                                    viewBox="0 0 24 24" width="48" height="48">
-                                    <path
-                                        d="M7.5,4.5c.151-5.935,8.85-5.934,9,0-.151,5.935-8.85,5.934-9,0ZM24,15.5v1.793c0,2.659-1.899,4.935-4.516,5.411l-5.763,1.139c-1.142,.207-2.285,.21-3.421,.004l-5.807-1.147c-2.595-.472-4.494-2.748-4.494-5.407v-1.793c-.083-3.331,3.222-6.087,6.483-5.411l3.36,.702c.824,.15,1.564,.527,2.16,1.062,.601-.537,1.351-.916,2.191-1.069l3.282-.688c1.653-.301,3.293,.134,4.548,1.181,1.256,1.048,1.976,2.587,1.976,4.223Zm-13.5-.289c0-.726-.518-1.346-1.231-1.476l-3.36-.702c-.707-.126-1.439,.075-2.01,.548-.571,.477-.898,1.176-.898,1.919v1.793c0,1.209,.863,2.243,2.053,2.46l5.447,1.076v-5.618Zm10.5,.289c0-.744-.327-1.443-.897-1.919-.57-.476-1.318-.674-2.05-.54l-3.282,.687c-.753,.137-1.271,.758-1.271,1.483v5.618l5.425-1.072c1.212-.221,2.075-1.255,2.075-2.464v-1.793Z" />
-                                </svg>
-                            </div>
-                            <span class="link_name">
-                                {{ get_phrase('Academic') }}
-                            </span>
-                        </a>
-                        <span class="arrow">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="4.743" height="7.773"
-                                viewBox="0 0 4.743 7.773">
-                                <path id="navigate_before_FILL0_wght600_GRAD0_opsz24"
-                                    d="M1.466.247,4.5,3.277a.793.793,0,0,1,.189.288.92.92,0,0,1,0,.643A.793.793,0,0,1,4.5,4.5l-3.03,3.03a.828.828,0,0,1-.609.247.828.828,0,0,1-.609-.247.875.875,0,0,1,0-1.219L2.668,3.886.247,1.466A.828.828,0,0,1,0,.856.828.828,0,0,1,.247.247.828.828,0,0,1,.856,0,.828.828,0,0,1,1.466.247Z"
-                                    fill="#fff" opacity="1" />
-                            </svg>
-                        </span>
-                    </div>
-                    <ul class="sub-menu">
-                        @if (empty($user->menu_permission) || in_array('admin.daily_attendance', $menu_permission))
-                            <li><a class="{{ request()->is('admin/attendance*') ? 'active' : '' }}"
-                                    href="{{ route('admin.daily_attendance') }}"><span>
-                                        {{ get_phrase('Daily Attendance') }}
-                                    </span></a></li>
-                        @endif
-                        @if (empty($user->menu_permission) || in_array('admin.class_list', $menu_permission))
-                            <li><a class="{{ request()->is('admin/class_list*') ? 'active' : '' }}"
-                                    href="{{ route('admin.class_list') }}"><span>
-                                        {{ get_phrase('Class List') }}
-                                    </span></a></li>
-                        @endif
-                        @if (empty($user->menu_permission) || in_array('admin.routine', $menu_permission))
-                            <li><a class="{{ request()->is('admin/routine*') ? 'active' : '' }}"
-                                    href="{{ route('admin.routine') }}"><span>
-                                        {{ get_phrase('Class Routine') }}
-                                    </span></a></li>
-                        @endif
-                        @if (empty($user->menu_permission) || in_array('admin.subject_list', $menu_permission))
-                            <li><a class="{{ request()->is('admin/subject*') ? 'active' : '' }}"
-                                    href="{{ route('admin.subject_list') }}"><span>
-                                        {{ get_phrase('Subjects') }}
-                                    </span></a></li>
-                        @endif
-                        @if (empty($user->menu_permission) || in_array('admin.gradebook', $menu_permission))
-                            <li><a class="{{ request()->is('admin/gradebook*') ? 'active' : '' }}"
-                                    href="{{ route('admin.gradebook') }}"><span>
-                                        {{ get_phrase('Gradebooks') }}
-                                    </span></a></li>
-                        @endif
-                        @if (empty($user->menu_permission) || in_array('admin.syllabus', $menu_permission))
-                            <li><a class="{{ request()->is('admin/syllabus*') ? 'active' : '' }}"
-                                    href="{{ route('admin.syllabus') }}"><span>
-                                        {{ get_phrase('Syllabus') }}
-                                    </span></a></li>
-                        @endif
-                        @if (empty($user->menu_permission) || in_array('admin.class_room_list', $menu_permission))
-                            <li><a class="{{ request()->is('admin/class_room*') ? 'active' : '' }}"
-                                    href="{{ route('admin.class_room_list') }}"><span>
-                                        {{ get_phrase('Class Room') }}
-                                    </span></a></li>
-                        @endif
-                        @if (empty($user->menu_permission) || in_array('admin.department_list', $menu_permission))
-                            <li><a class="{{ request()->is('admin/department*') ? 'active' : '' }}"
-                                    href="{{ route('admin.department_list') }}"><span>
-                                        {{ get_phrase('Department') }}
-                                    </span></a></li>
-                        @endif
-                        <li>
-                            <a class="{{ request()->is('admin/programmes*') ? 'active' : '' }}"
-                                href="{{ route('admin.programmes.index') }}"><span>{{ get_phrase('Programmes') }}</span></a>
-                        </li>
-                        <li>
-                            <a class="{{ request()->is('admin/assignments*') ? 'active' : '' }}"
-                                href="{{ route('admin.assignments.index') }}"><span>{{ get_phrase('Assignments') }}</span></a>
-                        </li>
-                        <li>
-                            <a class="{{ request()->is('admin/live-classes*') ? 'active' : '' }}"
-                                href="{{ route('admin.live_classes.index') }}"><span>{{ get_phrase('Live Classes') }}</span></a>
-                        </li>
-                        <li>
-                            <a class="{{ request()->is('admin/academic-calendar*') ? 'active' : '' }}"
-                                href="{{ route('admin.academic_calendar.index') }}"><span>{{ get_phrase('Academic Calendar') }}</span></a>
-                        </li>
-                        <li>
-                            <a class="{{ request()->is('admin/graduation*') ? 'active' : '' }}"
-                                href="{{ route('admin.graduation.index') }}"><span>{{ get_phrase('Graduation') }}</span></a>
-                        </li>
-                    </ul>
-                </li>
-            @endif
-
-            @if (empty($user->menu_permission) ||
-                    in_array('admin.fee_manager.list', $menu_permission) ||
-                    in_array('admin.offline_payment_pending', $menu_permission) ||
-                    in_array('admin.expense.list', $menu_permission) ||
-                    in_array('admin.expense.category_list', $menu_permission))
-                <li
-                    class="nav-links-li {{ request()->is('admin/fee_manager*') || request()->is('admin/offline_payment/pending*') || request()->is('admin/expense_category*') || request()->is('admin/expenses*') ? 'showMenu' : '' }}">
-                    <div class="iocn-link">
-                        <a href="#">
-                            <div class="sidebar_icon">
-                                <svg xmlns="http://www.w3.org/2000/svg" id="Layer_1" data-name="Layer 1"
-                                    viewBox="0 0 24 24" width="48" height="48">
-                                    <path
-                                        d="M16.5,10c-1.972-.034-1.971-2.967,0-3h1c1.972,.034,1.971,2.967,0,3h-1Zm-3.5,4.413c0-1.476-.885-2.783-2.255-3.331l-2.376-.95c-.591-.216-.411-1.15,.218-1.132h1.181c.181,0,.343,.094,.434,.251,.415,.717,1.334,.962,2.05,.547,.717-.415,.962-1.333,.548-2.049-.511-.883-1.381-1.492-2.363-1.684-.399-1.442-2.588-1.375-2.896,.091-3.161,.875-3.414,5.6-.285,6.762l2.376,.95c.591,.216,.411,1.15-.218,1.132h-1.181c-.181,0-.343-.094-.434-.25-.415-.717-1.334-.961-2.05-.547-.717,.415-.962,1.333-.548,2.049,.511,.883,1.381,1.491,2.363,1.683,.399,1.442,2.588,1.375,2.896-.091,1.469-.449,2.54-1.817,2.54-3.431ZM18.5,1H5.5C2.468,1,0,3.467,0,6.5v11c0,3.033,2.468,5.5,5.5,5.5h3c1.972-.034,1.971-2.967,0-3h-3c-1.379,0-2.5-1.122-2.5-2.5V6.5c0-1.378,1.121-2.5,2.5-2.5h13c1.379,0,2.5,1.122,2.5,2.5v2c.034,1.972,2.967,1.971,3,0v-2c0-3.033-2.468-5.5-5.5-5.5Zm-5.205,18.481c-.813,.813-1.269,1.915-1.269,3.064,.044,.422-.21,1.464,.5,1.455,1.446,.094,2.986-.171,4.019-1.269l6.715-6.715c2.194-2.202-.9-5.469-3.157-3.343l-6.808,6.808Z" />
-                                </svg>
-                            </div>
-                            <span class="link_name">
-                                {{ get_phrase('Accounting') }}
-                            </span>
-                        </a>
-                        <span class="arrow">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="4.743" height="7.773"
-                                viewBox="0 0 4.743 7.773">
-                                <path id="navigate_before_FILL0_wght600_GRAD0_opsz24"
-                                    d="M1.466.247,4.5,3.277a.793.793,0,0,1,.189.288.92.92,0,0,1,0,.643A.793.793,0,0,1,4.5,4.5l-3.03,3.03a.828.828,0,0,1-.609.247.828.828,0,0,1-.609-.247.875.875,0,0,1,0-1.219L2.668,3.886.247,1.466A.828.828,0,0,1,0,.856.828.828,0,0,1,.247.247.828.828,0,0,1,.856,0,.828.828,0,0,1,1.466.247Z"
-                                    fill="#fff" opacity="1" />
-                            </svg>
-                        </span>
-                    </div>
-                    <ul class="sub-menu">
-                        @if (empty($user->menu_permission) || in_array('admin.fee_manager.list', $menu_permission))
-                            <li><a class="{{ request()->is('admin/fee_manager') ? 'active' : '' }}"
-                                    href="{{ route('admin.fee_manager.list') }}"><span>
-                                        {{ get_phrase('Student Fee Manager') }}
-                                    </span></a></li>
-                        @endif
-                        @if (empty($user->menu_permission) || in_array('admin.offline_payment_pending', $menu_permission))
-                            <li><a class="{{ request()->is('admin/offline_payment/pending*') ? 'active' : '' }}"
-                                    href="{{ route('admin.offline_payment_pending') }}"><span>
-                                        {{ get_phrase('Offline Payment Request') }}
-                                    </span></a></li>
-                        @endif
-                        @if (empty($user->menu_permission) || in_array('admin.expense.list', $menu_permission))
-                            <li><a class="{{ request()->is('admin/expenses*') ? 'active' : '' }}"
-                                    href="{{ route('admin.expense.list') }}"><span>
-                                        {{ get_phrase('Expense Manager') }}
-                                    </span></a></li>
-                        @endif
-                        @if (empty($user->menu_permission) || in_array('admin.expense.category_list', $menu_permission))
-                            <li><a class="{{ request()->is('admin/expense_category*') ? 'active' : '' }}"
-                                    href="{{ route('admin.expense.category_list') }}"><span>
-                                        {{ get_phrase('Expense Category') }}
-                                    </span></a></li>
-                        @endif
-                        <li>
-                            <a class="{{ request()->is('admin/fee-structures*') ? 'active' : '' }}"
-                                href="{{ route('admin.fee_structures.index') }}"><span>{{ get_phrase('Fee Structures') }}</span></a>
-                        </li>
-                        <li>
-                            <a class="{{ request()->is('admin/payroll*') || request()->is('admin/salary-structures*') ? 'active' : '' }}"
-                                href="{{ route('admin.payroll.index') }}"><span>{{ get_phrase('Payroll') }}</span></a>
-                        </li>
-                    </ul>
-                </li>
-            @endif
-
-            {{-- HEI Admissions --}}
-            <li class="nav-links-li {{ request()->is('admin/hei-admissions*') || request()->is('admin/intake-sessions*') || request()->is('admin/admissions-agents*') ? 'showMenu' : '' }}">
+            <!-- Students -->
+            @if(empty($user->menu_permission) || in_array('admin.student', $menu_permission) || in_array('admin.parent', $menu_permission))
+            <li class="nav-links-li {{ request()->is('admin/student*') || request()->is('admin/parent*') ? 'showMenu' : '' }}">
                 <div class="iocn-link">
-                    <a href="#">
+                    <a href="{{ route('admin.student') }}" class="{{ request()->is('admin/student*') ? 'active' : '' }}">
                         <div class="sidebar_icon">
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="48" height="48"><path d="M12 2a5 5 0 1 0 0 10A5 5 0 0 0 12 2zm0 8a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm9 11v-1a7 7 0 0 0-14 0v1H5v-1a9 9 0 0 1 18 0v1h-2zm-7-4v4h-2v-4h-2l3-4 3 4h-2z"/></svg>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                                <circle cx="12" cy="7" r="4"></circle>
+                            </svg>
                         </div>
-                        <span class="link_name">{{ get_phrase('HEI Admissions') }}</span>
+                        <span class="link_name">{{ get_phrase('Students') }}</span>
                     </a>
-                    <span class="arrow"><svg xmlns="http://www.w3.org/2000/svg" width="4.743" height="7.773" viewBox="0 0 4.743 7.773"><path d="M1.466.247,4.5,3.277a.793.793,0,0,1,.189.288.92.92,0,0,1,0,.643A.793.793,0,0,1,4.5,4.5l-3.03,3.03a.828.828,0,0,1-.609.247.828.828,0,0,1-.609-.247.875.875,0,0,1,0-1.219L2.668,3.886.247,1.466A.828.828,0,0,1,0,.856.828.828,0,0,1,.247.247.828.828,0,0,1,.856,0,.828.828,0,0,1,1.466.247Z" fill="#fff"/></svg></span>
+                </div>
+            </li>
+            @endif
+
+            <!-- Staff -->
+            @if(empty($user->menu_permission) || in_array('admin.admin', $menu_permission) || in_array('admin.teacher', $menu_permission) || in_array('admin.accountant', $menu_permission) || in_array('admin.librarian', $menu_permission) || in_array('admin.warden', $menu_permission))
+            <li class="nav-links-li {{ request()->is('admin/admin*') || request()->is('admin/teacher*') || request()->is('admin/accountant*') || request()->is('admin/librarian*') || request()->is('admin/warden*') ? 'showMenu' : '' }}">
+                <div class="iocn-link">
+                    <a href="#" class="has-submenu">
+                        <div class="sidebar_icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                <circle cx="9" cy="7" r="4"></circle>
+                                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                            </svg>
+                        </div>
+                        <span class="link_name">{{ get_phrase('Staff') }}</span>
+                    </a>
+                    <span class="arrow">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 4.743 7.773">
+                            <path d="M1.466.247,4.5,3.277a.793.793,0,0,1,.189.288.92.92,0,0,1,0,.643A.793.793,0,0,1,4.5,4.5l-3.03,3.03a.828.828,0,0,1-.609.247.828.828,0,0,1-.609-.247.875.875,0,0,1,0-1.219L2.668,3.886.247,1.466A.828.828,0,0,1,0,.856.828.828,0,0,1,.247.247.828.828,0,0,1,.856,0,.828.828,0,0,1,1.466.247Z" fill="#fff" opacity="1"/>
+                        </svg>
+                    </span>
                 </div>
                 <ul class="sub-menu">
-                    <li><a class="{{ request()->is('admin/hei-admissions*') ? 'active' : '' }}" href="{{ route('admin.hei_admissions.index') }}"><span>{{ get_phrase('Applications') }}</span></a></li>
-                    <li><a class="{{ request()->is('admin/intake-sessions*') ? 'active' : '' }}" href="{{ route('admin.intake_sessions.index') }}"><span>{{ get_phrase('Intake Sessions') }}</span></a></li>
-                    <li><a class="{{ request()->is('admin/admissions-agents*') ? 'active' : '' }}" href="{{ route('admin.admissions_agents.index') }}"><span>{{ get_phrase('Agents') }}</span></a></li>
+                    @if(empty($user->menu_permission) || in_array('admin.admin', $menu_permission))
+                    <li><a class="{{ request()->is('admin/admin*') ? 'active' : '' }}" href="{{ route('admin.admin') }}"><span>{{ get_phrase('Admin') }}</span></a></li>
+                    @endif
+                    @if(empty($user->menu_permission) || in_array('admin.teacher', $menu_permission))
+                    <li><a class="{{ request()->is('admin/teacher*') ? 'active' : '' }}" href="{{ route('admin.teacher') }}"><span>{{ get_phrase('Teacher') }}</span></a></li>
+                    @endif
+                    @if(empty($user->menu_permission) || in_array('admin.accountant', $menu_permission))
+                    <li><a class="{{ request()->is('admin/accountant*') ? 'active' : '' }}" href="{{ route('admin.accountant') }}"><span>{{ get_phrase('Accountant') }}</span></a></li>
+                    @endif
+                    @if(empty($user->menu_permission) || in_array('admin.librarian', $menu_permission))
+                    <li><a class="{{ request()->is('admin/librarian*') ? 'active' : '' }}" href="{{ route('admin.librarian') }}"><span>{{ get_phrase('Librarian') }}</span></a></li>
+                    @endif
+                    @if(empty($user->menu_permission) || in_array('admin.warden', $menu_permission))
+                    <li><a class="{{ request()->is('admin/warden*') ? 'active' : '' }}" href="{{ route('admin.warden') }}"><span>{{ get_phrase('Warden') }}</span></a></li>
+                    @endif
+                    @if(empty($user->menu_permission) || in_array('admin.permission', $menu_permission))
+                    <li><a class="{{ request()->is('admin/permission*') ? 'active' : '' }}" href="{{ route('admin.teacher.permission') }}"><span>{{ get_phrase('Teacher Permission') }}</span></a></li>
+                    @endif
                 </ul>
             </li>
+            @endif
 
-            {{-- Leave Management --}}
-            <li class="nav-links-li {{ request()->is('admin/leave*') ? 'showMenu' : '' }}">
+            <!-- Programmes -->
+            <li class="nav-links-li {{ request()->is('admin/programmes*') ? 'showMenu' : '' }}">
                 <div class="iocn-link">
-                    <a href="#">
+                    <a href="{{ route('admin.programmes.index') }}" class="{{ request()->is('admin/programmes*') ? 'active' : '' }}">
                         <div class="sidebar_icon">
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="48" height="48"><path d="M19 3h-1V1h-2v2H8V1H6v2H5C3.9 3 3 3.9 3 5v16c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 18H5V9h14v12zM9 11H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2zm-8 4H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2z"/></svg>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+                            </svg>
                         </div>
-                        <span class="link_name">{{ get_phrase('Leave Management') }}</span>
+                        <span class="link_name">{{ get_phrase('Programmes') }}</span>
                     </a>
-                    <span class="arrow"><svg xmlns="http://www.w3.org/2000/svg" width="4.743" height="7.773" viewBox="0 0 4.743 7.773"><path d="M1.466.247,4.5,3.277a.793.793,0,0,1,.189.288.92.92,0,0,1,0,.643A.793.793,0,0,1,4.5,4.5l-3.03,3.03a.828.828,0,0,1-.609.247.828.828,0,0,1-.609-.247.875.875,0,0,1,0-1.219L2.668,3.886.247,1.466A.828.828,0,0,1,0,.856.828.828,0,0,1,.247.247.828.828,0,0,1,.856,0,.828.828,0,0,1,1.466.247Z" fill="#fff"/></svg></span>
                 </div>
-                <ul class="sub-menu">
-                    <li><a class="{{ request()->is('admin/leave') ? 'active' : '' }}" href="{{ route('admin.leave.index') }}"><span>{{ get_phrase('Leave Requests') }}</span></a></li>
-                    <li><a class="{{ request()->is('admin/leave-types*') ? 'active' : '' }}" href="{{ route('admin.leave_types.index') }}"><span>{{ get_phrase('Leave Types') }}</span></a></li>
-                </ul>
             </li>
 
-            {{-- Assets & Procurement --}}
-            <li class="nav-links-li {{ request()->is('admin/assets*') || request()->is('admin/asset-categories*') || request()->is('admin/procurement*') ? 'showMenu' : '' }}">
+            <!-- Courses -->
+            @if(empty($user->menu_permission) || in_array('admin.subject_list', $menu_permission))
+            <li class="nav-links-li {{ request()->is('admin/subject*') ? 'showMenu' : '' }}">
                 <div class="iocn-link">
-                    <a href="#">
+                    <a href="{{ route('admin.subject_list') }}" class="{{ request()->is('admin/subject*') ? 'active' : '' }}">
                         <div class="sidebar_icon">
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="48" height="48"><path d="M20 3H4v2h16V3zm1 4H3l1 13h16l1-13zm-9 11H8v-6h4v6zm5 0h-3v-4h3v4zm-7-8H7V8h3v2zm6 0h-4V8h4v2z"/></svg>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+                            </svg>
+                        </div>
+                        <span class="link_name">{{ get_phrase('Courses') }}</span>
+                    </a>
+                </div>
+            </li>
+            @endif
+
+            <!-- ============================================ -->
+            <!-- ACADEMIC SECTION HEADER                      -->
+            <!-- ============================================ -->
+            <li class="nav-section-header">ACADEMIC</li>
+
+            <!-- Attendance -->
+            @if(empty($user->menu_permission) || in_array('admin.daily_attendance', $menu_permission))
+            <li class="nav-links-li {{ request()->is('admin/attendance*') ? 'showMenu' : '' }}">
+                <div class="iocn-link">
+                    <a href="{{ route('admin.daily_attendance') }}" class="{{ request()->is('admin/attendance*') ? 'active' : '' }}">
+                        <div class="sidebar_icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+                            </svg>
+                        </div>
+                        <span class="link_name">{{ get_phrase('Attendance') }}</span>
+                    </a>
+                </div>
+            </li>
+            @endif
+
+            <!-- Online Exams -->
+            @if((empty($user->menu_permission) || in_array('admin.online_exams', $menu_permission) || in_array('admin.online_exams.index', $menu_permission)) && $canViewOnlineExamsNav)
+            <li class="nav-links-li {{ request()->is('admin/online-exams*') ? 'showMenu' : '' }}">
+                <div class="iocn-link">
+                    <a href="{{ route('admin.online_exams.index') }}" class="{{ request()->is('admin/online-exams*') ? 'active' : '' }}">
+                        <div class="sidebar_icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+                            </svg>
+                        </div>
+                        <span class="link_name">{{ get_phrase('Online Exams') }}</span>
+                    </a>
+                </div>
+            </li>
+            @endif
+
+            <!-- Timetable -->
+            @if(empty($user->menu_permission) || in_array('admin.routine', $menu_permission))
+            <li class="nav-links-li {{ request()->is('admin/routine*') ? 'showMenu' : '' }}">
+                <div class="iocn-link">
+                    <a href="{{ route('admin.routine') }}" class="{{ request()->is('admin/routine*') ? 'active' : '' }}">
+                        <div class="sidebar_icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                                <line x1="16" y1="2" x2="16" y2="6"></line>
+                                <line x1="8" y1="2" x2="8" y2="6"></line>
+                                <line x1="3" y1="10" x2="21" y2="10"></line>
+                            </svg>
+                        </div>
+                        <span class="link_name">{{ get_phrase('Timetable') }}</span>
+                    </a>
+                </div>
+            </li>
+            @endif
+
+            <!-- Assignments -->
+            @if(empty($user->menu_permission) || in_array('admin.assignments', $menu_permission))
+            <li class="nav-links-li {{ request()->is('admin/assignments*') ? 'showMenu' : '' }}">
+                <div class="iocn-link">
+                    <a href="{{ route('admin.assignments.index') }}" class="{{ request()->is('admin/assignments*') ? 'active' : '' }}">
+                        <div class="sidebar_icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                <polyline points="14 2 14 8 20 8"></polyline>
+                                <line x1="8" y1="13" x2="16" y2="13"></line>
+                                <line x1="8" y1="17" x2="12" y2="17"></line>
+                            </svg>
+                        </div>
+                        <span class="link_name">{{ get_phrase('Assignments') }}</span>
+                    </a>
+                </div>
+            </li>
+            @endif
+
+            <!-- Live Classes -->
+            @if(empty($user->menu_permission) || in_array('admin.live_classes', $menu_permission))
+            <li class="nav-links-li {{ request()->is('admin/live-classes*') ? 'showMenu' : '' }}">
+                <div class="iocn-link">
+                    <a href="{{ route('admin.live_classes.index') }}" class="{{ request()->is('admin/live-classes*') ? 'active' : '' }}">
+                        <div class="sidebar_icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polygon points="23 7 16 12 23 17 23 7"></polygon>
+                                <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+                            </svg>
+                        </div>
+                        <span class="link_name">{{ get_phrase('Live Classes') }}</span>
+                    </a>
+                </div>
+            </li>
+            @endif
+
+            <!-- Marks & Results -->
+            @if(empty($user->menu_permission) || in_array('admin.gradebook', $menu_permission))
+            <li class="nav-links-li {{ request()->is('admin/gradebook*') ? 'showMenu' : '' }}">
+                <div class="iocn-link">
+                    <a href="{{ route('admin.gradebook') }}" class="{{ request()->is('admin/gradebook*') ? 'active' : '' }}">
+                        <div class="sidebar_icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+                                <path d="M2 17l10 5 10-5"></path>
+                                <path d="M2 12l10 5 10-5"></path>
+                            </svg>
+                        </div>
+                        <span class="link_name">{{ get_phrase('Marks & Results') }}</span>
+                    </a>
+                </div>
+            </li>
+            @endif
+
+            <!-- Question Bank -->
+            @if((empty($user->menu_permission) || in_array('admin.question_bank', $menu_permission) || in_array('admin.question_bank.index', $menu_permission)) && $canManageQuestionBankNav)
+            <li class="nav-links-li {{ request()->is('admin/question-bank*') ? 'showMenu' : '' }}">
+                <div class="iocn-link">
+                    <a href="{{ route('admin.question_bank.index') }}" class="{{ request()->is('admin/question-bank*') ? 'active' : '' }}">
+                        <div class="sidebar_icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                                <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                            </svg>
+                        </div>
+                        <span class="link_name">{{ get_phrase('Question Bank') }}</span>
+                    </a>
+                </div>
+            </li>
+            @endif
+
+            <!-- ============================================ -->
+            <!-- FINANCE SECTION HEADER                       -->
+            <!-- ============================================ -->
+            <li class="nav-section-header">FINANCE</li>
+
+            <!-- Finance -->
+            @if(empty($user->menu_permission) || in_array('admin.fee_manager.list', $menu_permission))
+            <li class="nav-links-li {{ request()->is('admin/fee_manager*') ? 'showMenu' : '' }}">
+                <div class="iocn-link">
+                    <a href="{{ route('admin.fee_manager.list') }}" class="{{ request()->is('admin/fee_manager*') ? 'active' : '' }}">
+                        <div class="sidebar_icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="12" y1="1" x2="12" y2="23"></line>
+                                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                            </svg>
+                        </div>
+                        <span class="link_name">{{ get_phrase('Finance') }}</span>
+                    </a>
+                </div>
+            </li>
+            @endif
+
+            <!-- Fee Structures -->
+            @if(empty($user->menu_permission) || in_array('admin.fee_structures', $menu_permission))
+            <li class="nav-links-li {{ request()->is('admin/fee-structures*') ? 'showMenu' : '' }}">
+                <div class="iocn-link">
+                    <a href="{{ route('admin.fee_structures.index') }}" class="{{ request()->is('admin/fee-structures*') ? 'active' : '' }}">
+                        <div class="sidebar_icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
+                                <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+                            </svg>
+                        </div>
+                        <span class="link_name">{{ get_phrase('Fee Structures') }}</span>
+                    </a>
+                </div>
+            </li>
+            @endif
+
+            <!-- Payments -->
+            @if(empty($user->menu_permission) || in_array('admin.offline_payment_pending', $menu_permission))
+            <li class="nav-links-li {{ request()->is('admin/offline_payment/pending*') ? 'showMenu' : '' }}">
+                <div class="iocn-link">
+                    <a href="{{ route('admin.offline_payment_pending') }}" class="{{ request()->is('admin/offline_payment/pending*') ? 'active' : '' }}">
+                        <div class="sidebar_icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+                                <path d="M2 17l10 5 10-5"></path>
+                                <path d="M2 12l10 5 10-5"></path>
+                            </svg>
+                        </div>
+                        <span class="link_name">{{ get_phrase('Payments') }}</span>
+                    </a>
+                </div>
+            </li>
+            @endif
+
+            <!-- Expenses -->
+            @if(empty($user->menu_permission) || in_array('admin.expense.list', $menu_permission))
+            <li class="nav-links-li {{ request()->is('admin/expenses*') ? 'showMenu' : '' }}">
+                <div class="iocn-link">
+                    <a href="{{ route('admin.expense.list') }}" class="{{ request()->is('admin/expenses*') ? 'active' : '' }}">
+                        <div class="sidebar_icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+                                <path d="M2 17l10 5 10-5"></path>
+                                <path d="M2 12l10 5 10-5"></path>
+                            </svg>
+                        </div>
+                        <span class="link_name">{{ get_phrase('Expenses') }}</span>
+                    </a>
+                </div>
+            </li>
+            @endif
+
+            <!-- Payroll -->
+            @if(empty($user->menu_permission) || in_array('admin.payroll', $menu_permission))
+            <li class="nav-links-li {{ request()->is('admin/payroll*') || request()->is('admin/salary-structures*') ? 'showMenu' : '' }}">
+                <div class="iocn-link">
+                    <a href="{{ route('admin.payroll.index') }}" class="{{ request()->is('admin/payroll*') ? 'active' : '' }}">
+                        <div class="sidebar_icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+                                <path d="M2 17l10 5 10-5"></path>
+                                <path d="M2 12l10 5 10-5"></path>
+                            </svg>
+                        </div>
+                        <span class="link_name">{{ get_phrase('Payroll') }}</span>
+                    </a>
+                </div>
+            </li>
+            @endif
+
+            <!-- ============================================ -->
+            <!-- ADMISSIONS SECTION HEADER                    -->
+            <!-- ============================================ -->
+            <li class="nav-section-header">ADMISSIONS</li>
+
+            <!-- Admissions -->
+            @if(empty($user->menu_permission) || in_array('admin.hei_admissions', $menu_permission))
+            <li class="nav-links-li {{ request()->is('admin/hei-admissions*') ? 'showMenu' : '' }}">
+                <div class="iocn-link">
+                    <a href="{{ route('admin.hei_admissions.index') }}" class="{{ request()->is('admin/hei-admissions*') ? 'active' : '' }}">
+                        <div class="sidebar_icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+                                <path d="M2 17l10 5 10-5"></path>
+                                <path d="M2 12l10 5 10-5"></path>
+                            </svg>
+                        </div>
+                        <span class="link_name">{{ get_phrase('Admissions') }}</span>
+                    </a>
+                </div>
+            </li>
+            @endif
+
+            <!-- Intake Sessions -->
+            @if(empty($user->menu_permission) || in_array('admin.intake_sessions', $menu_permission))
+            <li class="nav-links-li {{ request()->is('admin/intake-sessions*') ? 'showMenu' : '' }}">
+                <div class="iocn-link">
+                    <a href="{{ route('admin.intake_sessions.index') }}" class="{{ request()->is('admin/intake-sessions*') ? 'active' : '' }}">
+                        <div class="sidebar_icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                                <line x1="16" y1="2" x2="16" y2="6"></line>
+                                <line x1="8" y1="2" x2="8" y2="6"></line>
+                                <line x1="3" y1="10" x2="21" y2="10"></line>
+                            </svg>
+                        </div>
+                        <span class="link_name">{{ get_phrase('Intake Sessions') }}</span>
+                    </a>
+                </div>
+            </li>
+            @endif
+
+            <!-- Agents -->
+            @if(empty($user->menu_permission) || in_array('admin.admissions_agents', $menu_permission))
+            <li class="nav-links-li {{ request()->is('admin/admissions-agents*') ? 'showMenu' : '' }}">
+                <div class="iocn-link">
+                    <a href="{{ route('admin.admissions_agents.index') }}" class="{{ request()->is('admin/admissions-agents*') ? 'active' : '' }}">
+                        <div class="sidebar_icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                <circle cx="9" cy="7" r="4"></circle>
+                                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                            </svg>
+                        </div>
+                        <span class="link_name">{{ get_phrase('Agents') }}</span>
+                    </a>
+                </div>
+            </li>
+            @endif
+
+            <!-- ============================================ -->
+            <!-- RESOURCES SECTION HEADER                     -->
+            <!-- ============================================ -->
+            <li class="nav-section-header">RESOURCES</li>
+
+            <!-- Library -->
+            @if(empty($user->menu_permission) || in_array('admin.book.book_list', $menu_permission))
+            <li class="nav-links-li {{ request()->is('admin/book*') ? 'showMenu' : '' }}">
+                <div class="iocn-link">
+                    <a href="{{ route('admin.book.book_list') }}" class="{{ request()->is('admin/book*') ? 'active' : '' }}">
+                        <div class="sidebar_icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+                                <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+                            </svg>
+                        </div>
+                        <span class="link_name">{{ get_phrase('Library') }}</span>
+                    </a>
+                </div>
+            </li>
+            @endif
+
+            <!-- Assets -->
+            @if(empty($user->menu_permission) || in_array('admin.assets', $menu_permission))
+            <li class="nav-links-li {{ request()->is('admin/assets') ? 'showMenu' : '' }}">
+                <div class="iocn-link">
+                    <a href="{{ route('admin.assets.index') }}" class="{{ request()->is('admin/assets') ? 'active' : '' }}">
+                        <div class="sidebar_icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
+                                <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+                            </svg>
                         </div>
                         <span class="link_name">{{ get_phrase('Assets') }}</span>
                     </a>
-                    <span class="arrow"><svg xmlns="http://www.w3.org/2000/svg" width="4.743" height="7.773" viewBox="0 0 4.743 7.773"><path d="M1.466.247,4.5,3.277a.793.793,0,0,1,.189.288.92.92,0,0,1,0,.643A.793.793,0,0,1,4.5,4.5l-3.03,3.03a.828.828,0,0,1-.609.247.828.828,0,0,1-.609-.247.875.875,0,0,1,0-1.219L2.668,3.886.247,1.466A.828.828,0,0,1,0,.856.828.828,0,0,1,.247.247.828.828,0,0,1,.856,0,.828.828,0,0,1,1.466.247Z" fill="#fff"/></svg></span>
-                </div>
-                <ul class="sub-menu">
-                    <li><a class="{{ request()->is('admin/assets') ? 'active' : '' }}" href="{{ route('admin.assets.index') }}"><span>{{ get_phrase('Assets') }}</span></a></li>
-                    <li><a class="{{ request()->is('admin/asset-categories*') ? 'active' : '' }}" href="{{ route('admin.asset_categories.index') }}"><span>{{ get_phrase('Asset Categories') }}</span></a></li>
-                    <li><a class="{{ request()->is('admin/procurement*') ? 'active' : '' }}" href="{{ route('admin.procurement.index') }}"><span>{{ get_phrase('Procurement') }}</span></a></li>
-                </ul>
-            </li>
-
-            {{-- Audit Log --}}
-            <li class="nav-links-li {{ request()->is('admin/audit-log*') ? 'showMenu' : '' }}">
-                <div class="iocn-link">
-                    <a class="{{ request()->is('admin/audit-log*') ? 'active' : '' }}" href="{{ route('admin.audit_log.index') }}">
-                        <div class="sidebar_icon">
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="48" height="48"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg>
-                        </div>
-                        <span class="link_name">{{ get_phrase('Audit Log') }}</span>
-                    </a>
                 </div>
             </li>
+            @endif
 
-            {{-- Reports & Analytics --}}
-            @if (empty($user->menu_permission) || in_array('admin.reports', $menu_permission))
-            <li class="nav-links-li {{ request()->is('admin/reports*') ? 'showMenu' : '' }}">
+            <!-- Asset Categories -->
+            @if(empty($user->menu_permission) || in_array('admin.asset_categories', $menu_permission))
+            <li class="nav-links-li {{ request()->is('admin/asset-categories*') ? 'showMenu' : '' }}">
                 <div class="iocn-link">
-                    <a class="{{ request()->is('admin/reports*') ? 'active' : '' }}" href="{{ route('admin.reports.index') }}">
+                    <a href="{{ route('admin.asset_categories.index') }}" class="{{ request()->is('admin/asset-categories*') ? 'active' : '' }}">
                         <div class="sidebar_icon">
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="48" height="48"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14l-5-5 1.41-1.41L12 14.17l7.59-7.59L21 8l-9 9z"/><path d="M7 12h2v5H7zm4-3h2v8h-2zm4-3h2v11h-2z" fill-opacity="0"/><rect x="7" y="12" width="2" height="5"/><rect x="11" y="9" width="2" height="8"/><rect x="15" y="6" width="2" height="11"/></svg>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
+                                <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+                            </svg>
                         </div>
-                        <span class="link_name">{{ get_phrase('Reports & Analytics') }}</span>
+                        <span class="link_name">{{ get_phrase('Asset Categories') }}</span>
                     </a>
                 </div>
             </li>
             @endif
 
-            {{-- Transcripts --}}
-            @if (empty($user->menu_permission) || in_array('admin.transcripts', $menu_permission))
-            <li class="nav-links-li {{ request()->is('admin/transcripts*') ? 'showMenu' : '' }}">
+            <!-- Procurement -->
+            @if(empty($user->menu_permission) || in_array('admin.procurement', $menu_permission))
+            <li class="nav-links-li {{ request()->is('admin/procurement*') ? 'showMenu' : '' }}">
                 <div class="iocn-link">
-                    <a class="{{ request()->is('admin/transcripts*') ? 'active' : '' }}" href="{{ route('admin.transcripts.index') }}">
+                    <a href="{{ route('admin.procurement.index') }}" class="{{ request()->is('admin/procurement*') ? 'active' : '' }}">
                         <div class="sidebar_icon">
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="48" height="48"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11zM8 15.01l1.41 1.41L11 14.84V19h2v-4.16l1.59 1.59L16 15.01 12.01 11 8 15.01z"/></svg>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
+                                <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+                            </svg>
                         </div>
-                        <span class="link_name">{{ get_phrase('Transcripts') }}</span>
+                        <span class="link_name">{{ get_phrase('Procurement') }}</span>
                     </a>
                 </div>
             </li>
             @endif
 
-            @if (addon_status('online_courses') == 1)
-                <li class="nav-links-li {{ request()->is('admin/addons/courses*') ? 'showMenu' : '' }}">
-                    <div class="iocn-link">
-                        <a class="{{ request()->is('admin/addons/courses*') ? 'active' : '' }}"
-                            href="{{ route('admin.addons.courses') }}">
-                            <div class="sidebar_icon">
-                                <svg xmlns="http://www.w3.org/2000/svg" id="Isolation_Mode"
-                                    data-name="Isolation Mode" viewBox="0 0 24 24" width="48" height="48">
-                                    <path
-                                        d="M11,14H5a5.006,5.006,0,0,0-5,5v5H3V19a2,2,0,0,1,2-2h6a2,2,0,0,1,2,2v5h3V19A5.006,5.006,0,0,0,11,14Z" />
-                                    <path
-                                        d="M8,12A6,6,0,1,0,2,6,6.006,6.006,0,0,0,8,12ZM8,3A3,3,0,1,1,5,6,3,3,0,0,1,8,3Z" />
-                                    <polygon
-                                        points="21 10 21 7 18 7 18 10 15 10 15 13 18 13 18 16 21 16 21 13 24 13 24 10 21 10" />
-                                </svg>
-                            </div>
-                            <span class="link_name">
-                                {{ get_phrase('Online Courses') }}
-                            </span>
-                        </a>
-                    </div>
-                </li>
-            @endif
+            <!-- ============================================ -->
+            <!-- COMMUNICATION SECTION HEADER                 -->
+            <!-- ============================================ -->
+            <li class="nav-section-header">COMMUNICATION</li>
 
-            @if (addon_status('hr_management') == 1)
-                <?php
-                
-                $to = strtotime(date('m/d/Y')) + 8600;
-                
-                $f = date('m/d/Y', strtotime('-31 days'));
-                $form = strtotime(date('m/d/Y'), strtotime($f));
-                ?>
-
-                <li
-                    class="nav-links-li {{ request()->is('hr/leave_list*') || request()->is('payroll/create/payslip*') || request()->is('attendence/list*') || request()->is('payroll/list*') || request()->is('hr/user/roles*') || request()->is('hr/user/list*') ? 'showMenu' : '' }}">
-                    <div class="iocn-link">
-                        <a href="#">
-                            <div class="sidebar_icon">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48"
-                                    viewBox="0 0 14.991 17.164">
-                                    <path id="Exam_Icon" data-name="Exam Icon"
-                                        d="M6.331,13.015h5.83v1.716H6.331Zm0-3.433H14.66V11.3H6.331Zm0-3.433H14.66V7.866H6.331Zm9.994-3.433H12.844a2.465,2.465,0,0,0-4.7,0H4.666a1.417,1.417,0,0,0-.333.034,1.659,1.659,0,0,0-.841.472,1.723,1.723,0,0,0-.358.549A1.7,1.7,0,0,0,3,4.433V16.448a1.766,1.766,0,0,0,.491,1.219,1.659,1.659,0,0,0,.841.472,2.1,2.1,0,0,0,.333.026h11.66a1.7,1.7,0,0,0,1.666-1.716V4.433A1.7,1.7,0,0,0,16.325,2.716ZM10.5,2.5a.644.644,0,1,1-.625.644A.639.639,0,0,1,10.5,2.5Zm5.83,13.946H4.666V4.433h11.66Z"
-                                        transform="translate(-3 -1)" />
-                                </svg>
-                            </div>
-                            <span class="link_name">
-                                {{ get_phrase('Human Resource') }}
-                            </span>
-                        </a>
-                        <span class="arrow">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="4.743" height="7.773"
-                                viewBox="0 0 4.743 7.773">
-                                <path id="navigate_before_FILL0_wght600_GRAD0_opsz24"
-                                    d="M1.466.247,4.5,3.277a.793.793,0,0,1,.189.288.92.92,0,0,1,0,.643A.793.793,0,0,1,4.5,4.5l-3.03,3.03a.828.828,0,0,1-.609.247.828.828,0,0,1-.609-.247.875.875,0,0,1,0-1.219L2.668,3.886.247,1.466A.828.828,0,0,1,0,.856.828.828,0,0,1,.247.247.828.828,0,0,1,.856,0,.828.828,0,0,1,1.466.247Z"
-                                    fill="#fff" opacity="1" />
+            <!-- Notices -->
+            @if(empty($user->menu_permission) || in_array('admin.noticeboard.list', $menu_permission))
+            <li class="nav-links-li {{ request()->is('admin/noticeboard*') ? 'showMenu' : '' }}">
+                <div class="iocn-link">
+                    <a href="{{ route('admin.noticeboard.list') }}" class="{{ request()->is('admin/noticeboard*') ? 'active' : '' }}">
+                        <div class="sidebar_icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
                             </svg>
-                        </span>
-                    </div>
-                    <ul class="sub-menu">
-
-                        <li>
-                            <a class="{{ request()->is('hr/user/roles*') ? 'active' : '' }}"
-                                href="{{ route('hr.user_role_index') }}">
-                                <span>
-                                    {{ get_phrase('User Roles') }}
-                                </span>
-                                <!-- <span class="badge bg-success m-1" style="">{{ get_phrase('Addon') }}</span> -->
-                            </a>
-                        </li>
-
-                        <li>
-                            <a class="{{ request()->is('hr/user/list*') ? 'active' : '' }}"
-                                href="{{ route('hr.userlist_index') }}">
-                                <span>
-                                    {{ get_phrase('User List') }}
-                                </span>
-                                <!-- <span class="badge bg-success m-1" style="">{{ get_phrase('Addon') }}</span> -->
-                            </a>
-                        </li>
-
-
-                        <li>
-                            <a class="{{ request()->is('attendence/list*') ? 'active' : '' }}"
-                                href="{{ route('hr.list_of_attendence') }}">
-                                <span>
-                                    {{ get_phrase('Take Attendence') }}
-                                </span>
-                                <!-- <span class="badge bg-success m-1" style="">{{ get_phrase('Addon') }}</span> -->
-                            </a>
-                        </li>
-
-                        <li>
-                            <a class="{{ request()->is('hr/leave_list*') ? 'active' : '' }}"
-                                href="{{ route('hr.list_of_leaves') }}">
-                                <span>
-                                    {{ get_phrase('Leave') }}
-                                </span>
-                                <!-- <span class="badge bg-success m-1" style="">{{ get_phrase('Addon') }}</span> -->
-                            </a>
-                        </li>
-                        <li>
-                            <a class="{{ request()->is('payroll/list*') ? 'active' : '' }}"
-                                href="{{ route('hr.list_of_payrolls') }}">
-                                <span>
-                                    {{ get_phrase('Payroll') }}
-                                </span>
-                                <!-- <span class="badge bg-success m-1" style="">{{ get_phrase('Addon') }}</span> -->
-                            </a>
-                        </li>
-
-                    </ul>
-                </li>
+                        </div>
+                        <span class="link_name">{{ get_phrase('Notices') }}</span>
+                    </a>
+                </div>
+            </li>
             @endif
 
-            @if (addon_status('inventory_manager') == 1)
-                <li
-                    class="nav-links-li {{ request()->is('admin/inventory/list*') || request()->is('admin/category/list*') || request()->is('admin/buy_sell_inventory*') ? 'showMenu' : '' }}">
-                    <div class="iocn-link">
-                        <a href="#">
-                            <div class="sidebar_icon">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48"
-                                    viewBox="0 0 32 32" id="inventory">
-                                    <path d="M24 15V3H8v12H3v14h26V15h-5zM10 5h12v10H10V5zm17 22H5V17h22v10z"></path>
-                                    <path d="M12 9h8v1h-8zm0 2h8v1h-8zm7 11h-6v-1h-1v2h8v-2h-1z"></path>
-                                </svg></svg>
-                            </div>
-                            <span class="link_name">
-                                {{ get_phrase('Inventory') }}
-                            </span>
-                        </a>
-                        <span class="arrow">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="4.743" height="7.773"
-                                viewBox="0 0 4.743 7.773">
-                                <path id="navigate_before_FILL0_wght600_GRAD0_opsz24"
-                                    d="M1.466.247,4.5,3.277a.793.793,0,0,1,.189.288.92.92,0,0,1,0,.643A.793.793,0,0,1,4.5,4.5l-3.03,3.03a.828.828,0,0,1-.609.247.828.828,0,0,1-.609-.247.875.875,0,0,1,0-1.219L2.668,3.886.247,1.466A.828.828,0,0,1,0,.856.828.828,0,0,1,.247.247.828.828,0,0,1,.856,0,.828.828,0,0,1,1.466.247Z"
-                                    fill="#fff" opacity="1" />
+            <!-- Events -->
+            @if(empty($user->menu_permission) || in_array('admin.events.list', $menu_permission))
+            <li class="nav-links-li {{ request()->is('admin/events*') ? 'showMenu' : '' }}">
+                <div class="iocn-link">
+                    <a href="{{ route('admin.events.list') }}" class="{{ request()->is('admin/events*') ? 'active' : '' }}">
+                        <div class="sidebar_icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                                <line x1="16" y1="2" x2="16" y2="6"></line>
+                                <line x1="8" y1="2" x2="8" y2="6"></line>
+                                <line x1="3" y1="10" x2="21" y2="10"></line>
                             </svg>
-                        </span>
-                    </div>
-                    <ul class="sub-menu">
-
-                        <li>
-                            <a class="{{ request()->is('admin/inventory/list') ? 'active' : '' }}"
-                                href="{{ route('admin.inventory.list') }}">
-                                <span>
-                                    {{ get_phrase('Inventory Manager') }}
-                                </span>
-                                <!-- <span class="badge bg-success m-1" style="">{{ get_phrase('Addon') }}</span> -->
-                            </a>
-                        </li>
-
-                        <li>
-                            <a class="{{ request()->is('admin/category/list') ? 'active' : '' }}"
-                                href="{{ route('admin.category.list') }}">
-                                <span>
-                                    {{ get_phrase('Inventory Category') }}
-                                </span>
-                                <!-- <span class="badge bg-success m-1" style="">{{ get_phrase('Addon') }}</span> -->
-                            </a>
-                        </li>
-
-
-                        <li>
-                            <a class="{{ request()->is('admin/buy_sell_inventory') ? 'active' : '' }}"
-                                href="{{ route('admin.buy_sell_inventory') }}">
-                                <span>
-                                    {{ get_phrase('Buy & Sell Report') }}
-                                </span>
-                                <!-- <span class="badge bg-success m-1" style="">{{ get_phrase('Addon') }}</span> -->
-                            </a>
-                        </li>
-
-                    </ul>
-                </li>
+                        </div>
+                        <span class="link_name">{{ get_phrase('Events') }}</span>
+                    </a>
+                </div>
+            </li>
             @endif
 
-            @if (addon_status('alumni_manager') == 1)
-                <li
-                    class="nav-links-li {{ request()->is('admin/alumni*') || request()->is('admin/alumni/gallery_alumni*') || request()->is('admin/alumni/event_alumni*') ? 'showMenu' : '' }}">
-                    <div class="iocn-link">
-                        <a href="#">
-                            <div class="sidebar_icon">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"
-                                    viewBox="0 0 16 16" id="alumni" class="bi bi-mortarboard mt-3">
-                                    <path
-                                        d="M8.211 2.047a.5.5 0 0 0-.422 0l-7.5 3.5a.5.5 0 0 0 .025.917l7.5 3a.5.5 0 0 0 .372 0L14 7.14V13a1 1 0 0 0-1 1v2h3v-2a1 1 0 0 0-1-1V6.739l.686-.275a.5.5 0 0 0 .025-.917l-7.5-3.5ZM8 8.46 1.758 5.965 8 3.052l6.242 2.913L8 8.46Z" />
-                                    <path
-                                        d="M4.176 9.032a.5.5 0 0 0-.656.327l-.5 1.7a.5.5 0 0 0 .294.605l4.5 1.8a.5.5 0 0 0 .372 0l4.5-1.8a.5.5 0 0 0 .294-.605l-.5-1.7a.5.5 0 0 0-.656-.327L8 10.466 4.176 9.032Zm-.068 1.873.22-.748 3.496 1.311a.5.5 0 0 0 .352 0l3.496-1.311.22.748L8 12.46l-3.892-1.556Z" />
-                                </svg>
-                            </div>
-                            <span class="link_name">
-                                {{ get_phrase('Alumni') }}
-                            </span>
-                            {{-- <span class="badge bg-success m-1" style="">{{ get_phrase('Addon') }}</span>   --}}
-                        </a>
-                        <span class="arrow">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="4.743" height="7.773"
-                                viewBox="0 0 4.743 7.773">
-                                <path id="navigate_before_FILL0_wght600_GRAD0_opsz24"
-                                    d="M1.466.247,4.5,3.277a.793.793,0,0,1,.189.288.92.92,0,0,1,0,.643A.793.793,0,0,1,4.5,4.5l-3.03,3.03a.828.828,0,0,1-.609.247.828.828,0,0,1-.609-.247.875.875,0,0,1,0-1.219L2.668,3.886.247,1.466A.828.828,0,0,1,0,.856.828.828,0,0,1,.247.247.828.828,0,0,1,.856,0,.828.828,0,0,1,1.466.247Z"
-                                    fill="#fff" opacity="1" />
+            <!-- Academic Calendar -->
+            @if(empty($user->menu_permission) || in_array('admin.academic_calendar', $menu_permission))
+            <li class="nav-links-li {{ request()->is('admin/academic-calendar*') ? 'showMenu' : '' }}">
+                <div class="iocn-link">
+                    <a href="{{ route('admin.academic_calendar.index') }}" class="{{ request()->is('admin/academic-calendar*') ? 'active' : '' }}">
+                        <div class="sidebar_icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                                <line x1="16" y1="2" x2="16" y2="6"></line>
+                                <line x1="8" y1="2" x2="8" y2="6"></line>
+                                <line x1="3" y1="10" x2="21" y2="10"></line>
                             </svg>
-                        </span>
-
-                    </div>
-                    <ul class="sub-menu">
-
-                        <li>
-                            <a class="{{ request()->is('admin/alumni/alumni_manager') ? 'active' : '' }}"
-                                href="{{ route('admin.alumni.index') }}">
-                                <span>
-                                    {{ get_phrase('Manage Alumni') }}
-                                </span>
-                                {{-- <span class="badge bg-success m-1" style="">{{ get_phrase('Addon') }}</span> --}}
-                            </a>
-                        </li>
-
-                        <li>
-                            <a class="{{ request()->is('admin/alumni/event_alumni') ? 'active' : '' }}"
-                                href="{{ route('admin.alumni.eventindex') }}">
-                                <span>
-                                    {{ get_phrase('Events') }}
-                                </span>
-                                {{-- <span class="badge bg-success m-1" style="">{{ get_phrase('Addon') }}</span> --}}
-                            </a>
-                        </li>
-
-
-                        <li>
-                            <a class="{{ request()->is('admin/alumni/gallery_alumni') ? 'active' : '' }}"
-                                href="{{ route('admin.alumni.galleryindex') }}">
-                                <span>
-                                    {{ get_phrase('Gallery') }}
-                                </span>
-                                {{-- <span class="badge bg-success m-1" style="">{{ get_phrase('Addon') }}</span> --}}
-                            </a>
-                        </li>
-                    </ul>
-                </li>
+                        </div>
+                        <span class="link_name">{{ get_phrase('Academic Calendar') }}</span>
+                    </a>
+                </div>
+            </li>
             @endif
 
-            @if (addon_status('sms_center') == 1)
-                <li
-                    class="nav-links-li {{ request()->is('admin/sms_center*') || request()->is('admin/sms_center/sms_settings*') || request()->is('admin/sms_center/sms_sender*') ? 'showMenu' : '' }}">
-                    <div class="iocn-link">
-                        <a href="#">
-                            <div class="sidebar_icon">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"
-                                    fill="currentColor" class="bi bi-send mt-3" viewBox="0 0 16 16">
-                                    <path
-                                        d="M15.854.146a.5.5 0 0 1 .11.54l-5.819 14.547a.75.75 0 0 1-1.329.124l-3.178-4.995L.643 7.184a.75.75 0 0 1 .124-1.33L15.314.037a.5.5 0 0 1 .54.11ZM6.636 10.07l2.761 4.338L14.13 2.576 6.636 10.07Zm6.787-8.201L1.591 6.602l4.339 2.76 7.494-7.493Z" />
-                                </svg>
-                            </div>
-                            <span class="link_name">
-                                {{ get_phrase('Sms Center') }}
-                            </span>
-                            {{-- <span class="badge bg-success m-1" style="">{{ get_phrase('Addon') }}</span>   --}}
-                        </a>
-                        <span class="arrow">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="4.743" height="7.773"
-                                viewBox="0 0 4.743 7.773">
-                                <path id="navigate_before_FILL0_wght600_GRAD0_opsz24"
-                                    d="M1.466.247,4.5,3.277a.793.793,0,0,1,.189.288.92.92,0,0,1,0,.643A.793.793,0,0,1,4.5,4.5l-3.03,3.03a.828.828,0,0,1-.609.247.828.828,0,0,1-.609-.247.875.875,0,0,1,0-1.219L2.668,3.886.247,1.466A.828.828,0,0,1,0,.856.828.828,0,0,1,.247.247.828.828,0,0,1,.856,0,.828.828,0,0,1,1.466.247Z"
-                                    fill="#fff" opacity="1" />
+            <!-- ============================================ -->
+            <!-- PROFILE & LOGOUT                             -->
+            <!-- ============================================ -->
+            <li class="nav-links-li {{ request()->is('admin/profile*') ? 'showMenu' : '' }}">
+                <div class="iocn-link">
+                    <a href="{{ route('admin.profile') }}" class="{{ request()->is('admin/profile*') ? 'active' : '' }}">
+                        <div class="sidebar_icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                                <circle cx="12" cy="7" r="4"></circle>
                             </svg>
-                        </span>
+                        </div>
+                        <span class="link_name">{{ get_phrase('My Profile') }}</span>
+                    </a>
+                </div>
+            </li>
 
-                    </div>
-                    <ul class="sub-menu">
-                        <li>
-                            <a class="{{ request()->is('admin/sms_center/sms_settings') ? 'active' : '' }}"
-                                href="{{ route('admin.sms_center.index') }}">
-                                <span>
-                                    {{ get_phrase('Sms Settings') }}
-                                </span>
-                                {{-- <span class="badge bg-success m-1" style="">{{ get_phrase('Addon') }}</span> --}}
-                            </a>
-                        </li>
-                        <li>
-                            <a class="{{ request()->is('admin/sms_center/sms_sender') ? 'active' : '' }}"
-                                href="{{ route('admin.sms_center.sms_sender') }}">
-                                <span>
-                                    {{ get_phrase('Sms sender') }}
-                                </span>
-                                {{-- <span class="badge bg-success m-1" style="">{{ get_phrase('Addon') }}</span> --}}
-                            </a>
-                        </li>
-                    </ul>
-                </li>
-            @endif
-
-            @if (addon_status('assignments') == 1)
-                <li class="nav-links-li {{ request()->is('admin/assignments*') ? 'showMenu' : '' }}">
-                    <div class="iocn-link">
-                        <a href="{{ route('admin.assignment_home', ['type' => 'published']) }}">
-                            <div class="sidebar_icon">
-                                <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
-                                    version="1.1" id="Layer_1" x="0px" y="0px" viewBox="0 0 512 512"
-                                    style="enable-background:new 0 0 512 512;" xml:space="preserve" width="48"
-                                    height="48">
-                                    <g>
-                                        <path
-                                            d="m385 227.33c28.359 0 54.99 7.538 78 20.71v-232.21c0-8.284-6.716-15-15-15h-314c-8.284 0-15 6.716-15 15v391.004c0 8.284 6.716 15 15 15h97.902c-24.727-97.03 52.723-195.864 153.098-194.504zm-190.997-177.499h193.994c19.902.793 19.887 29.215 0 30h-193.994c-19.902-.793-19.887-29.215 0-30zm0 60h193.994c19.902.793 19.887 29.215 0 30h-193.994c-19.902-.793-19.887-29.215 0-30zm0 60h193.994c19.902.793 19.887 29.215 0 30h-193.994c-19.902-.793-19.887-29.215 0-30zm-15 75c0-8.284 6.716-15 15-15h47.729c19.902.793 19.887 29.215 0 30h-47.729c-8.284 0-15-6.716-15-15z" />
-                                        <path
-                                            d="m385 257.33c-70.304 0-127.5 57.196-127.5 127.5 7.004 169.146 248.022 169.097 255-.001 0-70.303-57.196-127.499-127.5-127.499zm58.891 100.745-56.962 72.779c-2.765 3.531-6.964 5.642-11.447 5.75-4.471.113-8.784-1.793-11.714-5.187l-30.616-35.424c-5.417-6.268-4.728-15.74 1.54-21.157 6.271-5.419 15.74-4.727 21.157 1.54l18.693 21.629 45.724-58.421c5.106-6.523 14.532-7.674 21.058-2.567 6.523 5.107 7.672 14.534 2.567 21.058z" />
-                                        <path d="m0 137.83h90v184h-90z" />
-                                        <path
-                                            d="m45 49.83c-24.813 0-45 20.187-45 45v13h90v-13c0-24.813-20.187-45-45-45z" />
-                                        <path
-                                            d="m31.153 414.599c5.047 12.231 22.648 12.226 27.692 0l26.155-62.769h-80z" />
-                                    </g>
-                                </svg>
-                            </div>
-                            <span class="link_name">{{ get_phrase('Assignments') }}</span>
-                        </a>
-                    </div>
-                </li>
-            @endif
-
-
-            @if (empty($user->menu_permission) ||
-                    in_array('admin.book.book_list', $menu_permission) ||
-                    in_array('admin.book_issue.list', $menu_permission) ||
-                    in_array('admin.noticeboard.list', $menu_permission) ||
-                    in_array('admin.subscription', $menu_permission) ||
-                    in_array('admin.club.index', $menu_permission) ||
-                    in_array('admin.events.list', $menu_permission) ||
-                    in_array('admin.feedback.feedback_list', $menu_permission))
-                <li
-                    class="nav-links-li {{ request()->is('admin/book*') || request()->is('admin/book_issue*') || request()->is('admin/noticeboard*') || request()->is('admin/subscription') || request()->is('admin/club/list*')|| request()->is('admin/club/members*') || request()->is('admin/club/notice*') || request()->is('admin/events/list*') || request()->is('admin/feedback-list*') ? 'showMenu' : '' }}">
-                    <div class="iocn-link">
-                        <a href="#">
-                            <div class="sidebar_icon">
-                                <svg xmlns="http://www.w3.org/2000/svg" id="Bold" viewBox="0 0 24 24"
-                                    width="48" height="48">
-                                    <path
-                                        d="M18.5,3h-.642A4,4,0,0,0,14,0H10A4,4,0,0,0,6.142,3H5.5A5.506,5.506,0,0,0,0,8.5v10A5.506,5.506,0,0,0,5.5,24h13A5.507,5.507,0,0,0,24,18.5V8.5A5.507,5.507,0,0,0,18.5,3ZM5.5,6h13A2.5,2.5,0,0,1,21,8.5V11H3V8.5A2.5,2.5,0,0,1,5.5,6Zm13,15H5.5A2.5,2.5,0,0,1,3,18.5V14h7a2,2,0,0,0,2,2h0a2,2,0,0,0,2-2h7v4.5A2.5,2.5,0,0,1,18.5,21Z" />
-                                </svg>
-                            </div>
-                            <span class="link_name">
-                                {{ get_phrase('Back Office') }}
-                            </span>
-                        </a>
-                        <span class="arrow">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="4.743" height="7.773"
-                                viewBox="0 0 4.743 7.773">
-                                <path id="navigate_before_FILL0_wght600_GRAD0_opsz24"
-                                    d="M1.466.247,4.5,3.277a.793.793,0,0,1,.189.288.92.92,0,0,1,0,.643A.793.793,0,0,1,4.5,4.5l-3.03,3.03a.828.828,0,0,1-.609.247.828.828,0,0,1-.609-.247.875.875,0,0,1,0-1.219L2.668,3.886.247,1.466A.828.828,0,0,1,0,.856.828.828,0,0,1,.247.247.828.828,0,0,1,.856,0,.828.828,0,0,1,1.466.247Z"
-                                    fill="#fff" opacity="1" />
+            <!-- Settings (if user has permission) -->
+            @if(empty($user->menu_permission) || in_array('admin.settings.school', $menu_permission))
+            <li class="nav-links-li {{ request()->is('admin/settings*') ? 'showMenu' : '' }}">
+                <div class="iocn-link">
+                    <a href="{{ route('admin.settings.school') }}" class="{{ request()->is('admin/settings*') ? 'active' : '' }}">
+                        <div class="sidebar_icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path>
+                                <circle cx="12" cy="12" r="3"></circle>
                             </svg>
-                        </span>
-                    </div>
-                    <ul class="sub-menu">
-                        @if (empty($user->menu_permission) || in_array('admin.book.book_list', $menu_permission))
-                            <li><a class="{{ request()->is('admin/book/list') ? 'active' : '' }}"
-                                    href="{{ route('admin.book.book_list') }}"><span>
-                                        {{ get_phrase('Book List Manager') }}
-                                    </span></a></li>
-                        @endif
-                        @if (empty($user->menu_permission) || in_array('admin.book_issue.list', $menu_permission))
-                            <li><a class="{{ request()->is('admin/book_issue') ? 'active' : '' }}"
-                                    href="{{ route('admin.book_issue.list') }}"><span>
-                                        {{ get_phrase('Book Issue Report') }}
-                                    </span></a></li>
-                        @endif
-                        @if (empty($user->menu_permission) || in_array('admin.noticeboard.list', $menu_permission))
-                            <li><a class="{{ request()->is('admin/noticeboard*') ? 'active' : '' }}"
-                                    href="{{ route('admin.noticeboard.list') }}"><span>
-                                        {{ get_phrase('Noticeboard') }}
-                                    </span></a></li>
-                        @endif
-                        @if (empty($user->menu_permission) || in_array('admin.subscription', $menu_permission))
-                            <li><a class="{{ request()->is('admin/subscription') ? 'active' : '' }}"
-                                    href="{{ route('admin.subscription') }}"><span>
-                                        {{ get_phrase('Subscription') }}
-                                    </span></a></li>
-                        @endif
-                        @if (empty($user->menu_permission) || in_array('admin.club.index', $menu_permission))
-                            <li>
-                                <a class="{{ request()->is('admin/club/list*') || request()->is('admin/club/members*') || request()->is('admin/club/notice*') ? 'active' : '' }}"
-                                    href="{{ route('admin.club.index') }}"><span>{{ get_phrase('Club') }}
-                                    </span></a>
-                            </li>
-                        @endif
-                        @if (empty($user->menu_permission) || in_array('admin.events.list', $menu_permission))
-                            <li>
-                                <a class="{{ request()->is('admin/events/list*') ? 'active' : '' }}"
-                                    href="{{ route('admin.events.list') }}"><span>{{ get_phrase('Events') }}
-                                    </span></a>
-                            </li>
-                        @endif
-                        @if (empty($user->menu_permission) || in_array('admin.feedback.feedback_list', $menu_permission))
-                            <li>
-                                <a class="{{ request()->is('admin/feedback-list*') ? 'active' : '' }}"
-                                    href="{{ route('admin.feedback.feedback_list') }}"><span>{{ get_phrase('Feedback') }}
-                                    </span></a>
-                            </li>
-                        @endif
-                    </ul>
-                </li>
+                        </div>
+                        <span class="link_name">{{ get_phrase('Settings') }}</span>
+                    </a>
+                </div>
+            </li>
             @endif
 
-            @if (empty($user->menu_permission) ||
-                    in_array('admin.appraisal.appraisalQuestions', $menu_permission) ||
-                    in_array('admin.appraisal.studentFeedback', $menu_permission))
-                <li
-                    class="nav-links-li {{ request()->is('admin/appraisal-question*') || request()->is('admin/appraisal-student-feedback*') ? 'showMenu' : '' }}">
-                    <div class="iocn-link">
-                        <a href="#">
-                            <div class="sidebar_icon mt-4">
-                                <svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg"
-                                    xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
-                                    viewBox="0 0 106.86 122.88" style="enable-background:new 0 0 106.86 122.88"
-                                    xml:space="preserve">
-                                    <style type="text/css">
-                                        .st0 {
-                                            fill-rule: evenodd;
-                                            clip-rule: evenodd;
-                                        }
-                                    </style>
-                                    <g>
-                                        <path class="st0  mt-3"
-                                            d="M39.62,64.58c-1.46,0-2.64-1.41-2.64-3.14c0-1.74,1.18-3.14,2.64-3.14h34.89c1.46,0,2.64,1.41,2.64,3.14 c0,1.74-1.18,3.14-2.64,3.14H39.62L39.62,64.58z M46.77,116.58c1.74,0,3.15,1.41,3.15,3.15c0,1.74-1.41,3.15-3.15,3.15H7.33 c-2.02,0-3.85-0.82-5.18-2.15C0.82,119.4,0,117.57,0,115.55V7.33c0-2.02,0.82-3.85,2.15-5.18C3.48,0.82,5.31,0,7.33,0h90.02 c2.02,0,3.85,0.83,5.18,2.15c1.33,1.33,2.15,3.16,2.15,5.18v50.14c0,1.74-1.41,3.15-3.15,3.15c-1.74,0-3.15-1.41-3.15-3.15V7.33 c0-0.28-0.12-0.54-0.31-0.72c-0.19-0.19-0.44-0.31-0.72-0.31H7.33c-0.28,0-0.54,0.12-0.73,0.3C6.42,6.8,6.3,7.05,6.3,7.33v108.21 c0,0.28,0.12,0.54,0.3,0.72c0.19,0.19,0.45,0.31,0.73,0.31H46.77L46.77,116.58z M98.7,74.34c-0.51-0.49-1.1-0.72-1.78-0.71 c-0.68,0.01-1.26,0.27-1.74,0.78l-3.91,4.07l10.97,10.59l3.95-4.11c0.47-0.48,0.67-1.1,0.66-1.78c-0.01-0.67-0.25-1.28-0.73-1.74 L98.7,74.34L98.7,74.34z M78.21,114.01c-1.45,0.46-2.89,0.94-4.33,1.41c-1.45,0.48-2.89,0.97-4.33,1.45 c-3.41,1.12-5.32,1.74-5.72,1.85c-0.39,0.12-0.16-1.48,0.7-4.81l2.71-10.45l0,0l20.55-21.38l10.96,10.55L78.21,114.01L78.21,114.01 z M39.62,86.95c-1.46,0-2.65-1.43-2.65-3.19c0-1.76,1.19-3.19,2.65-3.19h17.19c1.46,0,2.65,1.43,2.65,3.19 c0,1.76-1.19,3.19-2.65,3.19H39.62L39.62,86.95z M39.62,42.26c-1.46,0-2.64-1.41-2.64-3.14c0-1.74,1.18-3.14,2.64-3.14h34.89 c1.46,0,2.64,1.41,2.64,3.14c0,1.74-1.18,3.14-2.64,3.14H39.62L39.62,42.26z M24.48,79.46c2.06,0,3.72,1.67,3.72,3.72 c0,2.06-1.67,3.72-3.72,3.72c-2.06,0-3.72-1.67-3.72-3.72C20.76,81.13,22.43,79.46,24.48,79.46L24.48,79.46z M24.48,57.44 c2.06,0,3.72,1.67,3.72,3.72c0,2.06-1.67,3.72-3.72,3.72c-2.06,0-3.72-1.67-3.72-3.72C20.76,59.11,22.43,57.44,24.48,57.44 L24.48,57.44z M24.48,35.42c2.06,0,3.72,1.67,3.72,3.72c0,2.06-1.67,3.72-3.72,3.72c-2.06,0-3.72-1.67-3.72-3.72 C20.76,37.08,22.43,35.42,24.48,35.42L24.48,35.42z" />
-                                    </g>
-                                </svg>
-                            </div>
-                            <span class="link_name">
-                                {{ get_phrase('Appraisal') }}
-                            </span>
-                        </a>
-                        <span class="arrow">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="4.743" height="7.773"
-                                viewBox="0 0 4.743 7.773">
-                                <path id="navigate_before_FILL0_wght600_GRAD0_opsz24"
-                                    d="M1.466.247,4.5,3.277a.793.793,0,0,1,.189.288.92.92,0,0,1,0,.643A.793.793,0,0,1,4.5,4.5l-3.03,3.03a.828.828,0,0,1-.609.247.828.828,0,0,1-.609-.247.875.875,0,0,1,0-1.219L2.668,3.886.247,1.466A.828.828,0,0,1,0,.856.828.828,0,0,1,.247.247.828.828,0,0,1,.856,0,.828.828,0,0,1,1.466.247Z"
-                                    fill="#fff" opacity="1" />
+            <!-- Logout -->
+            <li class="nav-links-li">
+                <div class="iocn-link">
+                    <a href="{{ route('logout') }}" onclick="event.preventDefault();document.getElementById('logout-form').submit();">
+                        <div class="sidebar_icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                                <polyline points="16 17 21 12 16 7"></polyline>
+                                <line x1="21" y1="12" x2="9" y2="12"></line>
                             </svg>
-                        </span>
-                    </div>
-                    <ul class="sub-menu">
-                        @if (empty($user->menu_permission) || in_array('admin.appraisal.appraisalQuestions', $menu_permission))
-                            <li><a class="{{ request()->is('admin/appraisal-question') ? 'active' : '' }}"
-                                    href="{{ route('admin.appraisal.appraisalQuestions') }}"><span>
-                                        {{ get_phrase('Appraisal Question') }}
-                                    </span></a></li>
-                        @endif
-                        @if (empty($user->menu_permission) || in_array('admin.appraisal.studentFeedback', $menu_permission))
-                            <li><a class="{{ request()->is('admin/appraisal-student-feedback') ? 'active' : '' }}"
-                                    href="{{ route('admin.appraisal.studentFeedback') }}"><span>
-                                        {{ get_phrase('Student Feedback') }}
-                                    </span></a></li>
-                        @endif
-                    </ul>
-                </li>
-            @endif
-            @if (empty($user->menu_permission) ||
-                    in_array('admin.hostel.hostel_list', $menu_permission) ||
-                    in_array('admin.hostel.room_list', $menu_permission) ||
-                    in_array('admin.hostel.allocation_list', $menu_permission) ||
-                    in_array('admin.hostel.applications', $menu_permission) ||
-                    in_array('admin.hostel_fee_manager.list', $menu_permission))
-                <li
-                    class="nav-links-li {{ request()->is('admin/hostel-list*') || request()->is('admin/hostel-room-list*') || request()->is('admin/hostel-room-allocation-list*') || request()->is('admin/hostel-applications*') || request()->is('admin/hostel-fee-manager*') || request()->is('admin/hostel-fee/offline-payment/list*') ? 'showMenu' : '' }}">
-                    <div class="iocn-link">
-                        <a href="#">
-                            <div class="sidebar_icon mt-4">
-                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
-                                    xmlns="http://www.w3.org/2000/svg">
-                                    <path
-                                        d="M21 20.25H20.25V6C20.25 3.582 18.918 2.25 16.5 2.25H7.5C5.082 2.25 3.75 3.582 3.75 6V20.25H3C2.586 20.25 2.25 20.586 2.25 21C2.25 21.414 2.586 21.75 3 21.75H21C21.414 21.75 21.75 21.414 21.75 21C21.75 20.586 21.414 20.25 21 20.25ZM13.5 20.25H10.5V17.5C10.5 16.911 10.661 16.75 11.25 16.75H12.75C13.339 16.75 13.5 16.911 13.5 17.5V20.25ZM15 20.25V17.5C15 16.091 14.159 15.25 12.75 15.25H11.25C9.841 15.25 9 16.091 9 17.5V20.25H5.25V6C5.25 4.423 5.923 3.75 7.5 3.75H16.5C18.077 3.75 18.75 4.423 18.75 6V20.25H15ZM15.75 13C15.75 13.414 15.414 13.75 15 13.75H14C13.586 13.75 13.25 13.414 13.25 13C13.25 12.586 13.586 12.25 14 12.25H15C15.414 12.25 15.75 12.586 15.75 13ZM10.75 13C10.75 13.414 10.414 13.75 10 13.75H9C8.586 13.75 8.25 13.414 8.25 13C8.25 12.586 8.586 12.25 9 12.25H10C10.414 12.25 10.75 12.586 10.75 13ZM15.75 10C15.75 10.414 15.414 10.75 15 10.75H14C13.586 10.75 13.25 10.414 13.25 10C13.25 9.586 13.586 9.25 14 9.25H15C15.414 9.25 15.75 9.586 15.75 10ZM10.75 10C10.75 10.414 10.414 10.75 10 10.75H9C8.586 10.75 8.25 10.414 8.25 10C8.25 9.586 8.586 9.25 9 9.25H10C10.414 9.25 10.75 9.586 10.75 10ZM15.75 7C15.75 7.414 15.414 7.75 15 7.75H14C13.586 7.75 13.25 7.414 13.25 7C13.25 6.586 13.586 6.25 14 6.25H15C15.414 6.25 15.75 6.586 15.75 7ZM10.75 7C10.75 7.414 10.414 7.75 10 7.75H9C8.586 7.75 8.25 7.414 8.25 7C8.25 6.586 8.586 6.25 9 6.25H10C10.414 6.25 10.75 6.586 10.75 7Z"
-                                        fill="#7A7E8E" stroke="#7A7E8E" />
-                                </svg>
-                            </div>
-                            <span class="link_name">
-                                {{ get_phrase('Hostel') }}
-                            </span>
-                        </a>
-                        <span class="arrow">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="4.743" height="7.773"
-                                viewBox="0 0 4.743 7.773">
-                                <path id="navigate_before_FILL0_wght600_GRAD0_opsz24"
-                                    d="M1.466.247,4.5,3.277a.793.793,0,0,1,.189.288.92.92,0,0,1,0,.643A.793.793,0,0,1,4.5,4.5l-3.03,3.03a.828.828,0,0,1-.609.247.828.828,0,0,1-.609-.247.875.875,0,0,1,0-1.219L2.668,3.886.247,1.466A.828.828,0,0,1,0,.856.828.828,0,0,1,.247.247.828.828,0,0,1,.856,0,.828.828,0,0,1,1.466.247Z"
-                                    fill="#fff" opacity="1" />
-                            </svg>
-                        </span>
-                    </div>
-                    <ul class="sub-menu">
-                        @if (empty($user->menu_permission) || in_array('admin.hostel.hostel_list', $menu_permission))
-                            <li><a class="{{ request()->is('admin/hostel-list*') ? 'active' : '' }}"
-                                    href="{{ route('admin.hostel.hostel_list') }}"><span>
-                                        {{ get_phrase('Hostel list') }}
-                                    </span></a></li>
-                        @endif
-                        @if (empty($user->menu_permission) || in_array('admin.hostel.room_list', $menu_permission))
-                            <li><a class="{{ request()->is('admin/hostel-room-list*') ? 'active' : '' }}"
-                                    href="{{ route('admin.hostel.room_list') }}"><span>
-                                        {{ get_phrase('Room list') }}
-                                    </span></a></li>
-                        @endif
-                        @if (empty($user->menu_permission) || in_array('admin.hostel.allocation_list', $menu_permission))
-                            <li><a class="{{ request()->is('admin/hostel-room-allocation-list*') ? 'active' : '' }}"
-                                    href="{{ route('admin.hostel.allocation_list') }}"><span>
-                                        {{ get_phrase('Allocation list') }}
-                                    </span></a></li>
-                        @endif
-                        @if (empty($user->menu_permission) || in_array('admin.hostel.applications', $menu_permission))
-                            <li><a class="{{ request()->is('admin/hostel-applications*') ? 'active' : '' }}"
-                                    href="{{ route('admin.hostel.applications') }}"><span>
-                                        {{ get_phrase('Applications') }}
-                                    </span></a></li>
-                        @endif
-                        @if (empty($user->menu_permission) || in_array('admin.hostel_fee_manager.list', $menu_permission))
-                            <li><a class="{{ request()->is('admin/hostel-fee-manager*') ? 'active' : '' }}"
-                                    href="{{ route('admin.hostel_fee_manager.list') }}"><span>
-                                        {{ get_phrase('Hostel Fees') }}
-                                    </span></a></li>
-                        @endif
-                        @if (empty($user->menu_permission) || in_array('admin.offline.payment.hostel.list', $menu_permission))
-                            <li><a class="{{ request()->is('admin/hostel-fee/offline-payment/list*') ? 'active' : '' }}"
-                                    href="{{ route('admin.offline.payment.hostel.list') }}"><span>
-                                        {{ get_phrase('Offline Payments') }}
-                                    </span></a></li>
-                        @endif
-                    </ul>
-                </li>
-            @endif
-
-
-            @if (empty($user->menu_permission) ||
-                    in_array('admin.settings.school', $menu_permission) ||
-                    in_array('admin.settings.session_manager', $menu_permission) ||
-                    in_array('admin.settings.payment', $menu_permission) ||
-                    in_array('admin.website_management', $menu_permission) ||
-                    in_array('admin.profile', $menu_permission) ||
-                    in_array('admin.setting', $menu_permission))
-                <li
-                    class="nav-links-li {{ request()->is('admin/settings/school*') || request()->is('admin/session_manager*') || request()->is('admin/settings/payment*') || request()->is('admin/live_class_settings*') || request()->is('admin/profile*') || request()->is('admin/website-management*') ? 'showMenu' : '' }}">
-                    <div class="iocn-link">
-                        <a href="#">
-                            <div class="sidebar_icon">
-                                <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
-                                    version="1.1" id="Capa_1" x="0px" y="0px" viewBox="0 0 512 512"
-                                    style="enable-background:new 0 0 512 512;" xml:space="preserve" width="48"
-                                    height="48">
-                                    <g>
-                                        <path
-                                            d="M256,162.923c-51.405,0-93.077,41.672-93.077,93.077s41.672,93.077,93.077,93.077s93.077-41.672,93.077-93.077   C349.019,204.619,307.381,162.981,256,162.923z M256,285.077c-16.059,0-29.077-13.018-29.077-29.077s13.018-29.077,29.077-29.077   c16.059,0,29.077,13.018,29.077,29.077l0,0C285.066,272.054,272.054,285.066,256,285.077z" />
-                                        <path
-                                            d="M469.333,256c-0.032-32.689-7.633-64.927-22.208-94.187l10.965-7.616c14.496-10.104,18.058-30.046,7.957-44.544l0,0   c-10.104-14.496-30.046-18.058-44.544-7.957l-10.987,7.637c-32.574-34.38-75.691-56.904-122.517-64V32c0-17.673-14.327-32-32-32   l0,0c-17.673,0-32,14.327-32,32v13.333c-46.826,7.096-89.944,29.62-122.517,64l-10.987-7.637   c-14.498-10.101-34.44-6.538-44.544,7.957l0,0c-10.101,14.498-6.538,34.44,7.957,44.544l10.965,7.616   c-29.61,59.3-29.61,129.073,0,188.373l-10.965,7.616c-14.496,10.104-18.058,30.046-7.957,44.544l0,0   c10.104,14.496,30.046,18.058,44.544,7.957l10.987-7.637c32.574,34.38,75.691,56.904,122.517,64V480c0,17.673,14.327,32,32,32l0,0   c17.673,0,32-14.327,32-32v-13.333c46.826-7.096,89.944-29.62,122.517-64l10.987,7.637c14.498,10.101,34.44,6.538,44.544-7.957l0,0   c10.101-14.498,6.538-34.44-7.957-44.544l-10.965-7.616C461.7,320.927,469.301,288.689,469.333,256z M256,405.333   c-82.475,0-149.333-66.859-149.333-149.333S173.525,106.667,256,106.667S405.333,173.525,405.333,256   C405.228,338.431,338.431,405.228,256,405.333z" />
-                                    </g>
-                                </svg>
-                            </div>
-                            <span class="link_name">
-                                {{ get_phrase('Settings') }}
-                            </span>
-                        </a>
-                        <span class="arrow">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="4.743" height="7.773"
-                                viewBox="0 0 4.743 7.773">
-                                <path id="navigate_before_FILL0_wght600_GRAD0_opsz24"
-                                    d="M1.466.247,4.5,3.277a.793.793,0,0,1,.189.288.92.92,0,0,1,0,.643A.793.793,0,0,1,4.5,4.5l-3.03,3.03a.828.828,0,0,1-.609.247.828.828,0,0,1-.609-.247.875.875,0,0,1,0-1.219L2.668,3.886.247,1.466A.828.828,0,0,1,0,.856.828.828,0,0,1,.247.247.828.828,0,0,1,.856,0,.828.828,0,0,1,1.466.247Z"
-                                    fill="#fff" opacity="1" />
-                            </svg>
-                        </span>
-                    </div>
-                    <ul class="sub-menu">
-                        @if (empty($user->menu_permission) || in_array('admin.settings.school', $menu_permission))
-                            <li>
-                                <a class="{{ request()->is('admin/settings/school*') ? 'active' : '' }}"
-                                    href="{{ route('admin.settings.school') }}">
-                                    <span>
-                                        {{ get_phrase('School Settings') }}
-                                    </span>
-                                </a>
-                            </li>
-                        @endif
-                        {{-- HEI Enhanced Settings --}}
-                        <li>
-                            <a class="{{ request()->is('admin/settings/academic*') ? 'active' : '' }}"
-                                href="{{ route('admin.settings.academic') }}">
-                                <span>{{ get_phrase('Grading Scale') }}</span>
-                            </a>
-                        </li>
-                        <li>
-                            <a class="{{ request()->is('admin/settings/notifications*') ? 'active' : '' }}"
-                                href="{{ route('admin.settings.notifications') }}">
-                                <span>{{ get_phrase('Notifications') }}</span>
-                            </a>
-                        </li>
-                        <li>
-                            <a class="{{ request()->is('admin/settings/permissions*') ? 'active' : '' }}"
-                                href="{{ route('admin.settings.permissions') }}">
-                                <span>{{ get_phrase('Role Permissions') }}</span>
-                            </a>
-                        </li>
-                        <li>
-                            <a class="{{ request()->is('admin/settings/backup*') ? 'active' : '' }}"
-                                href="{{ route('admin.settings.backup') }}">
-                                <span>{{ get_phrase('Database Backup') }}</span>
-                            </a>
-                        </li>
-                        <li>
-                            <a class="{{ request()->is('admin/settings/api*') ? 'active' : '' }}"
-                                href="{{ route('admin.settings.api') }}">
-                                <span>{{ get_phrase('API Settings') }}</span>
-                            </a>
-                        </li>
-                        @if (empty($user->menu_permission) || in_array('admin.settings.session_manager', $menu_permission))
-                            <li>
-                                <a class="{{ request()->is('admin/session_manager*') ? 'active' : '' }}"
-                                    href="{{ route('admin.settings.session_manager') }}">
-                                    <span>
-                                        {{ get_phrase('Session Manager') }}
-                                    </span>
-                                </a>
-                            </li>
-                        @endif
-                        @if (empty($user->menu_permission) || in_array('admin.settings.payment', $menu_permission))
-                            <li>
-                                <a class="{{ request()->is('admin/settings/payment*') ? 'active' : '' }}"
-                                    href="{{ route('admin.settings.payment') }}">
-                                    <span>
-                                        {{ get_phrase('Payment Settings') }}
-                                    </span>
-                                </a>
-                            </li>
-                        @endif
-                        @if (empty($user->menu_permission) || in_array('admin.website_management', $menu_permission))
-                            <li>
-                                <a class="{{ request()->is('admin/website-management*') ? 'active' : '' }}"
-                                    href="{{ route('admin.website.index') }}">
-                                    <span>
-                                        {{ get_phrase('Website Management') }}
-                                    </span>
-                                </a>
-                            </li>
-                        @endif
-                        @if (empty($user->menu_permission) || in_array('admin.profile', $menu_permission))
-                            <li><a class="{{ request()->is('admin/profile*') ? 'active' : '' }}"
-                                    href="{{ route('admin.profile') }}"><span>
-                                        {{ get_phrase('My Account') }}</span></a>
-                            </li>
-                        @endif
-                    </ul>
-                </li>
-            @endif
+                        </div>
+                        <span class="link_name">{{ get_phrase('Logout') }}</span>
+                    </a>
+                </div>
+                <form id="logout-form" action="{{ route('logout') }}" method="POST" class="d-none">
+                    @csrf
+                </form>
+            </li>
         </ul>
     </div>
 
+    <!-- ============================================ -->
+    <!-- REST OF THE LAYOUT (Home Section, Footer, etc.) -->
+    <!-- ============================================ -->
     <section class="home-section">
         <div class="home-content">
             <div class="home-header">
@@ -1583,7 +1209,10 @@
                 </div>
             </div>
             <div class="main_content">
-                @yield('content')
+                @include('shared.page_toolbar')
+                <div id="page-print-area">
+                    @yield('content')
+                </div>
                 <!-- Start Footer -->
                 <div class="copyright-text">
                     <?php $active_session = DB::table('sessions')->where('id', get_settings('running_session'))->value('session_title'); ?>

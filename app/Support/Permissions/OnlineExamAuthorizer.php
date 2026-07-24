@@ -11,8 +11,11 @@ use App\Models\User;
 
 class OnlineExamAuthorizer
 {
-    public function __construct(private readonly OnlineExamPermissionService $permissionService)
+    private OnlineExamPermissionService $permissionService;
+
+    public function __construct(OnlineExamPermissionService $permissionService)
     {
+        $this->permissionService = $permissionService;
     }
 
     public function can(User $user, string $permission): bool

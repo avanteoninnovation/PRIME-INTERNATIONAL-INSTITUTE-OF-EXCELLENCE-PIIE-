@@ -10,6 +10,7 @@ use App\Models\Admin;
 use App\Models\AdmitCard;
 use App\Models\Appraisal;
 use App\Models\Appraisal_submit;
+use App\Models\AuditLog;
 use App\Models\Book;
 use App\Models\BookIssue;
 use App\Models\Chat;
@@ -173,6 +174,17 @@ class AdminController extends Controller
         $account_status = auth()->user()->account_status;
         if (auth()->user()->role_id != "") {
             $roleId = (int) auth()->user()->role_id;
+            $data = [
+                'totalSchools' => School::count(),
+                'activeSchools' => School::where('status', 1)->count(),
+                'pendingSchools' => School::where('status', 0)->count(),
+                'totalAdmins' => User::where('role_id', 2)->count(),
+                'totalSubscriptions' => Subscription::where('active', 1)->count(),
+                'totalRevenue' => Subscription::sum('paid_amount'),
+                'recentSchools' => School::orderBy('id', 'desc')->limit(5)->get(),
+                'recentActivities' => AuditLog::orderBy('id', 'desc')->limit(10)->get(),
+                'activeSubscriptions' => Subscription::with(['school', 'package'])->where('active', 1)->limit(5)->get(),
+            ];
             // Role-specific dashboards for new HEI roles
             $roleDashboards = [
                 14 => 'admin.dashboard_director',
@@ -185,10 +197,10 @@ class AdminController extends Controller
             if (isset($roleDashboards[$roleId])) {
                 $viewName = $roleDashboards[$roleId];
                 if (view()->exists($viewName)) {
-                    return view($viewName);
+                    return view($viewName, $data);
                 }
             }
-            return view('admin.dashboard');
+            return view('admin.dashboard', $data);
         } else {
             redirect()->route('login')
                 ->with('error', 'You are not logged in.');
