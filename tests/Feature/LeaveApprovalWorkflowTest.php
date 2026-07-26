@@ -220,4 +220,90 @@ class LeaveApprovalWorkflowTest extends TestCase
         $this->assertFalse(\Illuminate\Support\Facades\Route::has('admin.leave.open_modal'));
         $this->assertFalse(\Illuminate\Support\Facades\Route::has('admin.leave.store'));
     }
+
+    public function test_staff_can_submit_their_own_leave_request(): void
+    {
+        $teacher = $this->makeUser(3, 1);
+        $type = $this->makeLeaveType(1, 'Sick Leave', 10);
+
+        $response = $this->actingAs($teacher)->post(route('staff.leave.store'), [
+            'leave_type_id' => $type,
+            'from_date' => now()->addDay()->toDateString(),
+            'to_date' => now()->addDays(2)->toDateString(),
+            'reason' => 'Doctor appointment',
+        ]);
+
+        $response->assertRedirect();
+        $this->assertDatabaseHas('leavelists', [
+            'user_id' => $teacher->id,
+            'school_id' => 1,
+            'leave_type' => 'Sick Leave',
+            'status' => 'pending',
+            'days' => 2,
+        ]);
+    }
+
+    public function test_staff_cannot_submit_leave_without_a_reason(): void
+    {
+        $teacher = $this->makeUser(3, 1);
+
+        $response = $this->actingAs($teacher)->post(route('staff.leave.store'), [
+            'from_date' => now()->addDay()->toDateString(),
+            'to_date' => now()->addDays(2)->toDateString(),
+        ]);
+
+        $response->assertSessionHasErrors('reason');
+        $this->assertDatabaseCount('leavelists', 0);
+    }
+
+    public function test_staff_cannot_submit_leave_for_another_user(): void
+    {
+        $teacher = $this->makeUser(3, 1);
+        $otherUser = $this->makeUser(3, 1);
+
+        $this->actingAs($teacher)->post(route('staff.leave.store'), [
+            'user_id' => $otherUser->id,
+            'from_date' => now()->addDay()->toDateString(),
+            'to_date' => now()->addDays(2)->toDateString(),
+            'reason' => 'Trying to file for someone else',
+        ]);
+
+        $this->assertDatabaseHas('leavelists', ['user_id' => $teacher->id]);
+        $this->assertDatabaseMissing('leavelists', ['user_id' => $otherUser->id]);
+    }
+
+    public function test_staff_can_see_their_own_leave_status_and_comment_but_not_others(): void
+    {
+        $teacher = $this->makeUser(3, 1);
+        $otherTeacher = $this->makeUser(3, 1);
+        $admin = $this->makeUser(2, 1);
+
+        $ownLeaveId = $this->makeLeave(['user_id' => $teacher->id, 'status' => 'pending', 'reason' => 'My own family event']);
+        $otherLeaveId = $this->makeLeave(['user_id' => $otherTeacher->id, 'status' => 'pending', 'reason' => 'Someone elses private reason']);
+
+        $this->actingAs($admin)->post(route('admin.leave.approve', $ownLeaveId), ['comment' => 'Have a nice trip']);
+
+        $response = $this->actingAs($teacher)->get(route('staff.leave.index'));
+
+        $response->assertStatus(200);
+        $response->assertSee('Have a nice trip');
+        $response->assertSee('My own family event');
+        $response->assertDontSee('Someone elses private reason');
+    }
+
+    public function test_student_cannot_access_staff_leave_routes(): void
+    {
+        $student = $this->makeUser(7, 1);
+
+        $indexResponse = $this->actingAs($student)->get(route('staff.leave.index'));
+        $storeResponse = $this->actingAs($student)->post(route('staff.leave.store'), [
+            'from_date' => now()->addDay()->toDateString(),
+            'to_date' => now()->addDays(2)->toDateString(),
+            'reason' => 'Should not work',
+        ]);
+
+        $indexResponse->assertRedirect(route('login'));
+        $storeResponse->assertRedirect(route('login'));
+        $this->assertDatabaseCount('leavelists', 0);
+    }
 }

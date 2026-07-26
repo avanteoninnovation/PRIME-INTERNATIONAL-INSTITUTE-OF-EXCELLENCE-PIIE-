@@ -1174,6 +1174,13 @@ Route::controller(LeaveController::class)->middleware('auth', 'hr_manager')->gro
     Route::get('admin/leave-types/delete/{id}', 'destroyType')->name('admin.leave_types.destroy');
 });
 
+// ── Leave Management: Staff Self-Service ────────────────────────
+Route::controller(LeaveController::class)->middleware('auth', 'staff')->group(function () {
+    Route::get('staff/leave',              'myIndex')->name('staff.leave.index');
+    Route::get('staff/leave/open_modal',   'myOpenModal')->name('staff.leave.open_modal');
+    Route::post('staff/leave/store',       'myStore')->name('staff.leave.store');
+});
+
 // ── Online Exams / CBT ────────────────────────────────────────
 Route::controller(OnlineExamController::class)->middleware('auth', 'admin')->group(function () {
     Route::get('admin/online-exams',                         'index')->name('admin.online_exams.index');

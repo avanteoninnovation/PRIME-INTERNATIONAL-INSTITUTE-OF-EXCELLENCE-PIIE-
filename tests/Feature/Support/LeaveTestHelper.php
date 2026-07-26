@@ -90,6 +90,38 @@ trait LeaveTestHelper
             $table->text('translated')->nullable();
         });
 
+        Schema::create('addons', function (Blueprint $table) {
+            $table->id();
+            $table->string('unique_identifier')->unique();
+            $table->string('status')->default('0');
+            $table->timestamps();
+        });
+
+        Schema::create('message_thrades', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('sender_id')->nullable();
+            $table->unsignedBigInteger('reciver_id')->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('chats', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('message_thrade')->nullable();
+            $table->unsignedBigInteger('sender_id')->nullable();
+            $table->unsignedBigInteger('reciver_id')->nullable();
+            $table->tinyInteger('read_status')->default(0);
+            $table->text('message')->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('sessions', function (Blueprint $table) {
+            $table->id();
+            $table->string('session_title')->nullable();
+            $table->string('status')->nullable();
+            $table->unsignedBigInteger('school_id')->nullable();
+            $table->timestamps();
+        });
+
         DB::table('schools')->insert([
             'id' => 1,
             'title' => 'Test School',

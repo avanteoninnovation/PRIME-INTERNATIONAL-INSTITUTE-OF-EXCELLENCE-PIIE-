@@ -65,6 +65,59 @@ class LeaveController extends Controller
         return view('admin.leave.index', compact('leaves', 'types', 'search', 'status'));
     }
 
+    // ── Staff Self-Service ──────────────────────────────────────────────────
+
+    public function myIndex(Request $request)
+    {
+        $leaves = Leavelist::where('school_id', $this->school_id)
+            ->where('user_id', Auth::id())
+            ->with(['leaveType', 'approver'])
+            ->latest()
+            ->paginate(20);
+
+        $types = LeaveType::where('school_id', $this->school_id)->orderBy('name')->get();
+
+        return view('leave.my.index', compact('leaves', 'types'));
+    }
+
+    public function myOpenModal()
+    {
+        $types = LeaveType::where('school_id', $this->school_id)->orderBy('name')->get();
+        return view('leave.my.modal', compact('types'));
+    }
+
+    public function myStore(Request $request)
+    {
+        $validated = $request->validate([
+            'leave_type_id' => 'nullable|exists:leave_types,id',
+            'from_date'     => 'required|date',
+            'to_date'       => 'required|date|after_or_equal:from_date',
+            'reason'        => 'required|string',
+        ]);
+
+        $from = \Carbon\Carbon::parse($validated['from_date']);
+        $to   = \Carbon\Carbon::parse($validated['to_date']);
+        $days = $from->diffInDays($to) + 1;
+
+        $lt = !empty($validated['leave_type_id']) ? LeaveType::find($validated['leave_type_id']) : null;
+
+        Leavelist::create([
+            'school_id'     => $this->school_id,
+            'user_id'       => Auth::id(),
+            'leave_type_id' => $validated['leave_type_id'] ?? null,
+            'leave_type'    => $lt?->name,
+            'from_date'     => $validated['from_date'],
+            'to_date'       => $validated['to_date'],
+            'days'          => $days,
+            'reason'        => $validated['reason'],
+            'status'        => Leavelist::STATUS_PENDING,
+        ]);
+
+        AuditLog::record('create', 'Leave', 'Leave applied by user #' . Auth::id() . ": {$validated['from_date']} to {$validated['to_date']}");
+
+        return redirect()->back()->with('success', get_phrase('Leave application submitted'));
+    }
+
     public function approve(Request $request, $id)
     {
         $leave = Leavelist::where('school_id', $this->school_id)->findOrFail($id);
