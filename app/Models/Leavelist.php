@@ -11,8 +11,13 @@ class Leavelist extends Model
     protected $table = 'leavelists';
     protected $fillable = [
         'school_id', 'user_id', 'leave_type_id', 'leave_type',
-        'from_date', 'to_date', 'days', 'reason', 'status', 'approved_by'
+        'from_date', 'to_date', 'days', 'reason', 'status', 'approved_by', 'admin_comment'
     ];
+
+    const STATUS_PENDING  = 'pending';
+    const STATUS_APPROVED = 'approved';
+    const STATUS_RETURNED = 'returned';
+    const STATUS_REJECTED = 'rejected';
 
     public function user()
     {

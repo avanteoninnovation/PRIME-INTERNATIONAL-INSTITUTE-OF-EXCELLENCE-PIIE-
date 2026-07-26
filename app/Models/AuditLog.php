@@ -10,7 +10,7 @@ class AuditLog extends Model
     protected $table = 'audit_logs';
     protected $fillable = [
         'school_id', 'user_id', 'user_name', 'action',
-        'module', 'description', 'ip_address', 'user_agent'
+        'module', 'description', 'ip_address', 'user_agent', 'created_at'
     ];
 
     protected $casts = ['created_at' => 'datetime'];

@@ -1161,12 +1161,11 @@ Route::controller(FeeStructureController::class)->middleware('auth', 'admin')->g
 });
 
 // ── Leave Management ──────────────────────────────────────────
-Route::controller(LeaveController::class)->middleware('auth', 'admin')->group(function () {
+Route::controller(LeaveController::class)->middleware('auth', 'hr_manager')->group(function () {
     Route::get('admin/leave',                    'index')->name('admin.leave.index');
-    Route::get('admin/leave/open_modal',         'openModal')->name('admin.leave.open_modal');
-    Route::post('admin/leave/store',             'store')->name('admin.leave.store');
-    Route::get('admin/leave/approve/{id}',       'approve')->name('admin.leave.approve');
-    Route::get('admin/leave/reject/{id}',        'reject')->name('admin.leave.reject');
+    Route::post('admin/leave/approve/{id}',      'approve')->name('admin.leave.approve');
+    Route::post('admin/leave/return/{id}',       'returnLeave')->name('admin.leave.return');
+    Route::post('admin/leave/reject/{id}',       'reject')->name('admin.leave.reject');
     Route::get('admin/leave/delete/{id}',        'destroy')->name('admin.leave.destroy');
     // Leave Types
     Route::get('admin/leave-types',             'types')->name('admin.leave_types.index');
