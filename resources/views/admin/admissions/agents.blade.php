@@ -10,7 +10,8 @@
                     <li><a href="#">{{ get_phrase('Agents') }}</a></li>
                 </ul>
             </div>
-            <div class="export-btn-area">
+            <div class="export-btn-area d-flex gap-2">
+                <a href="{{ route('admin.admissions_agents.export') }}" class="export_btn export_btn-outline"><i class="bi bi-download"></i> {{ get_phrase('Export CSV') }}</a>
                 <a href="javascript:;" class="export_btn" onclick="rightModal('{{ route('admin.admissions_agents.open_modal') }}', '{{ get_phrase('Add Agent') }}')">{{ get_phrase('Add Agent') }}</a>
             </div>
         </div>

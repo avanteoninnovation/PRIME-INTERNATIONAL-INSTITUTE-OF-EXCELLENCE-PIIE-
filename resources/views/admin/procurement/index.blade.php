@@ -6,7 +6,8 @@
             <h4>{{ get_phrase('Procurement Requests') }}</h4>
             <ul class="d-flex align-items-center eBreadcrumb-2"><li><a href="#">{{ get_phrase('Inventory') }}</a></li><li><a href="#">{{ get_phrase('Procurement') }}</a></li></ul>
         </div>
-        <div class="export-btn-area">
+        <div class="export-btn-area d-flex gap-2">
+            <a href="{{ route('admin.procurement.export', ['status' => $status]) }}" class="export_btn bg-secondary"><i class="bi bi-download"></i> {{ get_phrase('Export CSV') }}</a>
             <a href="javascript:;" class="export_btn" onclick="rightModal('{{ route('admin.procurement.open_modal') }}', '{{ get_phrase('New Request') }}')">{{ get_phrase('New Request') }}</a>
         </div>
     </div>
@@ -20,7 +21,7 @@
             @forelse($requests as $i => $req)
             <tr>
                 <td>{{ $requests->firstItem() + $i }}</td>
-                <td><strong>{{ $req->item_name }}</strong><br><small class="text-muted">{{ $req->description }}</small></td>
+                <td><strong>{{ $req->title }}</strong><br><small class="text-muted">{{ $req->description }}</small></td>
                 <td>{{ $req->quantity }}</td>
                 <td>{{ $req->estimated_cost ? number_format($req->estimated_cost,2) : '—' }}</td>
                 <td>{{ optional($req->requester)->name }}</td>

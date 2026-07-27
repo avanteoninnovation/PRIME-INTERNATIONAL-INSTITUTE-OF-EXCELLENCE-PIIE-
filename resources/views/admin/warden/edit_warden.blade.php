@@ -3,21 +3,18 @@
         @csrf
         <div class="form-row">
             <div class="fpb-7">
-                <label for="name" class="eForm-label">{{ get_phrase('Name') }}</label>
-                <input type="text" class="form-control eForm-control" value="{{ $user->name }}" id="name" name = "name" required>
-            </div>
-
-            <div class="fpb-7">
                 <label for="email" class="eForm-label">{{ get_phrase('Email') }}</label>
                 <input type="email" class="form-control eForm-control" value="{{ $user->email }}" id="email" name = "email" required>
             </div>
             <?php
-            $info = json_decode($user->user_information);
+            $info = json_decode($user->user_information ?? '') ?: (object) [];
             ?>
+
+            @include('admin.staff._edit_fields', ['user' => $user, 'departments' => $departments, 'designations' => $designations])
 
             <div class="fpb-7">
                 <label for="birthday" class="eForm-label">{{ get_phrase('Birthday') }}<span class="required"></span></label>
-                <input type="text" class="form-control eForm-control inputDate" id="birthday" name="birthday" value="{{ date('m/d/Y', $info->birthday) }}" />
+                <input type="text" class="form-control eForm-control inputDate" id="birthday" name="birthday" value="{{ !empty($info->birthday) ? date('m/d/Y', (int) $info->birthday) : date('m/d/Y') }}" />
             </div>
         </div>
 

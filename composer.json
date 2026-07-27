@@ -19,6 +19,7 @@
         "league/omnipay": "^3.2",
         "omnipay/omnipay": "^3.2",
         "omnipay/paypal": "^3.0",
+        "phpoffice/phpspreadsheet": "^5.8",
         "razorpay/razorpay": "^2.8",
         "stripe/stripe-php": "^8.11",
         "twilio/sdk": "^7.5"

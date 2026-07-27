@@ -7,6 +7,7 @@
             <ul class="d-flex align-items-center eBreadcrumb-2"><li><a href="#">{{ get_phrase('Inventory') }}</a></li><li><a href="#">{{ get_phrase('Assets') }}</a></li></ul>
         </div>
         <div class="export-btn-area d-flex gap-2">
+            <a href="{{ route('admin.assets.export', ['search' => $search, 'category' => $category]) }}" class="export_btn bg-secondary"><i class="bi bi-download"></i> {{ get_phrase('Export CSV') }}</a>
             <a href="{{ route('admin.asset_categories.index') }}" class="export_btn bg-secondary">{{ get_phrase('Categories') }}</a>
             <a href="javascript:;" class="export_btn" onclick="rightModal('{{ route('admin.assets.open_modal') }}', '{{ get_phrase('Add Asset') }}')">{{ get_phrase('Add Asset') }}</a>
         </div>

@@ -76,9 +76,15 @@ class TranscriptController extends Controller
             ->latest()
             ->first();
 
+        // For programme-based (HEI) students there is no class/section
+        // enrollment at all — Programme + Intake instead come from their
+        // student_profiles row. The class-based lookup above is left as-is
+        // for existing K-12 students (pre-existing, unrelated behavior).
         $programme = $enrollment?->class_id
             ? Programme::whereHas('classes', fn($q) => $q->where('classes.id', $enrollment->class_id))->first()
-            : null;
+            : optional($student->studentProfile)->programme;
+
+        $intakeSession = optional($student->studentProfile)->intakeSession;
 
         $exam_categories = ExamCategory::where('school_id', $school_id)->get();
 
@@ -120,6 +126,7 @@ class TranscriptController extends Controller
             'student',
             'enrollment',
             'programme',
+            'intakeSession',
             'exam_categories',
             'subjects',
             'gradebook',

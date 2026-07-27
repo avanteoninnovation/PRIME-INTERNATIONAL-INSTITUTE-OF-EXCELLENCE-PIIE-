@@ -3,18 +3,10 @@
         @csrf
         <div class="form-row">
             <div class="fpb-7">
-                <label for="name" class="eForm-label">{{ get_phrase('Name') }}</label>
-                <input type="text" class="form-control eForm-control" id="name" name = "name" required>
-            </div>
-
-            <div class="fpb-7">
                 <label for="email" class="eForm-label">{{ get_phrase('Email') }}</label><input type="email" class="form-control eForm-control" id="email" name = "email" required>
             </div>
 
-            <div class="fpb-7">
-                <label for="password" class="eForm-label">{{ get_phrase('Password') }}</label>
-                <input type="password" class="form-control eForm-control" id="password" name = "password" required>
-            </div>
+            @include('admin.staff._create_fields', ['departments' => $departments, 'designations' => $designations])
 
             <div class="fpb-7">
                 <label for="birthday" class="eForm-label">{{ get_phrase('Birthday') }}<span class="required"></span></label>

@@ -13,8 +13,75 @@
             </div>
 
             <div class="fpb-7">
-                <label for="password" class="eForm-label">{{ get_phrase('Password') }}</label>
-                <input type="password" class="form-control eForm-control" id="password" name = "password" required>
+                <label class="eForm-label">{{ get_phrase('Portal Password') }}</label>
+                <div class="d-flex align-items-center gap-3 mb-2">
+                    <label class="me-2"><input type="radio" name="password_option" value="auto" checked onclick="document.getElementById('password_manual_wrap').style.display='none'; document.getElementById('password').required=false;"> {{ get_phrase('Auto-generate') }}</label>
+                    <label><input type="radio" name="password_option" value="manual" onclick="document.getElementById('password_manual_wrap').style.display='block'; document.getElementById('password').required=true;"> {{ get_phrase('Set preferred password') }}</label>
+                </div>
+                <div id="password_manual_wrap" style="display:none">
+                    <input type="password" class="form-control eForm-control" id="password" name="password" minlength="6">
+                </div>
+            </div>
+
+            <div class="fpb-7">
+                <label for="programme_id" class="eForm-label">{{ get_phrase('Programme') }}</label>
+                <select name="programme_id" id="programme_id" class="form-select eForm-select eChoice-multiple-with-remove">
+                    <option value="">{{ get_phrase('Select a programme') }}</option>
+                    @foreach($programmes as $programme)
+                        <option value="{{ $programme->id }}">{{ $programme->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+
+            <div class="fpb-7">
+                <label for="intake_session_id" class="eForm-label">{{ get_phrase('Intake') }}</label>
+                <select name="intake_session_id" id="intake_session_id" class="form-select eForm-select eChoice-multiple-with-remove">
+                    <option value="">{{ get_phrase('Select an intake') }}</option>
+                    @foreach($intakeSessions as $session)
+                        <option value="{{ $session->id }}">{{ $session->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+
+            <div class="fpb-7">
+                <label for="year_of_study" class="eForm-label">{{ get_phrase('Year of Study') }}</label>
+                <input type="number" min="1" max="20" class="form-control eForm-control" id="year_of_study" name="year_of_study">
+            </div>
+
+            <div class="fpb-7">
+                <label for="nationality" class="eForm-label">{{ get_phrase('Nationality') }}</label>
+                <input type="text" class="form-control eForm-control" id="nationality" name="nationality">
+            </div>
+
+            <div class="fpb-7">
+                <label for="national_id_or_passport" class="eForm-label">{{ get_phrase('National ID/Passport Number') }}</label>
+                <input type="text" class="form-control eForm-control" id="national_id_or_passport" name="national_id_or_passport">
+            </div>
+
+            <div class="fpb-7">
+                <label for="next_of_kin_address" class="eForm-label">{{ get_phrase('Next of Kin Address') }}</label>
+                <textarea class="form-control eForm-control" id="next_of_kin_address" name="next_of_kin_address" rows="3"></textarea>
+            </div>
+
+            <div class="fpb-7">
+                <label for="next_of_kin_contact" class="eForm-label">{{ get_phrase('Next of Kin Contact') }}</label>
+                <input type="text" class="form-control eForm-control" id="next_of_kin_contact" name="next_of_kin_contact">
+            </div>
+
+            <div class="fpb-7">
+                <label for="status" class="eForm-label">{{ get_phrase('Status') }}</label>
+                <select name="status" id="status" class="form-select eForm-select eChoice-multiple-with-remove">
+                    <option value="active" selected>{{ get_phrase('Active') }}</option>
+                    <option value="suspended">{{ get_phrase('Suspended') }}</option>
+                    <option value="graduated">{{ get_phrase('Graduated') }}</option>
+                    <option value="withdrawn">{{ get_phrase('Withdrawn') }}</option>
+                    <option value="deferred">{{ get_phrase('Deferred') }}</option>
+                </select>
+            </div>
+
+            <div class="fpb-7">
+                <label for="additional_photo" class="eForm-label">{{ get_phrase('Additional Image') }}</label>
+                <input class="form-control eForm-control-file" id="additional_photo" name="additional_photo" accept="image/*" type="file">
             </div>
 
             <div class="fpb-7">

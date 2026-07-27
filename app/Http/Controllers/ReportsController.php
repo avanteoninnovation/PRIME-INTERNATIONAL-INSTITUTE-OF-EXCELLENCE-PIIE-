@@ -169,7 +169,7 @@ class ReportsController extends Controller
         return view('admin.reports.exams', compact('submissions'));
     }
 
-    public function export($type)
+    public function export($type, Request $request)
     {
         // Simple CSV export
         $school_id = $this->school_id;
@@ -180,7 +180,7 @@ class ReportsController extends Controller
             'Content-Disposition' => "attachment; filename=\"{$filename}\"",
         ];
 
-        $callback = function () use ($type, $school_id) {
+        $callback = function () use ($type, $school_id, $request) {
             $out = fopen('php://output', 'w');
             if ($type === 'students') {
                 fputcsv($out, ['#', 'Name', 'Email', 'Code', 'Status', 'Enrolled']);
@@ -194,6 +194,48 @@ class ReportsController extends Controller
                     ->each(function ($f, $i) use ($out) {
                         fputcsv($out, [$i+1, $f->title, $f->total_amount, $f->paid_amount, $f->status]);
                     });
+            } elseif ($type === 'attendance') {
+                $classes  = Classes::where('school_id', $school_id)->get();
+                $class_id = $request->class_id ?? ($classes->first()?->id ?? null);
+                $date_from = $request->from ?? date('Y-m-01');
+                $date_to   = $request->to   ?? date('Y-m-d');
+                $from_ts   = strtotime($date_from);
+                $to_ts     = strtotime($date_to) + 86400;
+
+                fputcsv($out, ['#', 'Student', 'Present days', 'Absent days', 'Total days', 'Attendance %']);
+                DailyAttendances::where('school_id', $school_id)
+                    ->where('class_id', $class_id)
+                    ->where('timestamp', '>=', $from_ts)
+                    ->where('timestamp', '<', $to_ts)
+                    ->selectRaw('student_id, SUM(status="present") as present_days, SUM(status="absent") as absent_days, COUNT(*) as total_days')
+                    ->groupBy('student_id')
+                    ->with('student')
+                    ->get()
+                    ->each(function ($a, $i) use ($out) {
+                        $pct = $a->total_days > 0 ? round($a->present_days / $a->total_days * 100) : 0;
+                        fputcsv($out, [$i+1, optional($a->student)->name ?? "Student #{$a->student_id}", $a->present_days, $a->absent_days, $a->total_days, $pct]);
+                    });
+            } elseif ($type === 'exams') {
+                fputcsv($out, ['#', 'Student', 'Exam', 'Score', 'Total', '%', 'Result', 'Submitted']);
+                if (class_exists(OnlineExamSubmission::class)) {
+                    OnlineExamSubmission::whereHas('exam', fn($q) => $q->where('school_id', $school_id))
+                        ->with(['exam', 'student'])
+                        ->orderByDesc('created_at')
+                        ->get()
+                        ->each(function ($sub, $i) use ($out) {
+                            $pct = $sub->total_marks > 0 ? round($sub->score / $sub->total_marks * 100, 1) : 0;
+                            fputcsv($out, [
+                                $i+1,
+                                optional($sub->student)->name ?? '—',
+                                optional($sub->exam)->title ?? '—',
+                                $sub->score,
+                                $sub->total_marks,
+                                $pct,
+                                $sub->passed ? 'Pass' : 'Fail',
+                                $sub->created_at?->format('Y-m-d H:i'),
+                            ]);
+                        });
+                }
             }
             fclose($out);
         };

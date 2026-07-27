@@ -109,11 +109,15 @@ class CommonController extends Controller
         return $enrol_data;
     }
 
+    /**
+     * Shared profile-data lookup for Admin/Teacher/Accountant/Librarian/
+     * Warden/Parent profile views. Always scoped to the authenticated
+     * admin's own school — a cross-school id simply resolves to "not
+     * found" here, same as the 404 the other staff actions return.
+     */
     public function getAdminDetails($id)
     {
-        // $admin_details = User::where('school_id', auth()->user()->school_id);
-
-        $user_details = User::find($id);
+        $user_details = User::where('id', $id)->where('school_id', auth()->user()->school_id)->first();
 
         if (! $user_details) {
             return [
@@ -127,11 +131,19 @@ class CommonController extends Controller
                 'blood_group' => '',
                 'photo'       => get_user_image($id),
                 'school_id'   => null,
+                'code'        => '',
+                'first_name'  => '',
+                'last_name'   => '',
+                'department'  => '',
+                'designation' => '',
+                'employment_type' => '',
+                'staff_status'    => '',
+                'account_status'  => '',
             ];
         }
 
         $info = json_decode($user_details->user_information ?? '') ?: (object) [];
-        
+
         $user_data['id'] = $user_details->id;
         $user_data['name'] = $user_details->name;
         $user_data['email'] = $user_details->email;
@@ -143,6 +155,14 @@ class CommonController extends Controller
         $user_data['blood_group'] = $info->blood_group??"";
         $user_data['photo'] = get_user_image($id);
         $user_data['school_id'] = $user_details->school_id;
+        $user_data['code'] = $user_details->code;
+        $user_data['first_name'] = $user_details->first_name;
+        $user_data['last_name'] = $user_details->last_name;
+        $user_data['department'] = optional($user_details->department)->name;
+        $user_data['designation'] = optional($user_details->designationRecord)->name;
+        $user_data['employment_type'] = $user_details->employment_type;
+        $user_data['staff_status'] = $user_details->staff_status;
+        $user_data['account_status'] = $user_details->account_status;
 
         return $user_data;
     }

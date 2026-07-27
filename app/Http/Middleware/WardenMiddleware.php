@@ -17,7 +17,7 @@ class WardenMiddleware
     {
         $user = auth()->user();
 
-        if ($user->role_id == '10' && $user->account_status != 'disable') {
+        if ($user->role_id == '10' && $user->account_status != 'disable' && !$user->isStaffPortalBlocked()) {
             return $next($request);
 
         } else {

@@ -19,7 +19,7 @@ class MultiStaffMiddleware
     public function handle(Request $request, Closure $next)
     {
         $user = auth()->user();
-        if ($user && in_array($user->role_id, self::STAFF_ROLES) && $user->account_status != 'disable') {
+        if ($user && in_array($user->role_id, self::STAFF_ROLES) && $user->account_status != 'disable' && !$user->isStaffPortalBlocked()) {
             return $next($request);
         }
         return redirect()->route('login')->with('error', 'Access denied or your account is disabled.');

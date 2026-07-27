@@ -9,7 +9,10 @@
                 <li><a href="#">{{ get_phrase('Exams') }}</a></li>
             </ul>
         </div>
-        <a href="{{ route('admin.reports.index') }}" class="eBtn eBtn-secondary"><i class="bi bi-arrow-left"></i> {{ get_phrase('Back') }}</a>
+        <div class="d-flex gap-2 flex-wrap">
+            <a href="{{ route('admin.reports.export', 'exams') }}" class="eBtn eBtn-secondary"><i class="bi bi-download"></i> {{ get_phrase('Export CSV') }}</a>
+            <a href="{{ route('admin.reports.index') }}" class="eBtn eBtn-secondary"><i class="bi bi-arrow-left"></i> {{ get_phrase('Back') }}</a>
+        </div>
     </div>
 </div></div></div>
 <div class="row"><div class="col-12"><div class="eSection-wrap">

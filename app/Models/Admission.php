@@ -12,7 +12,7 @@ class Admission extends Model
     protected $fillable = [
         'school_id', 'app_number', 'intake_session_id', 'programme_id',
         'first_name', 'last_name', 'email', 'phone', 'dob', 'gender',
-        'nationality', 'qualifications', 'documents', 'status',
+        'nationality', 'qualifications', 'documents', 'status', 'source',
         'offer_date', 'agent_id', 'reviewed_by', 'notes'
     ];
 

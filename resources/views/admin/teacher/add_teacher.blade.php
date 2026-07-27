@@ -3,42 +3,11 @@
         @csrf 
         <div class="form-row">
             <div class="fpb-7">
-                <label for="name" class="eForm-label">{{ get_phrase('Name') }}</label>
-                <input type="text" class="form-control eForm-control" id="name" name = "name" required>
-            </div>
-
-            <div class="fpb-7">
                 <label for="email" class="eForm-label">{{ get_phrase('Email') }}</label>
                 <input type="email" class="form-control eForm-control" id="email" name = "email" required>
             </div>
 
-            <div class="fpb-7">
-                <label for="password" class="eForm-label">{{ get_phrase('Password') }}</label>
-                <input type="password" class="form-control eForm-control" id="password" name = "password" placeholder="Provide teacher password" required>
-            </div>
-
-            <div class="fpb-7">
-                <label for="department_id" class="eForm-label">
-                    {{ get_phrase("Department") }}
-                    <a href="javascript:;" class="ms-1" title="{{ get_phrase('Add Department') }}" onclick="rightModal('{{ route('admin.department.open_modal') }}', '{{ get_phrase('Create Department') }}')">
-                        <i class="bi bi-plus-circle"></i>
-                    </a>
-                </label>
-                <select name="department_id" id="department_id" class="form-select eForm-select eChoice-multiple-with-remove">
-                    <option value="">{{ get_phrase("Select a department") }}</option>
-                    @foreach($departments as $department)
-                        <option value="{{ $department->id }}">{{ $department->name }}</option>
-                    @endforeach
-                </select>
-                @if(count($departments) === 0)
-                <small class="text-muted">{{ get_phrase('No departments available yet. You can create a teacher without assigning one for now, or tap + to add one.') }}</small>
-                @endif
-            </div>
-
-            <div class="fpb-7">
-                <label for="designation" class="eForm-label">{{ get_phrase('Designation') }}</label>
-                <input type="text" class="form-control eForm-control" id="designation" name = "designation" required>
-            </div>
+            @include('admin.staff._create_fields', ['departments' => $departments, 'designations' => $designations])
 
             <div class="fpb-7">
                 <label for="birthday" class="eForm-label">{{ get_phrase('Birthday') }}<span class="required"></span></label>

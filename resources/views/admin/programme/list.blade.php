@@ -13,7 +13,8 @@
                         <li><a href="#">{{ get_phrase('Programmes') }}</a></li>
                     </ul>
                 </div>
-                <div class="export-btn-area">
+                <div class="export-btn-area d-flex gap-2">
+                    <a href="{{ route('admin.programmes.export', ['search' => $search]) }}" class="export_btn bg-secondary"><i class="bi bi-download"></i> {{ get_phrase('Export CSV') }}</a>
                     <a href="javascript:;" class="export_btn" onclick="rightModal('{{ route('admin.programmes.open_modal') }}', '{{ get_phrase('Add Programme') }}')">{{ get_phrase('Add Programme') }}</a>
                 </div>
             </div>

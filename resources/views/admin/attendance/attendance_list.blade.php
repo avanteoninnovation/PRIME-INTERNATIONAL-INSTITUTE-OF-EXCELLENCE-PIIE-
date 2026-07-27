@@ -107,15 +107,7 @@ $student_id_count = 0;
               <button class="eBtn eBtn btn-secondary" type="submit" >{{ get_phrase('Filter') }}</button>
             </div>
             @if(count($attendance_of_students) > 0)
-            <div class="position-relative">
-              <button
-                class="eBtn-3 dropdown-toggle"
-                type="button"
-                id="defaultDropdown"
-                data-bs-toggle="dropdown"
-                data-bs-auto-close="true"
-                aria-expanded="false"
-              >
+            <button type="button" class="eBtn-3" onclick="download_csv()">
                 <span class="pr-10">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
@@ -131,19 +123,8 @@ $student_id_count = 0;
                     />
                   </svg>
                 </span>
-                {{ get_phrase('Export') }}
-              </button>
-              <ul
-                class="dropdown-menu dropdown-menu-end eDropdown-menu-2"
-              >
-                <li>
-                  <button class="dropdown-item" href="#" onclick="download_csv()" >{{ get_phrase('CSV') }}</button>
-                </li>
-                <li>
-                  <button class="dropdown-item" href="#" onclick="Export()" >{{ get_phrase('PDF') }}</button>
-                </li>
-              </ul>
-            </div>
+                {{ get_phrase('Export CSV') }}
+            </button>
             @endif
           </div>
         </form>
@@ -306,23 +287,6 @@ $student_id_count = 0;
             $('#section_id').html(response);
         }
     });
-  }
-
-  function Export() {
-
-    html2canvas(document.getElementById('pdf_table'), {
-        onrendered: function(canvas) {
-            var data = canvas.toDataURL();
-            var docDefinition = {
-                content: [{
-                    image: data,
-                    width: 500
-                }]
-            };
-            pdfMake.createPdf(docDefinition).download("AttendenceReport.pdf");
-        }
-    });
-
   }
 
   var download_csv=function()

@@ -29,31 +29,18 @@ use App\Models\Grade;
 
 @if(count($enroll_students) > 0)
 
-<div class="export position-relative">
-  <button class="eBtn-3 dropdown-toggle float-end mb-4" type="button" id="defaultDropdown" data-bs-toggle="dropdown" data-bs-auto-close="true" aria-expanded="false">
+<a class="eBtn-3 float-end mb-4" href="{{route('admin.marks.list_pdf', ['section_id' => $page_data['section_id'], 'class_id' => $page_data['class_id'], 'session_id' => $page_data['session_id'], 'exam_category_id' => $page_data['exam_category_id'], 'subject_id' => $page_data['subject_id'] ])}}">
     <span class="pr-10">
       <svg xmlns="http://www.w3.org/2000/svg" width="12.31" height="10.77" viewBox="0 0 10.771 12.31">
         <path id="arrow-right-from-bracket-solid" d="M3.847,1.539H2.308a.769.769,0,0,0-.769.769V8.463a.769.769,0,0,0,.769.769H3.847a.769.769,0,0,1,0,1.539H2.308A2.308,2.308,0,0,1,0,8.463V2.308A2.308,2.308,0,0,1,2.308,0H3.847a.769.769,0,1,1,0,1.539Zm8.237,4.39L9.007,9.007A.769.769,0,0,1,7.919,7.919L9.685,6.155H4.616a.769.769,0,0,1,0-1.539H9.685L7.92,2.852A.769.769,0,0,1,9.008,1.764l3.078,3.078A.77.77,0,0,1,12.084,5.929Z" transform="translate(0 12.31) rotate(-90)" fill="#F15F23"></path>
       </svg>
     </span>
-    {{ get_phrase('Export') }}
-  </button>
-
- 
-  <ul class="dropdown-menu dropdown-menu-end eDropdown-menu-2">
-    
-    <li>
-        <a class="dropdown-item"  href="{{route('admin.marks.list_pdf', ['section_id' => $page_data['section_id'], 'class_id' => $page_data['class_id'], 'session_id' => $page_data['session_id'], 'exam_category_id' => $page_data['exam_category_id'], 'subject_id' => $page_data['subject_id'] ])}}" >{{ get_phrase('PDF') }}</a>
-    </li>
-    <li>
-        <a class="dropdown-item" id="print" href="javascript:;" onclick="printableDiv('mark_history')">{{ get_phrase('Print') }}</a>
-    </li>
-  </ul>
-</div>
+    {{ get_phrase('Export PDF') }}
+</a>
 @endif
 
 @if(count($enroll_students) > 0)
-<div class="mark_report_content">
+<div class="mark_report_content table-responsive">
     <table class="table eTable table-bordered">
         <thead>
             <tr>
@@ -121,8 +108,8 @@ use App\Models\Grade;
     <span class="">{{ get_phrase('No data found') }}</span>
 </div>
 @endif
-<div class="mark_report_content">
-    <table class="">
+<div class="mark_report_content table-responsive">
+    <table class="table eTable table-bordered">
         <thead>
             <tr>
                 <th scope="col">{{ get_phrase('Student name') }}</th>
@@ -130,7 +117,7 @@ use App\Models\Grade;
                 <th scope="col">{{ get_phrase('Grade point') }}</th>
                 <th scope="col">{{ get_phrase('Comment') }}</th>
                 <th scope="col">{{ get_phrase('Action') }}</th>
-            </tr>   
+            </tr>
         </thead>
         <tbody>
             @foreach($enroll_students as $enroll_student)
@@ -169,7 +156,7 @@ use App\Models\Grade;
                         <span id="mark-{{ $enroll_student->user_id }}">{{ $user_marks }}</span>
                     </td>
                     <td>
-                        <span id="grade-for-mark-{{ $enroll_student->user_id }}">{{ get_grade($user_marks) }}</span> 
+                        <span id="grade-for-mark-{{ $enroll_student->user_id }}">{{ get_grade($user_marks) }}</span>
                     </td>
                     <td>
                         <span id="comment-{{ $enroll_student->user_id }}">{{ $comment }}</span>
@@ -184,34 +171,6 @@ use App\Models\Grade;
 <script type="text/javascript">
 
   "use strict";
-
-  function Export() {
-
-    // Choose the element that our invoice is rendered in.
-    const element = document.getElementById("mark_history");
-
-    // clone the element
-    var clonedElement = element.cloneNode(true);
-
-    // change display of cloned element
-    $(clonedElement).css("display", "block");
-
-
-    // Choose the clonedElement and save the PDF for our user.
-    var opt = {
-    margin:       1,
-    filename:     'mark_report_{{ date("y-m-d") }}.pdf',
-    image:        { type: 'jpeg', quality: 0.98 },
-    html2canvas:  { scale: 2 }
-    };
-
-    // New Promise-based usage:
-    html2pdf().set(opt).from(clonedElement).save();
-
-    // remove cloned element
-    clonedElement.remove();
-    }
-
 
     function mark_update(student_id){
         var class_id = '{{ $page_data['class_id'] }}';
@@ -245,20 +204,6 @@ use App\Models\Grade;
                 $('#grade-for-'+id).text(response);
             }
         });
-    }
-
-    
-   
-
-    function printableDiv(printableAreaDivId) {
-        var printContents = document.getElementById(printableAreaDivId).innerHTML;
-        var originalContents = document.body.innerHTML;
-
-        document.body.innerHTML = printContents;
-
-        window.print();
-
-        document.body.innerHTML = originalContents;
     }
 
 </script>

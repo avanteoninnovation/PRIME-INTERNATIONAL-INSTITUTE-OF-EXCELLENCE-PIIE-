@@ -121,6 +121,7 @@
                     <table>
                         <tr><td class="label">{{ get_phrase('Programme') }}:</td><td><strong>{{ $programme?->name ?: '-' }}</strong></td></tr>
                         <tr><td class="label">{{ get_phrase('Level') }}:</td><td>{{ $programme?->level ?: '-' }}</td></tr>
+                        <tr><td class="label">{{ get_phrase('Intake') }}:</td><td>{{ $intakeSession?->name ?: '-' }}</td></tr>
                         <tr><td class="label">{{ get_phrase('Enrolled') }}:</td><td>{{ $enrollment?->created_at?->format('Y') ?: '-' }}</td></tr>
                     </table>
                 </div>

@@ -69,6 +69,7 @@ html {
   height: 100%;
   width: 100%;
   scroll-behavior: smooth;
+  overflow-x: hidden;
 }
 
 body {
@@ -80,6 +81,7 @@ body {
   color: #6c6c6c;
   background-color: #f6f6f9;
   scroll-behavior: smooth;
+  overflow-x: hidden;
 }
 
 hr {

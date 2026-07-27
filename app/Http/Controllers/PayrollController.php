@@ -64,9 +64,9 @@ class PayrollController extends Controller
 
     public function index(Request $request)
     {
-        $month   = $request->month ?? now()->format('Y-m');
-        $period  = $month . '-01';
-        $payroll = Payroll::where('school_id', $this->school_id)
+        $month    = $request->month ?? now()->format('Y-m');
+        $period   = $month . '-01';
+        $payrolls = Payroll::where('school_id', $this->school_id)
             ->where('pay_period', $period)
             ->with('staff')
             ->paginate(30);
@@ -75,7 +75,15 @@ class PayrollController extends Controller
             ->whereIn('role_id', [2, 3, 6, 7, 8, 9, 10, 11, 12])
             ->orderBy('name')->get();
 
-        return view('admin.payroll.index', compact('payroll', 'staff', 'month'));
+        $periodQuery = fn() => Payroll::where('school_id', $this->school_id)->where('pay_period', $period);
+        $stats = [
+            'total'    => $periodQuery()->sum('net_pay'),
+            'pending'  => $periodQuery()->where('status', 'draft')->count(),
+            'approved' => $periodQuery()->where('status', 'approved')->count(),
+            'paid'     => $periodQuery()->where('status', 'paid')->count(),
+        ];
+
+        return view('admin.payroll.index', compact('payrolls', 'staff', 'month', 'stats'));
     }
 
     public function generate(Request $request)
@@ -143,6 +151,41 @@ class PayrollController extends Controller
         $pay = Payroll::where('school_id', $this->school_id)->with('staff')->findOrFail($id);
         $pdf = PDF::loadView('admin.payroll.payslip_pdf', compact('pay'));
         return $pdf->download("Payslip_{$pay->staff->name}_{$pay->pay_period}.pdf");
+    }
+
+    public function exportCsv(Request $request)
+    {
+        $month  = $request->month ?? now()->format('Y-m');
+        $period = $month . '-01';
+        $filename = "payroll_{$month}.csv";
+
+        $headers = [
+            'Content-Type'        => 'text/csv',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        ];
+
+        $callback = function () use ($period) {
+            $out = fopen('php://output', 'w');
+            fputcsv($out, ['#', 'Staff', 'Period', 'Gross', 'Deductions', 'Net Pay', 'Status']);
+            Payroll::where('school_id', $this->school_id)
+                ->where('pay_period', $period)
+                ->with('staff')
+                ->get()
+                ->each(function ($p, $i) use ($out) {
+                    fputcsv($out, [
+                        $i+1,
+                        optional($p->staff)->name,
+                        $p->pay_period?->format('M Y'),
+                        $p->basic_salary + $p->allowances,
+                        $p->deductions + $p->tax + $p->nssf,
+                        $p->net_pay,
+                        ucfirst($p->status),
+                    ]);
+                });
+            fclose($out);
+        };
+
+        return response()->stream($callback, 200, $headers);
     }
 
     // Staff: view own payslips

@@ -3,7 +3,7 @@
         @csrf
         <div class="form-row">
             <div class="fpb-7"><label class="eForm-label">{{ get_phrase('Item Name') }} *</label>
-                <input type="text" class="form-control eForm-control" name="item_name" required></div>
+                <input type="text" class="form-control eForm-control" name="title" required></div>
             <div class="fpb-7 mt-2"><label class="eForm-label">{{ get_phrase('Description') }}</label>
                 <textarea class="form-control eForm-control" name="description" rows="2"></textarea></div>
             <div class="row mt-2">

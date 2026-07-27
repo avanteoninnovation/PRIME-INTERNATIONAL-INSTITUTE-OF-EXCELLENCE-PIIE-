@@ -227,6 +227,9 @@
                     @if(empty($user->menu_permission) || in_array('admin.permission', $menu_permission))
                     <li><a class="{{ request()->is('admin/permission*') ? 'active' : '' }}" href="{{ route('admin.teacher.permission') }}"><span>{{ get_phrase('Teacher Permission') }}</span></a></li>
                     @endif
+                    @if(empty($user->menu_permission) || in_array('admin.designation_list', $menu_permission))
+                    <li><a class="{{ request()->is('admin/designation*') ? 'active' : '' }}" href="{{ route('admin.designation_list') }}"><span>{{ get_phrase('Designation') }}</span></a></li>
+                    @endif
                 </ul>
             </li>
             @endif

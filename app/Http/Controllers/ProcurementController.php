@@ -58,8 +58,17 @@ class ProcurementController extends Controller
     {
         $req = ProcurementRequest::where('school_id', $this->school_id)->findOrFail($id);
         $request->validate(['status' => 'required|in:draft,submitted,approved,ordered,received,rejected']);
+        $oldStatus = $req->status;
         $req->update(['status' => $request->status, 'approved_by' => Auth::id()]);
-        AuditLog::record('update', 'Procurement', "Updated request #{$id} to {$request->status}");
+
+        $action = ['approved' => 'approve', 'rejected' => 'reject'][$request->status] ?? 'update';
+
+        AuditLog::record($action, 'Procurement', "Request \"{$req->title}\" status: {$oldStatus} → {$req->status}", [
+            'record_type' => ProcurementRequest::class,
+            'record_id'   => $req->id,
+            'old_values'  => ['status' => $oldStatus],
+            'new_values'  => ['status' => $req->status],
+        ]);
         return redirect()->back()->with('success', get_phrase('Status updated'));
     }
 
@@ -69,5 +78,40 @@ class ProcurementController extends Controller
         AuditLog::record('delete', 'Procurement', "Deleted request: {$req->title}");
         $req->delete();
         return redirect()->back()->with('success', get_phrase('Request deleted'));
+    }
+
+    public function exportCsv(Request $request)
+    {
+        $status = $request->status ?? '';
+
+        $headers = [
+            'Content-Type'        => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="procurement_' . date('Y-m-d') . '.csv"',
+        ];
+
+        $callback = function () use ($status) {
+            $out = fopen('php://output', 'w');
+            fputcsv($out, ['#', 'Title', 'Description', 'Quantity', 'Estimated cost', 'Vendor', 'Requested by', 'Status']);
+            ProcurementRequest::where('school_id', $this->school_id)
+                ->when($status, fn($q) => $q->where('status', $status))
+                ->with(['requester', 'approver'])
+                ->latest()
+                ->get()
+                ->each(function ($r, $i) use ($out) {
+                    fputcsv($out, [
+                        $i+1,
+                        $r->title,
+                        $r->description,
+                        $r->quantity,
+                        $r->estimated_cost,
+                        $r->vendor,
+                        optional($r->requester)->name,
+                        ucfirst($r->status),
+                    ]);
+                });
+            fclose($out);
+        };
+
+        return response()->stream($callback, 200, $headers);
     }
 }

@@ -68,11 +68,25 @@ trait LeaveTestHelper
             $table->unsignedBigInteger('school_id')->nullable();
             $table->unsignedBigInteger('user_id')->nullable();
             $table->string('user_name')->nullable();
+            $table->unsignedTinyInteger('role_id')->nullable();
+            $table->string('role_name', 60)->nullable();
             $table->string('action');
+            $table->string('event_type', 20)->default('ACTION');
             $table->string('module');
+            $table->string('route_name', 150)->nullable();
+            $table->string('url', 500)->nullable();
+            $table->string('method', 10)->nullable();
             $table->text('description');
+            $table->string('record_type', 100)->nullable();
+            $table->unsignedBigInteger('record_id')->nullable();
+            $table->json('old_values')->nullable();
+            $table->json('new_values')->nullable();
             $table->string('ip_address', 45)->nullable();
             $table->text('user_agent')->nullable();
+            $table->string('device_type', 20)->nullable();
+            $table->string('browser', 60)->nullable();
+            $table->string('platform', 60)->nullable();
+            $table->string('status', 20)->nullable();
             $table->dateTime('created_at')->nullable();
         });
 

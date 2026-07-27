@@ -21,6 +21,8 @@ class User extends Authenticatable
 
     protected $fillable = [
         'name',
+        'first_name',
+        'last_name',
         'email',
         'password',
         'role_id',
@@ -33,11 +35,17 @@ class User extends Authenticatable
         'status',
         'department_id',
         'designation',
+        'designation_id',
+        'employment_type',
+        'staff_status',
         'language',
         'school_role',
         'account_status',
         'force_password_change'
     ];
+
+    /** Valid values for staff_status — the Staff Module's own employment status, separate from account_status. */
+    public const STAFF_STATUSES = ['active', 'suspended', 'inactive'];
 
     /**
      * The attributes that should be hidden for arrays.
@@ -80,6 +88,27 @@ class User extends Authenticatable
     public function studentProfile()
     {
         return $this->hasOne(StudentProfile::class, 'user_id');
+    }
+
+    public function department()
+    {
+        return $this->belongsTo(Department::class, 'department_id');
+    }
+
+    public function designationRecord()
+    {
+        return $this->belongsTo(Designation::class, 'designation_id');
+    }
+
+    /**
+     * Staff whose employment status is suspended/inactive must not access
+     * the staff portal, mirroring how account_status='disable' already
+     * works — kept as a separate field/check per the client's explicit
+     * instruction not to conflate the two.
+     */
+    public function isStaffPortalBlocked(): bool
+    {
+        return in_array($this->staff_status, ['suspended', 'inactive'], true);
     }
 
         public function liveClassesAsLecturer()

@@ -18,7 +18,7 @@ class TeacherMiddleware
     {
         $user = auth()->user();
        
-        if ($user->role_id == '3' && $user->account_status != 'disable') {
+        if ($user->role_id == '3' && $user->account_status != 'disable' && !$user->isStaffPortalBlocked()) {
             return $next($request);
 
         }else{

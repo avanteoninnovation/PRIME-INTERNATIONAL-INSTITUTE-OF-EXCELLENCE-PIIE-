@@ -7,6 +7,7 @@
             <ul class="d-flex align-items-center eBreadcrumb-2"><li><a href="#">{{ get_phrase('HR') }}</a></li><li><a href="#">{{ get_phrase('Payroll') }}</a></li></ul>
         </div>
         <div class="export-btn-area d-flex gap-2">
+            <a href="{{ route('admin.payroll.export', ['month' => $month]) }}" class="export_btn bg-secondary"><i class="bi bi-download"></i> {{ get_phrase('Export CSV') }}</a>
             <a href="{{ route('admin.salary_structures.index') }}" class="export_btn bg-secondary">{{ get_phrase('Salary Structures') }}</a>
             <a href="{{ route('admin.payroll.generate') }}" class="export_btn" onclick="return confirm('Generate payroll for current period?')">{{ get_phrase('Generate Payroll') }}</a>
         </div>
@@ -29,12 +30,12 @@
                 <td>{{ $payrolls->firstItem() + $i }}</td>
                 <td>{{ optional($p->staff)->name }}</td>
                 <td>{{ $p->pay_period?->format('M Y') }}</td>
-                <td>{{ number_format($p->gross_salary,2) }}</td>
-                <td class="text-danger">{{ number_format($p->total_deductions,2) }}</td>
-                <td><strong>{{ number_format($p->net_salary,2) }}</strong></td>
+                <td>{{ number_format($p->basic_salary + $p->allowances,2) }}</td>
+                <td class="text-danger">{{ number_format($p->deductions + $p->tax + $p->nssf,2) }}</td>
+                <td><strong>{{ number_format($p->net_pay,2) }}</strong></td>
                 <td><span class="badge bg-{{ $p->status=='paid'?'success':($p->status=='approved'?'primary':'warning') }}">{{ ucfirst($p->status) }}</span></td>
                 <td>
-                    @if($p->status=='pending')
+                    @if($p->status=='draft')
                         <a href="{{ route('admin.payroll.approve', $p->id) }}" class="eBtn eBtn-sm eBtn-primary" onclick="return confirm('Approve?')"><i class="bi bi-check-circle"></i></a>
                     @endif
                     @if($p->status=='approved')

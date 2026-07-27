@@ -18,7 +18,7 @@ class LibrarianMiddleware
     {
         $user = auth()->user();
        
-        if ($user->role_id == '5' && $user->account_status != 'disable') {
+        if ($user->role_id == '5' && $user->account_status != 'disable' && !$user->isStaffPortalBlocked()) {
             return $next($request);
 
         }else{

@@ -98,11 +98,16 @@
                 aria-labelledby="pills-jHome-tab"
               >
                 <div class="text name_title">
+                    <h4>{{ get_phrase('Staff Number') }} : {{ null_checker($user_details['code'] ?? '') }}</h4>
                     <h4>{{ get_phrase('Name') }} : {{ $user_details['name'] }}</h4>
                     <h4>{{ get_phrase('Gender') }} : {{ null_checker($user_details['gender']) }}</h4>
                     <h4>{{ get_phrase('Address') }} : {{ null_checker($user_details['address']) }}</h4>
                     <h4>{{ get_phrase('Blood') }} : {{ null_checker(strtoupper($user_details['blood_group'])) }}</h4>
                     <h4>{{ get_phrase('Contact') }} : {{ null_checker($user_details['phone']) }}</h4>
+                    <h4>{{ get_phrase('Department') }} : {{ null_checker($user_details['department'] ?? '') }}</h4>
+                    <h4>{{ get_phrase('Designation') }} : {{ null_checker($user_details['designation'] ?? '') }}</h4>
+                    <h4>{{ get_phrase('Employment Type') }} : {{ null_checker($user_details['employment_type'] ?? '') }}</h4>
+                    <h4>{{ get_phrase('Staff Status') }} : {{ ucfirst($user_details['staff_status'] ?? 'active') }}</h4>
                 </div>
               </div>
               <div

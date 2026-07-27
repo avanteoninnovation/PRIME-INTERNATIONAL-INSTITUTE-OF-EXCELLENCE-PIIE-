@@ -121,7 +121,14 @@ class AssetController extends Controller
             'condition'     => 'required',
             'assigned_to'   => 'nullable|exists:users,id',
         ]);
+        $old = $asset->only(array_keys($validated));
         $asset->update($validated);
+        AuditLog::record('update', 'Assets', "Updated asset: {$asset->name}", [
+            'record_type' => Asset::class,
+            'record_id'   => $asset->id,
+            'old_values'  => $old,
+            'new_values'  => $asset->only(array_keys($validated)),
+        ]);
         return response()->json(['status' => 'success', 'message' => get_phrase('Asset updated')]);
     }
 
@@ -131,5 +138,42 @@ class AssetController extends Controller
         AuditLog::record('delete', 'Assets', "Deleted asset: {$a->name}");
         $a->delete();
         return redirect()->back()->with('success', get_phrase('Asset deleted'));
+    }
+
+    public function exportCsv(Request $request)
+    {
+        $search   = $request->search ?? '';
+        $category = $request->category ?? '';
+
+        $headers = [
+            'Content-Type'        => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="assets_' . date('Y-m-d') . '.csv"',
+        ];
+
+        $callback = function () use ($search, $category) {
+            $out = fopen('php://output', 'w');
+            fputcsv($out, ['#', 'Asset name', 'Category', 'Serial No.', 'Purchase date', 'Cost', 'Condition', 'Assigned to']);
+            Asset::where('school_id', $this->school_id)
+                ->when($search, fn($q) => $q->where('name', 'like', "%$search%")->orWhere('asset_tag', 'like', "%$search%"))
+                ->when($category, fn($q) => $q->where('category_id', $category))
+                ->with(['category', 'assignedUser'])
+                ->orderBy('name')
+                ->get()
+                ->each(function ($a, $i) use ($out) {
+                    fputcsv($out, [
+                        $i+1,
+                        $a->name,
+                        optional($a->category)->name,
+                        $a->serial_number,
+                        $a->purchase_date?->format('Y-m-d'),
+                        $a->purchase_cost,
+                        ucfirst($a->condition ?? ''),
+                        optional($a->assignedUser)->name,
+                    ]);
+                });
+            fclose($out);
+        };
+
+        return response()->stream($callback, 200, $headers);
     }
 }

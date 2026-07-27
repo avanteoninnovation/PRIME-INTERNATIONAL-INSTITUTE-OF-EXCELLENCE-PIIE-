@@ -9,6 +9,73 @@ use Illuminate\Support\Facades\Route;
 class AdminPermission
 {
     /**
+     * Maps each menu-permission entry to the action routes it also covers.
+     * These action routes don't have their own permission checkbox, so a
+     * permitted user's menu_permission list only ever contains the parent
+     * (index) route name below.
+     *
+     * @var array<string, array<int, string>>
+     */
+    private const MODULE_ROUTES = [
+        'admin.exam_category' => [
+            'admin.exam_category.open_modal',
+            'admin.create.exam_category',
+            'admin.edit.exam_category',
+            'admin.exam_category.update',
+            'admin.exam_category.delete',
+        ],
+        'admin.offline_exam' => [
+            'admin.offline_exam.export',
+            'admin.offline_exam.open_modal',
+            'admin.create.offline_exam',
+            'admin.edit.offline_exam',
+            'admin.offline_exam.update',
+            'admin.offline_exam.delete',
+            'admin.class_wise_exam_list',
+        ],
+        'admin.daily_attendance' => [
+            'admin.take_attendance.open_modal',
+            'admin.attendance_take',
+            'admin.attendance.student',
+            'admin.daily_attendance.filter',
+            'admin.dailyAttendanceFilter_csv',
+        ],
+        'admin.routine' => [
+            'admin.routine.open_modal',
+            'admin.routine.routine_add',
+            'admin.routine.routine_list',
+            'admin.routine_edit_modal',
+            'admin.routine.update',
+            'admin.routine.delete',
+        ],
+        'admin.syllabus' => [
+            'admin.syllabus.open_modal',
+            'admin.syllabus.syllabus_add',
+            'admin.syllabus.syllabus_list',
+            'admin.syllabus_edit_modal',
+            'admin.syllabus.update',
+            'admin.syllabus.delete',
+        ],
+        'admin.gradebook' => [
+            'admin.gradebook.list',
+            'admin.gradebook.subject_wise_marks',
+            'admin.exam_mark.open_modal',
+            'admin.add.exam_mark',
+        ],
+        'admin.marks' => [
+            'admin.marks.list',
+            'admin.marks.list_pdf',
+        ],
+        'admin.grade_list' => [
+            'admin.grade.open_modal',
+            'admin.create.grade',
+            'admin.edit.grade',
+            'admin.grade.update',
+            'admin.grade.delete',
+        ],
+    ];
+
+    /**
      * Handle an incoming request.
      *
      * @param  \Illuminate\Http\Request  $request
@@ -53,6 +120,12 @@ class AdminPermission
 
         if ($currentRoute === 'admin.online_exams.index') {
             return in_array('admin.online_exams', $permittedRoutes, true);
+        }
+
+        foreach (self::MODULE_ROUTES as $parentRoute => $childRoutes) {
+            if (in_array($currentRoute, $childRoutes, true)) {
+                return in_array($parentRoute, $permittedRoutes, true);
+            }
         }
 
         return false;

@@ -267,6 +267,11 @@ Route::controller(AdminController::class)->middleware('admin', 'auth')->group(fu
     Route::any('admin/user_password/', 'school_user_password')->name('admin.user_password');
     Route::get('admin/admin/menu_permission/{id}', 'menuSettingsView')->name('admin.admin.menu_permission');
     Route::post('admin/admin/menu_permission_update/{id}', 'menuPermissionUpdate')->name('admin.admin.menu_permission_update');
+    Route::get('admin/admin/reset-password/{id}', 'adminResetPassword')->name('admin.admin.reset_password');
+    Route::get('admin/admin/resend-activation/{id}', 'adminResendActivation')->name('admin.admin.resend_activation');
+    Route::get('admin/admin/list-pdf', 'adminListPdf')->name('admin.admin.list_pdf');
+    Route::get('admin/admin/export-excel', 'adminListExportExcel')->name('admin.admin.export_excel');
+    Route::get('admin/admin/profile-pdf/{id}', 'adminProfilePdf')->name('admin.admin.profile_pdf');
 
     Route::get('admin/admin-documents/{id}', 'adminDocuments')->name('admin.documents');
     Route::get('admin/accountant-documents/{id}', 'accountantDocuments')->name('admin.accountant.documents');
@@ -288,6 +293,11 @@ Route::controller(AdminController::class)->middleware('admin', 'auth')->group(fu
     Route::post('admin/teacher/{id}', 'teacherUpdate')->name('admin.teacher.update');
     Route::get('admin/teacher/delete/{id}', 'teacherDelete')->name('admin.teacher.delete');
     Route::get('admin/teacher/teacher_profile/{id}', 'teacherProfile')->name('admin.teacher.teacher_profile');
+    Route::get('admin/teacher/reset-password/{id}', 'teacherResetPassword')->name('admin.teacher.reset_password');
+    Route::get('admin/teacher/resend-activation/{id}', 'teacherResendActivation')->name('admin.teacher.resend_activation');
+    Route::get('admin/teacher/list-pdf', 'teacherListPdf')->name('admin.teacher.list_pdf');
+    Route::get('admin/teacher/export-excel', 'teacherListExportExcel')->name('admin.teacher.export_excel');
+    Route::get('admin/teacher/profile-pdf/{id}', 'teacherProfilePdf')->name('admin.teacher.profile_pdf');
 
     //Accountant users route
     Route::get('admin/accountant', 'accountantList')->name('admin.accountant')->middleware('admin_permission');
@@ -298,6 +308,11 @@ Route::controller(AdminController::class)->middleware('admin', 'auth')->group(fu
     Route::post('admin/accountant/{id}', 'accountantUpdate')->name('admin.accountant.update');
     Route::get('admin/accountant/delete/{id}', 'accountantDelete')->name('admin.accountant.delete');
     Route::get('admin/accountant/accountant_profile/{id}', 'accountantProfile')->name('admin.accountant.accountant_profile');
+    Route::get('admin/accountant/reset-password/{id}', 'accountantResetPassword')->name('admin.accountant.reset_password');
+    Route::get('admin/accountant/resend-activation/{id}', 'accountantResendActivation')->name('admin.accountant.resend_activation');
+    Route::get('admin/accountant/list-pdf', 'accountantListPdf')->name('admin.accountant.list_pdf');
+    Route::get('admin/accountant/export-excel', 'accountantListExportExcel')->name('admin.accountant.export_excel');
+    Route::get('admin/accountant/profile-pdf/{id}', 'accountantProfilePdf')->name('admin.accountant.profile_pdf');
 
     //Librarian users route
     Route::get('admin/librarian', 'librarianList')->name('admin.librarian')->middleware('admin_permission');
@@ -308,6 +323,11 @@ Route::controller(AdminController::class)->middleware('admin', 'auth')->group(fu
     Route::post('admin/librarian/{id}', 'librarianUpdate')->name('admin.librarian.update');
     Route::get('admin/librarian/delete/{id}', 'librarianDelete')->name('admin.librarian.delete');
     Route::get('admin/librarian/librarian_profile/{id}', 'librarianProfile')->name('admin.librarian.librarian_profile');
+    Route::get('admin/librarian/reset-password/{id}', 'librarianResetPassword')->name('admin.librarian.reset_password');
+    Route::get('admin/librarian/resend-activation/{id}', 'librarianResendActivation')->name('admin.librarian.resend_activation');
+    Route::get('admin/librarian/list-pdf', 'librarianListPdf')->name('admin.librarian.list_pdf');
+    Route::get('admin/librarian/export-excel', 'librarianListExportExcel')->name('admin.librarian.export_excel');
+    Route::get('admin/librarian/profile-pdf/{id}', 'librarianProfilePdf')->name('admin.librarian.profile_pdf');
 
     //Parent users route
     Route::get('admin/parent', 'parentList')->name('admin.parent')->middleware('admin_permission');
@@ -343,6 +363,11 @@ Route::controller(AdminController::class)->middleware('admin', 'auth')->group(fu
     Route::post('admin/warden/{id}', 'wardenUpdate')->name('admin.warden.update');
     Route::get('admin/warden/delete/{id}', 'wardenDelete')->name('admin.warden.delete');
     Route::get('admin/warden/warden_profile/{id}', 'wardenProfile')->name('admin.warden.warden_profile');
+    Route::get('admin/warden/reset-password/{id}', 'wardenResetPassword')->name('admin.warden.reset_password');
+    Route::get('admin/warden/resend-activation/{id}', 'wardenResendActivation')->name('admin.warden.resend_activation');
+    Route::get('admin/warden/list-pdf', 'wardenListPdf')->name('admin.warden.list_pdf');
+    Route::get('admin/warden/export-excel', 'wardenListExportExcel')->name('admin.warden.export_excel');
+    Route::get('admin/warden/profile-pdf/{id}', 'wardenProfilePdf')->name('admin.warden.profile_pdf');
 
     //User Account Status
     Route::get('admin/user_disable/{id}', 'account_disable')->name('admin.account_disable');
@@ -461,6 +486,13 @@ Route::controller(AdminController::class)->middleware('admin', 'auth')->group(fu
     Route::get('admin/department/{id}', 'editDepartment')->name('admin.edit.department');
     Route::post('admin/department/{id}', 'departmentUpdate')->name('admin.department.update');
     Route::get('admin/department/delete/{id}', 'departmentDelete')->name('admin.department.delete');
+
+    Route::get('admin/designation', 'designationList')->name('admin.designation_list')->middleware('admin_permission');
+    Route::get('admin/designation_create', 'createDesignation')->name('admin.designation.open_modal');
+    Route::post('admin/designation', 'designationCreate')->name('admin.create.designation');
+    Route::get('admin/designation/{id}', 'editDesignation')->name('admin.edit.designation');
+    Route::post('admin/designation/{id}', 'designationUpdate')->name('admin.designation.update');
+    Route::get('admin/designation/delete/{id}', 'designationDelete')->name('admin.designation.delete');
 
     //Class room routes
     Route::get('admin/class_room', 'classRoomList')->name('admin.class_room_list')->middleware('admin_permission');

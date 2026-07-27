@@ -50,27 +50,14 @@
                 <div class="col-md-1"></div>
                 @if(count($exams) > 0)
                 <div class="col-md-2">
-                    <div class="position-relative">
-                      <button class="eBtn-3 dropdown-toggle float-end" type="button" id="defaultDropdown" data-bs-toggle="dropdown" data-bs-auto-close="true" aria-expanded="false">
+                    <button class="eBtn-3 float-end" type="button" id="download-button">
                         <span class="pr-10">
                           <svg xmlns="http://www.w3.org/2000/svg" width="12.31" height="10.77" viewBox="0 0 10.771 12.31">
                             <path id="arrow-right-from-bracket-solid" d="M3.847,1.539H2.308a.769.769,0,0,0-.769.769V8.463a.769.769,0,0,0,.769.769H3.847a.769.769,0,0,1,0,1.539H2.308A2.308,2.308,0,0,1,0,8.463V2.308A2.308,2.308,0,0,1,2.308,0H3.847a.769.769,0,1,1,0,1.539Zm8.237,4.39L9.007,9.007A.769.769,0,0,1,7.919,7.919L9.685,6.155H4.616a.769.769,0,0,1,0-1.539H9.685L7.92,2.852A.769.769,0,0,1,9.008,1.764l3.078,3.078A.77.77,0,0,1,12.084,5.929Z" transform="translate(0 12.31) rotate(-90)" fill="#F15F23"></path>
                           </svg>
                         </span>
-                        {{ get_phrase('Export') }}
-                      </button>
-                      <ul class="dropdown-menu dropdown-menu-end eDropdown-menu-2">
-                        <li>
-                            <a class="dropdown-item" id="pdf" href="javascript:;" onclick="Export()">{{ get_phrase('PDF') }}</a>
-                        </li>
-                        <li>
-                            <a class="dropdown-item" id="download-button" href="javascript:0">{{ get_phrase('CSV') }}</a>
-                        </li>
-                        <li>
-                            <a class="dropdown-item" id="print" href="javascript:;" onclick="printableDiv('offline_exam_export')">{{ get_phrase('Print') }}</a>
-                        </li>
-                      </ul>
-                    </div>
+                        {{ get_phrase('Export CSV') }}
+                    </button>
                 </div>
                 @endif
             </div>
@@ -197,10 +184,13 @@
 
     }
 
-    document.getElementById("download-button").addEventListener("click", function () {
-        var html = document.querySelector("#offline_exam_export").outerHTML;
-        htmlToCSV(html, "offline_exam.csv");
-    });
+    var downloadButton = document.getElementById("download-button");
+    if (downloadButton) {
+        downloadButton.addEventListener("click", function () {
+            var html = document.querySelector("#offline_exam_export").outerHTML;
+            htmlToCSV(html, "offline_exam.csv");
+        });
+    }
 
 
     function htmlToCSV(html, filename) {
@@ -220,54 +210,6 @@
 
         }
         downloadCSVFile(data.join("\n"), filename);
-    }
-
-    function Export() {
-        // Hide the action column and row
-        var actionColumn = document.querySelector('.action-column');
-        var actionRows = document.querySelectorAll('.action-row');
-        if (actionColumn) {
-            actionColumn.classList.add('hide');
-        }
-        if (actionRows) {
-            actionRows.forEach(function(row) {
-                row.classList.add('hide');
-            });
-        }
-
-        html2canvas(document.getElementById('offline_exam_export'), {
-            onrendered: function(canvas) {
-                var data = canvas.toDataURL();
-                var docDefinition = {
-                    content: [{
-                        image: data,
-                        width: 500
-                    }]
-                };
-                pdfMake.createPdf(docDefinition).download("offline_exam_export.pdf");
-
-                // Restore the action column and row after generating the PDF
-                if (actionColumn) {
-                    actionColumn.classList.remove('hide');
-                }
-                if (actionRows) {
-                    actionRows.forEach(function(row) {
-                        row.classList.remove('hide');
-                    });
-                }
-            }
-        });
-    }
-
-    function printableDiv(printableAreaDivId) {
-        var printContents = document.getElementById(printableAreaDivId).innerHTML;
-        var originalContents = document.body.innerHTML;
-
-        document.body.innerHTML = printContents;
-
-        window.print();
-
-        document.body.innerHTML = originalContents;
     }
 
     window.onbeforeprint = function () {

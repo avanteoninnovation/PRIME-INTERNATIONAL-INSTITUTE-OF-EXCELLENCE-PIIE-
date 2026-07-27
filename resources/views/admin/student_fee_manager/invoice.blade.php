@@ -181,19 +181,32 @@
 </div>
 
 
+<style>
+  @media print {
+    body * {
+      visibility: hidden;
+    }
+
+    #printableDiv,
+    #printableDiv * {
+      visibility: visible;
+    }
+
+    #printableDiv {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+    }
+  }
+</style>
+
 <script type="text/javascript">
 
   "use strict"
 
   function printableDiv(printableAreaDivId) {
-    var printContents = document.getElementById(printableAreaDivId).innerHTML;
-    var originalContents = document.body.innerHTML;
-
-    document.body.innerHTML = printContents;
-
     window.print();
-
-    document.body.innerHTML = originalContents;
   }
 </script>
 

@@ -43,12 +43,6 @@ if($selected_class == ""){
 <div class="row">
     <div class="col-12">
         <div class="eSection-wrap">
-            <div class="row mb-3">
-                <div class="expense_add">
-                    <a class="btn btn-outline-success float-end m-1" id="export-print" href="javascript:0" onclick="printableDiv('student_fee_manager')" data-bs-toggle="tooltip">{{ get_phrase('Print') }}</a>
-                    <a class="btn btn-outline-primary float-end m-1" id="export-pdf" href="javascript:0" onclick="Export()" data-bs-toggle="tooltip">{{ get_phrase('Export PDF') }}</a>
-                </div>
-            </div>
             <div class="invoice_content" id="student_fee_manager">
                 <table id="student_fee_export" class="table eTable">
                     <thead>
@@ -105,36 +99,4 @@ if($selected_class == ""){
 </div>
 
 
-<script type="text/javascript">
-
-  "use strict";
-
-
-    function Export() {
-        html2canvas(document.getElementById('student_fee_export'), {
-            onrendered: function(canvas) {
-                var data = canvas.toDataURL();
-                var docDefinition = {
-                    content: [{
-                        image: data,
-                        width: 500
-                    }]
-                };
-                pdfMake.createPdf(docDefinition).download("student_fee-{{ $date_from.'-'.$date_to.'-'.$sel_class.'-'.$sel_status }}.pdf");
-            }
-        });
-    }
-
-    function printableDiv(printableAreaDivId) {
-        var printContents = document.getElementById(printableAreaDivId).innerHTML;
-        var originalContents = document.body.innerHTML;
-
-        document.body.innerHTML = printContents;
-
-        window.print();
-
-        document.body.innerHTML = originalContents;
-    }
-
-</script>
 @endsection

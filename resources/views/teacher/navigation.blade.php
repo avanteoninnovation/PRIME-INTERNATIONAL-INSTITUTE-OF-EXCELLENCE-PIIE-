@@ -407,6 +407,23 @@
 	            </ul>
 	        </li>
 
+			<li class="nav-links-li {{ request()->is('staff/leave*') ? 'showMenu':'' }}">
+				<div class="iocn-link">
+					<a href="{{ route('staff.leave.index') }}" class="{{ request()->is('staff/leave*') ? 'active' : '' }}">
+						<div class="sidebar_icon">
+							<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+								<rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+								<line x1="16" y1="2" x2="16" y2="6"></line>
+								<line x1="8" y1="2" x2="8" y2="6"></line>
+								<line x1="3" y1="10" x2="21" y2="10"></line>
+								<path d="M9 16l2 2 4-4"></path>
+							</svg>
+						</div>
+						<span class="link_name">{{ get_phrase('My Leave') }}</span>
+					</a>
+				</div>
+			</li>
+
 			<li class="nav-links-li {{ request()->is('teacher/profile*') ? 'showMenu':'' }}">
 				<div class="iocn-link">
 					<a href="{{ route('teacher.profile') }}">

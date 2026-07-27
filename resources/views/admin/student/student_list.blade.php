@@ -26,11 +26,13 @@ $menu_permission = (empty($user->menu_permission) || $user->menu_permission == '
               <li><a href="#">{{ get_phrase('Students') }}</a></li>
             </ul>
           </div>
-          @if(empty($user->menu_permission) || in_array('admin.offline_admission.single', $menu_permission)) 
-          <div class="export-btn-area">
+          <div class="export-btn-area d-flex gap-2">
+            <a href="{{ route('admin.student.export', ['search' => $search, 'class_id' => $class_id, 'section_id' => $section_id]) }}" class="export_btn bg-secondary"><i class="bi bi-download"></i> {{ get_phrase('Export CSV') }}</a>
+            <a href="{{ route('admin.student.export_excel', ['search' => $search, 'class_id' => $class_id, 'section_id' => $section_id]) }}" class="export_btn bg-secondary"><i class="bi bi-file-earmark-excel"></i> {{ get_phrase('Export Excel') }}</a>
+            @if(empty($user->menu_permission) || in_array('admin.offline_admission.single', $menu_permission))
             <a href="{{ route('admin.offline_admission.single', ['type' => 'single']) }}" class="export_btn">{{ get_phrase('Create Student') }}</a>
+            @endif
           </div>
-          @endif
         </div>
       </div>
     </div>
@@ -159,46 +161,6 @@ $menu_permission = (empty($user->menu_permission) || $user->menu_permission == '
                     </form>
                   </div>
                 </div>
-                <!-- Export Button -->
-                @if(count($students) > 0)
-                <div class="position-relative">
-                  <button
-                    class="eBtn-3 dropdown-toggle"
-                    type="button"
-                    id="defaultDropdown"
-                    data-bs-toggle="dropdown"
-                    data-bs-auto-close="true"
-                    aria-expanded="false"
-                  >
-                    <span class="pr-10">
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="12.31"
-                        height="10.77"
-                        viewBox="0 0 10.771 12.31"
-                      >
-                        <path
-                          id="arrow-right-from-bracket-solid"
-                          d="M3.847,1.539H2.308a.769.769,0,0,0-.769.769V8.463a.769.769,0,0,0,.769.769H3.847a.769.769,0,0,1,0,1.539H2.308A2.308,2.308,0,0,1,0,8.463V2.308A2.308,2.308,0,0,1,2.308,0H3.847a.769.769,0,1,1,0,1.539Zm8.237,4.39L9.007,9.007A.769.769,0,0,1,7.919,7.919L9.685,6.155H4.616a.769.769,0,0,1,0-1.539H9.685L7.92,2.852A.769.769,0,0,1,9.008,1.764l3.078,3.078A.77.77,0,0,1,12.084,5.929Z"
-                          transform="translate(0 12.31) rotate(-90)"
-                          fill="#F15F23"
-                        />
-                      </svg>
-                    </span>
-                    {{ get_phrase('Export') }}
-                  </button>
-                  <ul
-                    class="dropdown-menu dropdown-menu-end eDropdown-menu-2"
-                  >
-                    <li>
-                        <a class="dropdown-item" id="pdf" href="javascript:;" onclick="Export()">{{ get_phrase('PDF') }}</a>
-                    </li>
-                    <li>
-                        <a class="dropdown-item" id="print" href="javascript:;" onclick="printableDiv('student_list')">{{ get_phrase('Print') }}</a>
-                    </li>
-                  </ul>
-                </div>
-                @endif
               </div>
             </div>
             @if(count($students) > 0)
@@ -221,7 +183,7 @@ $menu_permission = (empty($user->menu_permission) || $user->menu_permission == '
                         $student = DB::table('users')->where('id', $user->user_id)->first();
 
                         $user_image = get_user_image($user->user_id);
-                        $info = json_decode($student->user_information);
+                        $info = (object) array_merge(['phone' => null, 'address' => null], (array) (json_decode($student->user_information ?? '') ?: []));
 
                         $student_details = (new CommonController)->get_student_academic_info($student->id);
                     ?>
@@ -310,6 +272,21 @@ $menu_permission = (empty($user->menu_permission) || $user->menu_permission == '
                               <li>
                                 <a class="dropdown-item" href="{{ route('admin.student.documents', ['id' => $student->id]) }}">{{ get_phrase('Documents') }}</a>
                               </li>
+                              <li>
+                                <a class="dropdown-item" href="{{ route('admin.transcripts.show', ['id' => $student->id]) }}" target="_blank">{{ get_phrase('Generate Transcript') }}</a>
+                              </li>
+                              <li>
+                                <a class="dropdown-item" href="{{ route('admin.student.profile_pdf', ['id' => $student->id, 'inline' => 1]) }}" target="_blank">{{ get_phrase('Print Profile') }}</a>
+                              </li>
+                              <li>
+                                <a class="dropdown-item" href="{{ route('admin.student.profile_pdf', ['id' => $student->id]) }}">{{ get_phrase('Export PDF') }}</a>
+                              </li>
+                              <li>
+                                <a class="dropdown-item" href="{{ route('admin.student.profile_excel', ['id' => $student->id]) }}">{{ get_phrase('Export Excel') }}</a>
+                              </li>
+                              <li>
+                                <a class="dropdown-item" href="javascript:;" onclick="confirmModal('{{ route('admin.student.reset_password', ['id' => $student->id]) }}', 'undefined');">{{ get_phrase('Reset Password') }}</a>
+                              </li>
                               @if(!empty($student->account_status == 'disable'))
                               <li>
                                 <a class="dropdown-item" href="javascript:;" onclick="confirmModal('{{ route('admin.account_enable', ['id' => $student->id]) }}', 'undefined');">{{ get_phrase('Enable') }}</a>
@@ -349,80 +326,6 @@ $menu_permission = (empty($user->menu_permission) || $user->menu_permission == '
     </div>
 </div>
 
-@if(count($students) > 0)
-<!-- Table -->
-<div class="table-responsive student_list display-none-view" id="student_list">
-  <h4 class="" style="font-size: 16px; font-weight: 600; line-height: 26px; color: #1466AF; margin-left:45%; margin-bottom:15px; margin-top:17px;">{{ get_phrase(' Students List') }}</h4>
-  <table class="table eTable eTable-2">
-    <thead>
-      <tr>
-        <th scope="col">#</th>
-        <th scope="col">{{ get_phrase('Name') }}</th>
-        <th scope="col">{{ get_phrase('Email') }}</th>
-        <th scope="col">{{ get_phrase('User Info') }}</th>
-    </thead>
-    <tbody>
-      @foreach($students as $user)
-      <?php 
-
-          $student = DB::table('users')->where('id', $user->user_id)->first();
-
-          $user_image = get_user_image($user->user_id);
-          $info = json_decode($student->user_information);
-
-          $student_details = (new CommonController)->get_student_academic_info($student->id);
-      ?>
-        <tr>
-          <th scope="row">
-            <p class="row-number">{{ $loop->index + 1 }}</p>
-          </th>
-          <td>
-            <div
-              class="dAdmin_profile d-flex align-items-center min-w-200px"
-            >
-              <div class="dAdmin_profile_img">
-                <img
-                  class="img-fluid"
-                  width="50"
-                  height="50"
-                  src="{{ asset('assets') }}/{{ $user_image }}"
-                />
-              </div>
-              <div class="dAdmin_profile_name dAdmin_info_name">
-                <h4>{{ $student->name }}</h4>
-                <p>
-                  @if(empty($student_details->class_name))
-                  <span>{{ get_phrase('Class') }}:</span> removed
-                  @else
-                  <span>{{ get_phrase('Class') }}:</span> {{ $student_details->class_name }}
-                  @endif
-                </p>
-              </div>
-            </div>
-          </td>
-          <td>
-            <div class="dAdmin_info_name min-w-250px">
-              <p>{{ $student->email }}</p>
-            </div>
-          </td>
-          <td>
-            <div class="dAdmin_info_name min-w-250px">
-              <p><span>{{ get_phrase('Phone') }}:</span> {{ $info->phone }}</p>
-              <p>
-                <span>{{ get_phrase('Address') }}:</span> {{ $info->address }}
-              </p>
-            </div>
-          </td>
-          
-        </tr>
-      @endforeach
-  </tbody>
-  </table>
-  {{!! $students->appends(request()->all())->links() !!}}
-</div>
-@endif
-
-
 <script type="text/javascript">
 
   "use strict";
@@ -436,43 +339,6 @@ $menu_permission = (empty($user->menu_permission) || $user->menu_permission == '
             $('#section_id').html(response);
         }
     });
-  }
-
-  function Export() {
-
-      // Choose the element that our invoice is rendered in.
-      const element = document.getElementById("student_list");
-
-      // clone the element
-      var clonedElement = element.cloneNode(true);
-
-      // change display of cloned element
-      $(clonedElement).css("display", "block");
-
-      // Choose the clonedElement and save the PDF for our user.
-    var opt = {
-      margin:       1,
-      filename:     'student_list_{{ date("y-m-d") }}.pdf',
-      image:        { type: 'jpeg', quality: 0.98 },
-      html2canvas:  { scale: 2 }
-    };
-
-    // New Promise-based usage:
-    html2pdf().set(opt).from(clonedElement).save();
-
-      // remove cloned element
-      clonedElement.remove();
-  }
-
-  function printableDiv(printableAreaDivId) {
-    var printContents = document.getElementById(printableAreaDivId).innerHTML;
-    var originalContents = document.body.innerHTML;
-
-    document.body.innerHTML = printContents;
-
-    window.print();
-
-    document.body.innerHTML = originalContents;
   }
 
 </script>

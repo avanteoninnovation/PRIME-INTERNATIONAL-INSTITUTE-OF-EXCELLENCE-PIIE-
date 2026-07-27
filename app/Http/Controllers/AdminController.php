@@ -25,6 +25,7 @@ use App\Models\ClubNotice;
 use App\Models\Currency;
 use App\Models\DailyAttendances;
 use App\Models\Department;
+use App\Models\Designation;
 use App\Models\Enrollment;
 use App\Models\Exam;
 use App\Models\ExamCategory;
@@ -290,6 +291,134 @@ class AdminController extends Controller
     }
 
     /**
+     * Shared Staff Module field prep: split-name recombination plus
+     * department/designation FK and employment type. Used by every
+     * staff-role create/update (Admin/Teacher/Accountant/Librarian/Warden)
+     * so the five roles stay consistent instead of drifting the way the
+     * free-text designation field did before.
+     */
+    private function staffFieldsFromRequest(array $data): array
+    {
+        $firstName = trim($data['first_name'] ?? '');
+        $lastName  = trim($data['last_name'] ?? '');
+
+        return [
+            'name'            => trim("{$firstName} {$lastName}"),
+            'first_name'      => $firstName !== '' ? $firstName : null,
+            'last_name'       => $lastName !== '' ? $lastName : null,
+            'department_id'   => $data['department_id'] ?? null,
+            'designation_id'  => $data['designation_id'] ?? null,
+            'employment_type' => $data['employment_type'] ?? null,
+        ];
+    }
+
+    /**
+     * Resolves the two portal-password options from the create form: an
+     * auto-generated temporary password (forces a change on first login,
+     * same as the student activation flow) or an administrator-chosen one
+     * (no forced change). The plaintext only ever lives in-memory long
+     * enough to hash and email — it is never persisted or logged.
+     */
+    private function resolveNewStaffPassword(array $data): array
+    {
+        if (($data['password_mode'] ?? 'auto') === 'manual' && !empty($data['password'])) {
+            return ['plain' => $data['password'], 'force_change' => false];
+        }
+
+        return ['plain' => Str::random(10), 'force_change' => true];
+    }
+
+    private function sendStaffCredentialsEmail(string $email, string $name, string $plainPassword): void
+    {
+        if (!empty(get_settings('smtp_user')) && get_settings('smtp_pass') && get_settings('smtp_host') && get_settings('smtp_port')) {
+            Mail::to($email)->send(new NewUserEmail([
+                'name'     => $name,
+                'email'    => $email,
+                'password' => $plainPassword,
+            ]));
+        }
+    }
+
+    /** Every staff single-record action goes through here — the one place cross-school access is denied. */
+    private function findStaffOrFail($id, int $role_id): User
+    {
+        return User::where('id', $id)->where('school_id', auth()->user()->school_id)->where('role_id', $role_id)->firstOrFail();
+    }
+
+    private function resetStaffPassword($id, int $role_id)
+    {
+        $staff = $this->findStaffOrFail($id, $role_id);
+
+        $plainPassword = Str::random(10);
+        $staff->update(['password' => Hash::make($plainPassword)]);
+
+        $this->sendStaffCredentialsEmail($staff->email, $staff->name, $plainPassword);
+
+        AuditLog::record('update', 'Staff & Students', "Reset portal password for {$staff->auditLabel()} (#{$staff->id})");
+
+        return redirect()->back()->with('message', get_phrase('Password has been reset and emailed to the staff member.'));
+    }
+
+    private function resendStaffActivation($id, int $role_id)
+    {
+        $staff = $this->findStaffOrFail($id, $role_id);
+
+        $plainPassword = Str::random(10);
+        $staff->update([
+            'password'              => Hash::make($plainPassword),
+            'force_password_change' => true,
+        ]);
+
+        $this->sendStaffCredentialsEmail($staff->email, $staff->name, $plainPassword);
+
+        AuditLog::record('update', 'Staff & Students', "Resent portal activation email to {$staff->auditLabel()} (#{$staff->id})");
+
+        return redirect()->back()->with('message', get_phrase('Activation email resent to the staff member.'));
+    }
+
+    private function staffListForExport(int $role_id)
+    {
+        return User::where('school_id', auth()->user()->school_id)->where('role_id', $role_id)->orderBy('name')->get();
+    }
+
+    private function staffListPdf(int $role_id, string $title)
+    {
+        $staffs = $this->staffListForExport($role_id);
+        $pdf = PDF::loadView('admin.staff.list_pdf', ['staffs' => $staffs, 'title' => $title]);
+
+        return $pdf->stream(str_replace(' ', '_', $title) . '_' . date('Y-m-d') . '.pdf');
+    }
+
+    private function staffListExcel(int $role_id, string $filenamePrefix)
+    {
+        $rows = $this->staffListForExport($role_id)->map(function ($staff) {
+            return [
+                $staff->code,
+                $staff->name,
+                $staff->email,
+                optional($staff->department)->name,
+                optional($staff->designationRecord)->name,
+                $staff->employment_type,
+                $staff->staff_status ?: 'active',
+            ];
+        });
+
+        return \App\Support\Export\ExcelExportService::download(
+            $filenamePrefix . '_' . date('Y-m-d'),
+            ['Staff Number', 'Name', 'Email', 'Department', 'Designation', 'Employment Type', 'Status'],
+            $rows
+        );
+    }
+
+    private function staffProfilePdf($id, int $role_id)
+    {
+        $staff = $this->findStaffOrFail($id, $role_id);
+        $pdf = PDF::loadView('admin.staff.profile_pdf', ['staff' => $staff]);
+
+        return $pdf->stream('Staff_Profile_' . ($staff->code ?? $staff->id) . '.pdf');
+    }
+
+    /**
      * Show the admin list.
      *
      * @return \Illuminate\Contracts\Support\Renderable
@@ -329,7 +458,10 @@ class AdminController extends Controller
      */
     public function createModal()
     {
-        return view('admin.admin.add_admin');
+        $school_id    = auth()->user()->school_id;
+        $departments  = Department::get()->where('school_id', $school_id);
+        $designations = Designation::where('school_id', $school_id)->orderBy('name')->get();
+        return view('admin.admin.add_admin', ['departments' => $departments, 'designations' => $designations]);
     }
 
     public function adminCreate(Request $request)
@@ -363,33 +495,40 @@ class AdminController extends Controller
 
         if (count($duplicate_user_check) == 0) {
 
-            User::create([
-                'name'             => $data['name'],
-                'email'            => $data['email'],
-                'password'         => Hash::make($data['password']),
-                'role_id'          => '2',
-                'school_id'        => auth()->user()->school_id,
-                'user_information' => $data['user_information'],
-                'status'           => 1,
-            ]);
+            $staffFields = $this->staffFieldsFromRequest($data);
+            $password    = $this->resolveNewStaffPassword($data);
+
+            $user = User::create(array_merge($staffFields, [
+                'email'                 => $data['email'],
+                'password'              => Hash::make($password['plain']),
+                'role_id'               => '2',
+                'school_id'             => auth()->user()->school_id,
+                'user_information'      => $data['user_information'],
+                'status'                => 1,
+                'code'                  => staff_code(),
+                'staff_status'          => 'active',
+                'force_password_change' => $password['force_change'],
+            ]));
         } else {
             return redirect()->back()->with('error', 'Email was already taken.');
         }
-        if (! empty(get_settings('smtp_user')) && (get_settings('smtp_pass')) && (get_settings('smtp_host')) && (get_settings('smtp_port'))) {
-            Mail::to($data['email'])->send(new NewUserEmail($data));
-        }
+        $this->sendStaffCredentialsEmail($user->email, $user->name, $password['plain']);
         return redirect()->back()->with('message', 'You have successfully add user.');
     }
 
     public function editModal($id)
     {
-        $user = User::find($id);
-        return view('admin.admin.edit_admin', ['user' => $user]);
+        $user         = $this->findStaffOrFail($id, 2);
+        $school_id    = auth()->user()->school_id;
+        $departments  = Department::get()->where('school_id', $school_id);
+        $designations = Designation::where('school_id', $school_id)->orderBy('name')->get();
+        return view('admin.admin.edit_admin', ['user' => $user, 'departments' => $departments, 'designations' => $designations]);
     }
 
     public function adminUpdate(Request $request, $id)
     {
         $data = $request->all();
+        $user = $this->findStaffOrFail($id, 2);
 
         if (! empty($data['photo'])) {
 
@@ -399,9 +538,8 @@ class AdminController extends Controller
 
             $photo = $imageName;
         } else {
-            $user_information = User::where('id', $id)->value('user_information');
-            $decoded_info     = json_decode($user_information ?? '') ?: (object) [];
-            $file_name        = $decoded_info->photo ?? '';
+            $decoded_info = json_decode($user->user_information ?? '') ?: (object) [];
+            $file_name    = $decoded_info->photo ?? '';
 
             if ($file_name != '') {
                 $photo = $file_name;
@@ -419,34 +557,58 @@ class AdminController extends Controller
         ];
 
         $data['user_information'] = json_encode($info);
-        $user = User::find($id);
-        if ($user) {
-            $user->update([
-                'name'             => $data['name'],
-                'email'            => $data['email'],
-                'user_information' => $data['user_information'],
-            ]);
-        }
+
+        $user->update(array_merge($this->staffFieldsFromRequest($data), [
+            'email'             => $data['email'],
+            'user_information'  => $data['user_information'],
+            'staff_status'      => $data['staff_status'] ?? $user->staff_status,
+        ]));
 
         return redirect()->back()->with('message', 'You have successfully update user.');
     }
 
     public function adminDelete($id)
     {
-        $user = User::find($id);
+        $user = $this->findStaffOrFail($id, 2);
         $user->delete();
-        $admins = User::get()->where('role_id', 2);
         return redirect()->route('admin.admin')->with('message', 'You have successfully deleted user.');
+    }
+
+    public function adminResetPassword($id)
+    {
+        return $this->resetStaffPassword($id, 2);
+    }
+
+    public function adminResendActivation($id)
+    {
+        return $this->resendStaffActivation($id, 2);
+    }
+
+    public function adminListPdf()
+    {
+        return $this->staffListPdf(2, get_phrase('Admins'));
+    }
+
+    public function adminListExportExcel()
+    {
+        return $this->staffListExcel(2, 'admins');
+    }
+
+    public function adminProfilePdf($id)
+    {
+        return $this->staffProfilePdf($id, 2);
     }
 
     public function menuSettingsView($id)
     {
-        $user = User::find($id);
+        $user = $this->findStaffOrFail($id, 2);
         return view('admin.admin.menu_permission', ['user' => $user]);
     }
 
     public function menuPermissionUpdate(Request $request, $id)
     {
+        $user = $this->findStaffOrFail($id, 2);
+
         $inputPermissions = $request->input('permissions', []);
         if (!is_array($inputPermissions)) {
             $inputPermissions = [];
@@ -476,21 +638,18 @@ class AdminController extends Controller
 
         $normalized = array_values(array_unique($normalized));
 
-        $user = User::find($id);
-        if ($user) {
-            $user->update([
-                'menu_permission' => json_encode($normalized),
-            ]);
-        }
+        $user->update([
+            'menu_permission' => json_encode($normalized),
+        ]);
 
         return redirect()->back()->with('message', 'You have successfully updated user permissions.');
     }
 
     public function adminProfile($id)
     {
+        $this->findStaffOrFail($id, 2);
         $user_details = (new CommonController)->getAdminDetails($id);
         return view('admin.admin.admin_profile', ['user_details' => $user_details]);
-        // return view('admin.admin.admin_profile');
     }
 
     public function school_user_password(Request $request)
@@ -646,15 +805,17 @@ class AdminController extends Controller
      */
     public function createTeacherModal(Request $request)
     {
-        $departments = Department::get()->where('school_id', auth()->user()->school_id);
+        $school_id    = auth()->user()->school_id;
+        $departments  = Department::get()->where('school_id', $school_id);
+        $designations = Designation::where('school_id', $school_id)->orderBy('name')->get();
         if (! $request->ajax()) {
             return view('admin.common.modal_standalone_wrapper', [
                 'page_title' => get_phrase('Create Teacher'),
                 'inner_view' => 'admin.teacher.add_teacher',
-                'view_data'  => ['departments' => $departments],
+                'view_data'  => ['departments' => $departments, 'designations' => $designations],
             ]);
         }
-        return view('admin.teacher.add_teacher', ['departments' => $departments]);
+        return view('admin.teacher.add_teacher', ['departments' => $departments, 'designations' => $designations]);
     }
 
     public function adminTeacherCreate(Request $request)
@@ -685,43 +846,47 @@ class AdminController extends Controller
 
         if (count($duplicate_user_check) == 0) {
 
-            User::create([
-                'name'             => $data['name'],
-                'email'            => $data['email'],
-                'password'         => Hash::make($data['password']),
-                'role_id'          => '3',
-                'school_id'        => auth()->user()->school_id,
-                'user_information' => $data['user_information'],
-                'status'           => 1,
-                'department_id'    => $data['department_id'] ?? null,
-                'designation'      => $data['designation'] ?? '',
-            ]);
+            $staffFields = $this->staffFieldsFromRequest($data);
+            $password    = $this->resolveNewStaffPassword($data);
+
+            $user = User::create(array_merge($staffFields, [
+                'email'                 => $data['email'],
+                'password'              => Hash::make($password['plain']),
+                'role_id'               => '3',
+                'school_id'             => auth()->user()->school_id,
+                'user_information'      => $data['user_information'],
+                'status'                => 1,
+                'code'                  => staff_code(),
+                'staff_status'          => 'active',
+                'force_password_change' => $password['force_change'],
+            ]));
         } else {
             return redirect()->back()->with('error', 'Email was already taken.');
         }
-        if (! empty(get_settings('smtp_user')) && (get_settings('smtp_pass')) && (get_settings('smtp_host')) && (get_settings('smtp_port'))) {
-            Mail::to($data['email'])->send(new NewUserEmail($data));
-        }
+        $this->sendStaffCredentialsEmail($user->email, $user->name, $password['plain']);
         return redirect()->back()->with('message', 'You have successfully add teacher.');
     }
 
     public function teacherEditModal(Request $request, $id)
     {
-        $user        = User::find($id);
-        $departments = Department::get()->where('school_id', auth()->user()->school_id);
+        $user         = $this->findStaffOrFail($id, 3);
+        $school_id    = auth()->user()->school_id;
+        $departments  = Department::get()->where('school_id', $school_id);
+        $designations = Designation::where('school_id', $school_id)->orderBy('name')->get();
         if (! $request->ajax()) {
             return view('admin.common.modal_standalone_wrapper', [
                 'page_title' => get_phrase('Edit Teacher'),
                 'inner_view' => 'admin.teacher.edit_teacher',
-                'view_data'  => ['user' => $user, 'departments' => $departments],
+                'view_data'  => ['user' => $user, 'departments' => $departments, 'designations' => $designations],
             ]);
         }
-        return view('admin.teacher.edit_teacher', ['user' => $user, 'departments' => $departments]);
+        return view('admin.teacher.edit_teacher', ['user' => $user, 'departments' => $departments, 'designations' => $designations]);
     }
 
     public function teacherUpdate(Request $request, $id)
     {
         $data = $request->all();
+        $user = $this->findStaffOrFail($id, 3);
 
         if (! empty($data['photo'])) {
 
@@ -731,9 +896,8 @@ class AdminController extends Controller
 
             $photo = $imageName;
         } else {
-            $user_information = User::where('id', $id)->value('user_information');
-            $decoded_info     = json_decode($user_information ?? '') ?: (object) [];
-            $file_name        = $decoded_info->photo ?? '';
+            $decoded_info = json_decode($user->user_information ?? '') ?: (object) [];
+            $file_name    = $decoded_info->photo ?? '';
 
             if ($file_name != '') {
                 $photo = $file_name;
@@ -751,30 +915,52 @@ class AdminController extends Controller
         ];
 
         $data['user_information'] = json_encode($info);
-        $user = User::find($id);
-        if ($user) {
-            $user->update([
-                'name'             => $data['name'],
-                'email'            => $data['email'],
-                'user_information' => $data['user_information'],
-                'department_id'    => $data['department_id'] ?? null,
-                'designation'      => $data['designation'] ?? '',
-            ]);
-        }
+
+        $user->update(array_merge($this->staffFieldsFromRequest($data), [
+            'email'            => $data['email'],
+            'user_information' => $data['user_information'],
+            'staff_status'     => $data['staff_status'] ?? $user->staff_status,
+        ]));
+
         return redirect()->back()->with('message', 'You have successfully update teacher.');
     }
 
     public function teacherDelete($id)
     {
-        $user = User::find($id);
+        $user = $this->findStaffOrFail($id, 3);
         $user->delete();
-        $admins = User::get()->where('role_id', 3);
         return redirect()->route('admin.teacher')->with('message', 'You have successfully deleted teacher.');
     }
     public function teacherProfile($id)
     {
+        $this->findStaffOrFail($id, 3);
         $user_details = (new CommonController)->getAdminDetails($id);
         return view('admin.teacher.teacher_profile', ['user_details' => $user_details]);
+    }
+
+    public function teacherResetPassword($id)
+    {
+        return $this->resetStaffPassword($id, 3);
+    }
+
+    public function teacherResendActivation($id)
+    {
+        return $this->resendStaffActivation($id, 3);
+    }
+
+    public function teacherListPdf()
+    {
+        return $this->staffListPdf(3, get_phrase('Teachers'));
+    }
+
+    public function teacherListExportExcel()
+    {
+        return $this->staffListExcel(3, 'teachers');
+    }
+
+    public function teacherProfilePdf($id)
+    {
+        return $this->staffProfilePdf($id, 3);
     }
 
     /**
@@ -811,14 +997,18 @@ class AdminController extends Controller
 
     public function createAccountantModal(Request $request)
     {
+        $school_id    = auth()->user()->school_id;
+        $departments  = Department::get()->where('school_id', $school_id);
+        $designations = Designation::where('school_id', $school_id)->orderBy('name')->get();
+        $view_data    = ['departments' => $departments, 'designations' => $designations];
         if (! $request->ajax()) {
             return view('admin.common.modal_standalone_wrapper', [
                 'page_title' => get_phrase('Create Accountant'),
                 'inner_view' => 'admin.accountant.add_accountant',
-                'view_data'  => [],
+                'view_data'  => $view_data,
             ]);
         }
-        return view('admin.accountant.add_accountant');
+        return view('admin.accountant.add_accountant', $view_data);
     }
 
     public function accountantCreate(Request $request)
@@ -848,40 +1038,48 @@ class AdminController extends Controller
 
         if (count($duplicate_user_check) == 0) {
 
-            User::create([
-                'name'             => $data['name'],
-                'email'            => $data['email'],
-                'password'         => Hash::make($data['password']),
-                'role_id'          => '4',
-                'school_id'        => auth()->user()->school_id,
-                'user_information' => $data['user_information'],
-                'status'           => 1,
-            ]);
+            $staffFields = $this->staffFieldsFromRequest($data);
+            $password    = $this->resolveNewStaffPassword($data);
+
+            $user = User::create(array_merge($staffFields, [
+                'email'                 => $data['email'],
+                'password'              => Hash::make($password['plain']),
+                'role_id'               => '4',
+                'school_id'             => auth()->user()->school_id,
+                'user_information'      => $data['user_information'],
+                'status'                => 1,
+                'code'                  => staff_code(),
+                'staff_status'          => 'active',
+                'force_password_change' => $password['force_change'],
+            ]));
         } else {
             return redirect()->back()->with('error', 'Email was already taken.');
         }
-        if (! empty(get_settings('smtp_user')) && (get_settings('smtp_pass')) && (get_settings('smtp_host')) && (get_settings('smtp_port'))) {
-            Mail::to($data['email'])->send(new NewUserEmail($data));
-        }
+        $this->sendStaffCredentialsEmail($user->email, $user->name, $password['plain']);
         return redirect()->back()->with('message', 'You have successfully add accountant.');
     }
 
     public function accountantEditModal(Request $request, $id)
     {
-        $user = User::find($id);
+        $user         = $this->findStaffOrFail($id, 4);
+        $school_id    = auth()->user()->school_id;
+        $departments  = Department::get()->where('school_id', $school_id);
+        $designations = Designation::where('school_id', $school_id)->orderBy('name')->get();
+        $view_data    = ['user' => $user, 'departments' => $departments, 'designations' => $designations];
         if (! $request->ajax()) {
             return view('admin.common.modal_standalone_wrapper', [
                 'page_title' => get_phrase('Edit Accountant'),
                 'inner_view' => 'admin.accountant.edit_accountant',
-                'view_data'  => ['user' => $user],
+                'view_data'  => $view_data,
             ]);
         }
-        return view('admin.accountant.edit_accountant', ['user' => $user]);
+        return view('admin.accountant.edit_accountant', $view_data);
     }
 
     public function accountantUpdate(Request $request, $id)
     {
         $data = $request->all();
+        $user = $this->findStaffOrFail($id, 4);
 
         if (! empty($data['photo'])) {
 
@@ -891,9 +1089,8 @@ class AdminController extends Controller
 
             $photo = $imageName;
         } else {
-            $user_information = User::where('id', $id)->value('user_information');
-            $decoded_info     = json_decode($user_information ?? '') ?: (object) [];
-            $file_name        = $decoded_info->photo ?? '';
+            $decoded_info = json_decode($user->user_information ?? '') ?: (object) [];
+            $file_name    = $decoded_info->photo ?? '';
 
             if ($file_name != '') {
                 $photo = $file_name;
@@ -912,28 +1109,50 @@ class AdminController extends Controller
 
         $data['user_information'] = json_encode($info);
 
-        $user = User::find($id);
-        if ($user) {
-            $user->update([
-                'name'             => $data['name'],
-                'email'            => $data['email'],
-                'user_information' => $data['user_information'],
-            ]);
-        }
+        $user->update(array_merge($this->staffFieldsFromRequest($data), [
+            'email'            => $data['email'],
+            'user_information' => $data['user_information'],
+            'staff_status'     => $data['staff_status'] ?? $user->staff_status,
+        ]));
 
         return redirect()->back()->with('message', 'You have successfully update accountant.');
     }
 
     public function accountantDelete($id)
     {
-        $user = User::find($id);
+        $user = $this->findStaffOrFail($id, 4);
         $user->delete();
-        $admins = User::get()->where('role_id', 4);
         return redirect()->route('admin.accountant')->with('message', 'You have successfully deleted accountant.');
+    }
+
+    public function accountantResetPassword($id)
+    {
+        return $this->resetStaffPassword($id, 4);
+    }
+
+    public function accountantResendActivation($id)
+    {
+        return $this->resendStaffActivation($id, 4);
+    }
+
+    public function accountantListPdf()
+    {
+        return $this->staffListPdf(4, get_phrase('Accountants'));
+    }
+
+    public function accountantListExportExcel()
+    {
+        return $this->staffListExcel(4, 'accountants');
+    }
+
+    public function accountantProfilePdf($id)
+    {
+        return $this->staffProfilePdf($id, 4);
     }
 
     public function accountantProfile($id)
     {
+        $this->findStaffOrFail($id, 4);
         $user_details = (new CommonController)->getAdminDetails($id);
         return view('admin.accountant.accountant_profile', ['user_details' => $user_details]);
     }
@@ -972,7 +1191,10 @@ class AdminController extends Controller
 
     public function createLibrarianModal()
     {
-        return view('admin.librarian.add_librarian');
+        $school_id    = auth()->user()->school_id;
+        $departments  = Department::get()->where('school_id', $school_id);
+        $designations = Designation::where('school_id', $school_id)->orderBy('name')->get();
+        return view('admin.librarian.add_librarian', ['departments' => $departments, 'designations' => $designations]);
     }
 
     public function librarianCreate(Request $request)
@@ -1003,33 +1225,40 @@ class AdminController extends Controller
 
         if (count($duplicate_user_check) == 0) {
 
-            User::create([
-                'name'             => $data['name'],
-                'email'            => $data['email'],
-                'password'         => Hash::make($data['password']),
-                'role_id'          => '5',
-                'school_id'        => auth()->user()->school_id,
-                'user_information' => $data['user_information'],
-                'status'           => 1,
-            ]);
+            $staffFields = $this->staffFieldsFromRequest($data);
+            $password    = $this->resolveNewStaffPassword($data);
+
+            $user = User::create(array_merge($staffFields, [
+                'email'                 => $data['email'],
+                'password'              => Hash::make($password['plain']),
+                'role_id'               => '5',
+                'school_id'             => auth()->user()->school_id,
+                'user_information'      => $data['user_information'],
+                'status'                => 1,
+                'code'                  => staff_code(),
+                'staff_status'          => 'active',
+                'force_password_change' => $password['force_change'],
+            ]));
         } else {
             return redirect()->back()->with('error', 'Email was already taken.');
         }
-        if (! empty(get_settings('smtp_user')) && (get_settings('smtp_pass')) && (get_settings('smtp_host')) && (get_settings('smtp_port'))) {
-            Mail::to($data['email'])->send(new NewUserEmail($data));
-        }
+        $this->sendStaffCredentialsEmail($user->email, $user->name, $password['plain']);
         return redirect()->back()->with('message', 'You have successfully add librarian.');
     }
 
     public function librarianEditModal($id)
     {
-        $user = User::find($id);
-        return view('admin.librarian.edit_librarian', ['user' => $user]);
+        $user         = $this->findStaffOrFail($id, 5);
+        $school_id    = auth()->user()->school_id;
+        $departments  = Department::get()->where('school_id', $school_id);
+        $designations = Designation::where('school_id', $school_id)->orderBy('name')->get();
+        return view('admin.librarian.edit_librarian', ['user' => $user, 'departments' => $departments, 'designations' => $designations]);
     }
 
     public function librarianUpdate(Request $request, $id)
     {
         $data = $request->all();
+        $user = $this->findStaffOrFail($id, 5);
 
         if (! empty($data['photo'])) {
 
@@ -1039,9 +1268,8 @@ class AdminController extends Controller
 
             $photo = $imageName;
         } else {
-            $user_information = User::where('id', $id)->value('user_information');
-            $decoded_info     = json_decode($user_information ?? '') ?: (object) [];
-            $file_name        = $decoded_info->photo ?? '';
+            $decoded_info = json_decode($user->user_information ?? '') ?: (object) [];
+            $file_name    = $decoded_info->photo ?? '';
 
             if ($file_name != '') {
                 $photo = $file_name;
@@ -1059,27 +1287,51 @@ class AdminController extends Controller
         ];
 
         $data['user_information'] = json_encode($info);
-        $user = User::find($id);
-        if ($user) {
-            $user->update([
-                'name'             => $data['name'],
-                'email'            => $data['email'],
-                'user_information' => $data['user_information'],
-            ]);
-        }
+
+        $user->update(array_merge($this->staffFieldsFromRequest($data), [
+            'email'            => $data['email'],
+            'user_information' => $data['user_information'],
+            'staff_status'     => $data['staff_status'] ?? $user->staff_status,
+        ]));
+
         return redirect()->back()->with('message', 'You have successfully update librarian.');
     }
 
     public function librarianDelete($id)
     {
-        $user = User::find($id);
+        $user = $this->findStaffOrFail($id, 5);
         $user->delete();
-        $admins = User::get()->where('role_id', 5);
         return redirect()->route('admin.librarian')->with('message', 'You have successfully deleted librarian.');
+    }
+
+    public function librarianResetPassword($id)
+    {
+        return $this->resetStaffPassword($id, 5);
+    }
+
+    public function librarianResendActivation($id)
+    {
+        return $this->resendStaffActivation($id, 5);
+    }
+
+    public function librarianListPdf()
+    {
+        return $this->staffListPdf(5, get_phrase('Librarians'));
+    }
+
+    public function librarianListExportExcel()
+    {
+        return $this->staffListExcel(5, 'librarians');
+    }
+
+    public function librarianProfilePdf($id)
+    {
+        return $this->staffProfilePdf($id, 5);
     }
 
     public function librarianProfile($id)
     {
+        $this->findStaffOrFail($id, 5);
         $user_details = (new CommonController)->getAdminDetails($id);
         return view('admin.librarian.librarian_profile', ['user_details' => $user_details]);
     }
@@ -1308,8 +1560,11 @@ class AdminController extends Controller
 
     public function createWarden()
     {
-        $classes = Classes::get()->where('school_id', auth()->user()->school_id);
-        return view('admin.warden.add_warden', ['classes' => $classes]);
+        $school_id    = auth()->user()->school_id;
+        $classes      = Classes::get()->where('school_id', $school_id);
+        $departments  = Department::get()->where('school_id', $school_id);
+        $designations = Designation::where('school_id', $school_id)->orderBy('name')->get();
+        return view('admin.warden.add_warden', ['classes' => $classes, 'departments' => $departments, 'designations' => $designations]);
     }
 
     public function wardenCreate(Request $request)
@@ -1340,34 +1595,41 @@ class AdminController extends Controller
 
         if (count($duplicate_user_check) == 0) {
 
-            User::create([
-                'name'             => $data['name'],
-                'email'            => $data['email'],
-                'password'         => Hash::make($data['password']),
-                'role_id'          => '10',
-                'school_id'        => auth()->user()->school_id,
-                'user_information' => $data['user_information'],
-                'status'           => 1,
-            ]);
+            $staffFields = $this->staffFieldsFromRequest($data);
+            $password    = $this->resolveNewStaffPassword($data);
+
+            $user = User::create(array_merge($staffFields, [
+                'email'                 => $data['email'],
+                'password'              => Hash::make($password['plain']),
+                'role_id'               => '10',
+                'school_id'             => auth()->user()->school_id,
+                'user_information'      => $data['user_information'],
+                'status'                => 1,
+                'code'                  => staff_code(),
+                'staff_status'          => 'active',
+                'force_password_change' => $password['force_change'],
+            ]));
         } else {
             return redirect()->back()->with('error', 'Email was already taken.');
         }
-        if (! empty(get_settings('smtp_user')) && (get_settings('smtp_pass')) && (get_settings('smtp_host')) && (get_settings('smtp_port'))) {
-            Mail::to($data['email'])->send(new NewUserEmail($data));
-        }
+        $this->sendStaffCredentialsEmail($user->email, $user->name, $password['plain']);
         return redirect()->back()->with('message', 'You have successfully add warden.');
     }
 
     public function wardenEditModal($id)
     {
-        $user    = User::find($id);
-        $classes = Classes::get()->where('school_id', auth()->user()->school_id);
-        return view('admin.warden.edit_warden', ['user' => $user, 'classes' => $classes]);
+        $user         = $this->findStaffOrFail($id, 10);
+        $school_id    = auth()->user()->school_id;
+        $classes      = Classes::get()->where('school_id', $school_id);
+        $departments  = Department::get()->where('school_id', $school_id);
+        $designations = Designation::where('school_id', $school_id)->orderBy('name')->get();
+        return view('admin.warden.edit_warden', ['user' => $user, 'classes' => $classes, 'departments' => $departments, 'designations' => $designations]);
     }
 
     public function wardenUpdate(Request $request, $id)
     {
         $data = $request->all();
+        $user = $this->findStaffOrFail($id, 10);
 
         if (! empty($data['photo'])) {
 
@@ -1377,9 +1639,8 @@ class AdminController extends Controller
 
             $photo = $imageName;
         } else {
-            $user_information = User::where('id', $id)->value('user_information');
-            $decoded_info     = json_decode($user_information ?? '') ?: (object) [];
-            $file_name        = $decoded_info->photo ?? '';
+            $decoded_info = json_decode($user->user_information ?? '') ?: (object) [];
+            $file_name    = $decoded_info->photo ?? '';
 
             if ($file_name != '') {
                 $photo = $file_name;
@@ -1397,27 +1658,51 @@ class AdminController extends Controller
         ];
 
         $data['user_information'] = json_encode($info);
-        $user = User::find($id);
-        if ($user) {
-            $user->update([
-                'name'             => $data['name'],
-                'email'            => $data['email'],
-                'user_information' => $data['user_information'],
-            ]);
-        }
+
+        $user->update(array_merge($this->staffFieldsFromRequest($data), [
+            'email'            => $data['email'],
+            'user_information' => $data['user_information'],
+            'staff_status'     => $data['staff_status'] ?? $user->staff_status,
+        ]));
+
         return redirect()->back()->with('message', 'You have successfully update warden.');
     }
 
     public function wardenDelete($id)
     {
-        $user = User::find($id);
+        $user = $this->findStaffOrFail($id, 10);
         $user->delete();
-        $admins = User::get()->where('role_id', 10);
         return redirect()->route('admin.warden')->with('message', 'You have successfully deleted warden.');
+    }
+
+    public function wardenResetPassword($id)
+    {
+        return $this->resetStaffPassword($id, 10);
+    }
+
+    public function wardenResendActivation($id)
+    {
+        return $this->resendStaffActivation($id, 10);
+    }
+
+    public function wardenListPdf()
+    {
+        return $this->staffListPdf(10, get_phrase('Wardens'));
+    }
+
+    public function wardenListExportExcel()
+    {
+        return $this->staffListExcel(10, 'wardens');
+    }
+
+    public function wardenProfilePdf($id)
+    {
+        return $this->staffProfilePdf($id, 10);
     }
 
     public function wardenProfile($id)
     {
+        $this->findStaffOrFail($id, 10);
         $user_details = (new CommonController)->getAdminDetails($id);
         return view('admin.warden.warden_profile', ['user_details' => $user_details]);
     }
@@ -3418,6 +3703,76 @@ class AdminController extends Controller
         return redirect()->back()->with('message', 'You have successfully delete department.');
     }
 
+    // ── Designations (job titles, used by the Staff module) ────────────────
+
+    public function designationList(Request $request)
+    {
+        $search = $request['search'] ?? "";
+
+        if ($search != "") {
+            $designations = Designation::where(function ($query) use ($search) {
+                $query->where('name', 'LIKE', "%{$search}%")
+                    ->where('school_id', auth()->user()->school_id);
+            })->paginate(10);
+        } else {
+            $designations = Designation::where('school_id', auth()->user()->school_id)->paginate(10);
+        }
+
+        return view('admin.designation.designation_list', compact('designations', 'search'));
+    }
+
+    public function createDesignation()
+    {
+        return view('admin.designation.add_designation');
+    }
+
+    public function designationCreate(Request $request)
+    {
+        $data = $request->all();
+
+        $duplicate_designation_check = Designation::where('name', $data['name'])->where('school_id', auth()->user()->school_id)->exists();
+
+        if (! $duplicate_designation_check) {
+            Designation::create([
+                'name'      => $data['name'],
+                'school_id' => auth()->user()->school_id,
+            ]);
+
+            return redirect()->back()->with('message', 'You have successfully created a new designation.');
+        }
+
+        return back()->with('error', 'Sorry this designation already exists');
+    }
+
+    public function editDesignation($id)
+    {
+        $designation = Designation::where('school_id', auth()->user()->school_id)->findOrFail($id);
+        return view('admin.designation.edit_designation', ['designation' => $designation]);
+    }
+
+    public function designationUpdate(Request $request, $id)
+    {
+        $data = $request->all();
+
+        $duplicate_designation_check = Designation::where('name', $data['name'])->where('school_id', auth()->user()->school_id)->where('id', '!=', $id)->exists();
+
+        if (! $duplicate_designation_check) {
+            $designation = Designation::where('school_id', auth()->user()->school_id)->findOrFail($id);
+            $designation->update(['name' => $data['name']]);
+
+            return redirect()->back()->with('message', 'You have successfully updated the designation.');
+        }
+
+        return back()->with('error', 'Sorry this designation already exists');
+    }
+
+    public function designationDelete($id)
+    {
+        $designation = Designation::where('school_id', auth()->user()->school_id)->findOrFail($id);
+        $designation->delete();
+        return redirect()->back()->with('message', 'You have successfully deleted the designation.');
+    }
+
     /**
      * Show the class room list.
      *
@@ -5318,7 +5673,7 @@ class AdminController extends Controller
     // Account Disable
     public function account_disable($id)
     {
-        $user = User::find($id);
+        $user = User::where('id', $id)->where('school_id', auth()->user()->school_id)->first();
         if ($user) {
             $user->update([
                 'account_status' => 'disable',
@@ -5330,7 +5685,7 @@ class AdminController extends Controller
     // Account Enable
     public function account_enable($id)
     {
-        $user = User::find($id);
+        $user = User::where('id', $id)->where('school_id', auth()->user()->school_id)->first();
         if ($user) {
             $user->update([
                 'account_status' => 'enable',

@@ -10,7 +10,8 @@
                     <li><a href="#">{{ get_phrase('Intake Sessions') }}</a></li>
                 </ul>
             </div>
-            <div class="export-btn-area">
+            <div class="export-btn-area d-flex gap-2">
+                <a href="{{ route('admin.intake_sessions.export') }}" class="export_btn export_btn-outline"><i class="bi bi-download"></i> {{ get_phrase('Export CSV') }}</a>
                 <a href="javascript:;" class="export_btn" onclick="rightModal('{{ route('admin.intake_sessions.open_modal') }}', '{{ get_phrase('New Session') }}')">{{ get_phrase('Add Session') }}</a>
             </div>
         </div>

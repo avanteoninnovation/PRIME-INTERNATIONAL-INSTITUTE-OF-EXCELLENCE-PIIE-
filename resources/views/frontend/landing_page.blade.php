@@ -802,7 +802,7 @@
             </div>
             <div class="col-lg-4 col-md-5 col-12 tb-right">
                 <a href="{{ $setting('contact_website', '#') }}" class="tb-item"><i class="fa-solid fa-globe"></i> {{ str_replace(['http://', 'https://'], '', $setting('contact_website', 'Website update pending')) }}</a>
-                <a href="#admissions" class="tb-item d-none d-lg-inline-flex"><i class="fa-solid fa-pen-to-square"></i> Apply Now</a>
+                <a href="{{ route('apply.form') }}" class="tb-item d-none d-lg-inline-flex"><i class="fa-solid fa-pen-to-square"></i> Apply Now</a>
             </div>
         </div>
     </div>
@@ -890,7 +890,7 @@
                     </div>
                 @else
                     <a class="btn-login" href="{{ route('login') }}">Login</a>
-                    <a class="btn-apply d-none d-lg-inline-block" href="#admissions">Apply Now</a>
+                    <a class="btn-apply d-none d-lg-inline-block" href="{{ route('apply.form') }}">Apply Now</a>
                     <a href="{{ route('download.brochure') }}" 
                        class="d-none d-lg-inline-block"
                        style="padding: 10px 16px; background: linear-gradient(135deg, #e87722 0%, #d96912 100%); color: #fff; border-radius: 4px; text-decoration: none; font-weight: 600; display: flex; align-items: center; gap: 6px; font-size: 13px;">
@@ -916,7 +916,7 @@
         <a href="#contact" onclick="closeMobileMenu()"><i class="fa-solid fa-envelope"></i> Contact</a>
         <div class="mobile-nav-btns">
             <a href="{{ route('login') }}" class="btn-login" style="flex:1;text-align:center;">Login</a>
-            <a href="#admissions" onclick="closeMobileMenu()" class="btn-apply" style="flex:1;text-align:center;">Apply Now</a>
+            <a href="{{ route('apply.form') }}" onclick="closeMobileMenu()" class="btn-apply" style="flex:1;text-align:center;">Apply Now</a>
         </div>
     </div>
 </header>
@@ -933,7 +933,7 @@
                 <p>{{ $sectionField('hero_slider', 'content', 'Prime International Institute of Excellence delivers rigorous, technology-enabled higher education for learners across Uganda, East Africa, and the wider world.') }}</p>
                 <div class="hero-btns">
                     <a href="#programs" class="btn-primary-custom">Explore Programs</a>
-                    <a href="#admissions" class="btn-outline-custom">Apply Now</a>
+                    <a href="{{ route('apply.form') }}" class="btn-outline-custom">Apply Now</a>
                 </div>
             </div>
             <div class="col-lg-5 text-center mt-4 mt-lg-0">

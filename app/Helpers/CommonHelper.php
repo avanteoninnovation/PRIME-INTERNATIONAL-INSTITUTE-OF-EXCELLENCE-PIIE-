@@ -298,6 +298,29 @@ if (! function_exists('student_code')) {
   }
 }
 
+// RANDOM NUMBER GENERATOR FOR STAFF NUMBER (employee number)
+// Same mechanism as student_code() (retries against the shared users.code
+// column so a staff number can never collide with anyone else's, staff or
+// student), just with an "STF-" prefix so the two are visually distinct.
+if (! function_exists('staff_code')) {
+  function staff_code($length_of_string = 8) {
+    $running_year = date('Y');
+
+    for ($attempt = 0; $attempt < 20; $attempt++) {
+        $str_result = '0123456789';
+        $unique_id = substr(str_shuffle($str_result), 0, $length_of_string);
+        $splited_unique_id = str_split($unique_id, 4);
+        $staff_code = 'STF-'.$running_year.'-'.$splited_unique_id[0].'-'.$splited_unique_id[1];
+
+        if (! \App\Models\User::where('code', $staff_code)->exists()) {
+            return $staff_code;
+        }
+    }
+
+    return 'STF-'.$running_year.'-'.str_pad((string) \App\Models\User::where('code', 'like', 'STF-'.$running_year.'-%')->count() + 1, 8, '0', STR_PAD_LEFT);
+  }
+}
+
 // TEACHER PERMISSION. PROVIDE MODULE NAME AND TEACHERS ID
 if (! function_exists('null_checker')) {
   function null_checker($value = "") {
