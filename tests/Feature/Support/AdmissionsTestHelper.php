@@ -252,9 +252,46 @@ trait AdmissionsTestHelper
         Schema::create('subjects', function (Blueprint $table) {
             $table->id();
             $table->string('name');
-            $table->unsignedBigInteger('class_id');
+            $table->string('code', 30)->nullable();
+            $table->unsignedTinyInteger('credits')->default(3);
+            $table->string('course_type')->default('compulsory');
+            $table->string('level')->nullable();
+            $table->unsignedTinyInteger('pass_mark')->default(50);
+            $table->unsignedTinyInteger('cats_marks')->nullable()->default(30);
+            $table->unsignedTinyInteger('exam_marks')->nullable()->default(70);
+            $table->unsignedBigInteger('programme_id')->nullable();
+            $table->unsignedBigInteger('class_id')->nullable();
             $table->unsignedBigInteger('school_id');
-            $table->unsignedBigInteger('session_id');
+            $table->unsignedBigInteger('session_id')->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('exams', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->unsignedBigInteger('exam_category_id')->nullable();
+            $table->string('exam_type')->nullable();
+            $table->string('room_number')->nullable();
+            $table->double('total_marks')->nullable();
+            $table->integer('status')->default(1);
+            $table->unsignedBigInteger('class_id')->nullable();
+            $table->unsignedBigInteger('subject_id')->nullable();
+            $table->unsignedBigInteger('school_id');
+            $table->unsignedBigInteger('session_id')->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('gradebooks', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('class_id')->nullable();
+            $table->unsignedBigInteger('section_id')->nullable();
+            $table->unsignedBigInteger('student_id')->nullable();
+            $table->unsignedBigInteger('exam_category_id')->nullable();
+            $table->text('marks')->nullable();
+            $table->string('comment')->nullable();
+            $table->unsignedBigInteger('school_id')->nullable();
+            $table->unsignedBigInteger('session_id')->nullable();
+            $table->integer('timestamp')->nullable();
             $table->timestamps();
         });
 
@@ -416,6 +453,36 @@ trait AdmissionsTestHelper
             'is_active' => 1,
             'created_at' => now(),
             'updated_at' => now(),
+        ], $overrides));
+    }
+
+    protected function makeCourse(int $schoolId, int $programmeId, array $overrides = []): int
+    {
+        return (int) DB::table('subjects')->insertGetId(array_merge([
+            'school_id'     => $schoolId,
+            'programme_id'  => $programmeId,
+            'code'          => 'CRS' . uniqid(),
+            'name'          => 'Test Course',
+            'credits'       => 3,
+            'course_type'   => 'compulsory',
+            'level'         => 'Bachelors',
+            'cats_marks'    => 30,
+            'exam_marks'    => 70,
+            'pass_mark'     => 50,
+            'created_at'    => now(),
+            'updated_at'    => now(),
+        ], $overrides));
+    }
+
+    protected function makeStudentProfile(int $schoolId, int $userId, int $programmeId, array $overrides = []): int
+    {
+        return (int) DB::table('student_profiles')->insertGetId(array_merge([
+            'school_id'    => $schoolId,
+            'user_id'      => $userId,
+            'programme_id' => $programmeId,
+            'status'       => 'active',
+            'created_at'   => now(),
+            'updated_at'   => now(),
         ], $overrides));
     }
 

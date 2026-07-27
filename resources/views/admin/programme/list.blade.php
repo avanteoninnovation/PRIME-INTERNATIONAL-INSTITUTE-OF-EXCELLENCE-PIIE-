@@ -15,6 +15,9 @@
                 </div>
                 <div class="export-btn-area d-flex gap-2">
                     <a href="{{ route('admin.programmes.export', ['search' => $search]) }}" class="export_btn bg-secondary"><i class="bi bi-download"></i> {{ get_phrase('Export CSV') }}</a>
+                    <a href="{{ route('admin.programmes.export_excel', ['search' => $search]) }}" class="export_btn bg-secondary"><i class="bi bi-file-earmark-excel"></i> {{ get_phrase('Export Excel') }}</a>
+                    <a href="{{ route('admin.programmes.print', ['search' => $search, 'inline' => 1]) }}" target="_blank" class="export_btn bg-secondary"><i class="bi bi-printer"></i> {{ get_phrase('Print') }}</a>
+                    <a href="{{ route('admin.programmes.print', ['search' => $search]) }}" class="export_btn bg-secondary"><i class="bi bi-file-earmark-pdf"></i> {{ get_phrase('Export PDF') }}</a>
                     <a href="javascript:;" class="export_btn" onclick="rightModal('{{ route('admin.programmes.open_modal') }}', '{{ get_phrase('Add Programme') }}')">{{ get_phrase('Add Programme') }}</a>
                 </div>
             </div>
@@ -24,6 +27,9 @@
 
 @if(session('success'))
     <div class="alert alert-success">{{ session('success') }}</div>
+@endif
+@if(session('error'))
+    <div class="alert alert-danger">{{ session('error') }}</div>
 @endif
 
 <div class="row">
@@ -47,7 +53,8 @@
                             <th>{{ get_phrase('Level') }}</th>
                             <th>{{ get_phrase('Mode') }}</th>
                             <th>{{ get_phrase('Duration') }}</th>
-                            <th>{{ get_phrase('Tuition Fee') }}</th>
+                            <th>{{ get_phrase('Tuition Fee (UGX)') }}</th>
+                            <th>{{ get_phrase('Students') }}</th>
                             <th>{{ get_phrase('Status') }}</th>
                             <th>{{ get_phrase('Actions') }}</th>
                         </tr>
@@ -59,9 +66,10 @@
                             <td><strong>{{ $prog->code }}</strong></td>
                             <td>{{ $prog->name }}</td>
                             <td><span class="badge bg-primary">{{ $prog->level }}</span></td>
-                            <td>{{ ucfirst($prog->mode) }}</td>
+                            <td>{{ $prog->mode }}</td>
                             <td>{{ $prog->duration ?? '—' }}</td>
                             <td>{{ number_format($prog->tuition_fee, 0) }}</td>
+                            <td>{{ $prog->activeStudentCount() }}</td>
                             <td>
                                 @if($prog->is_active)
                                     <span class="badge bg-success">{{ get_phrase('Active') }}</span>
@@ -76,7 +84,7 @@
                             </td>
                         </tr>
                         @empty
-                        <tr><td colspan="9" class="text-center text-muted py-4">{{ get_phrase('No programmes found') }}</td></tr>
+                        <tr><td colspan="10" class="text-center text-muted py-4">{{ get_phrase('No programmes found') }}</td></tr>
                         @endforelse
                     </tbody>
                 </table>

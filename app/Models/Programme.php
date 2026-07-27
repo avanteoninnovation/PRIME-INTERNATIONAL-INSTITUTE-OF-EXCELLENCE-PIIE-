@@ -25,6 +25,9 @@ class Programme extends Model
     public const MODES = ['ODEL', 'Full Time', 'Weekend'];
     public const MODES_LEGACY = ['fulltime', 'parttime', 'online', 'blended'];
 
+    /** Common presets for the Duration select; `duration` itself stays a free-text column so any legacy value not in this list still displays via the "Other" fallback. */
+    public const DURATIONS = ['1 Month', '3 Months', '6 Months', '1 Year', '2 Years', '3 Years', '4 Years'];
+
     public function department()
     {
         return $this->belongsTo(Department::class, 'department_id');
@@ -43,6 +46,17 @@ class Programme extends Model
     public function liveClasses()
     {
         return $this->hasMany(LiveClass::class, 'programme_id');
+    }
+
+    /**
+     * Query-only relation used by TranscriptController to resolve a K-12
+     * enrollment's class back to a Programme via its Course/Subject rows
+     * (`subjects` doubles as the pivot: programme_id + class_id both live
+     * on it already). Not used for pivot writes.
+     */
+    public function classes()
+    {
+        return $this->belongsToMany(Classes::class, 'subjects', 'programme_id', 'class_id');
     }
 
     /**

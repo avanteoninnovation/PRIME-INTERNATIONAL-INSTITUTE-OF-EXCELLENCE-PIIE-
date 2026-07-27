@@ -11,9 +11,12 @@
                 <div class="col-6 fpb-7">
                     <label class="eForm-label">{{ get_phrase('Level') }} *</label>
                     <select class="form-control eForm-control" name="level" required>
-                        @foreach(['Certificate','Diploma','Degree','Masters','PhD','Short Course'] as $lvl)
+                        @foreach(\App\Models\Programme::LEVELS as $lvl)
                             <option value="{{ $lvl }}" {{ (old('level', $programme->level ?? '') == $lvl) ? 'selected' : '' }}>{{ $lvl }}</option>
                         @endforeach
+                        @if($programme && in_array($programme->level, \App\Models\Programme::LEVELS_LEGACY, true))
+                            <option value="{{ $programme->level }}" selected>{{ $programme->level }} ({{ get_phrase('legacy') }})</option>
+                        @endif
                     </select>
                 </div>
             </div>
@@ -25,19 +28,40 @@
                 <div class="col-6 fpb-7">
                     <label class="eForm-label">{{ get_phrase('Mode') }}</label>
                     <select class="form-control eForm-control" name="mode">
-                        @foreach(['fulltime','parttime','online','blended'] as $m)
-                            <option value="{{ $m }}" {{ (old('mode', $programme->mode ?? 'fulltime') == $m) ? 'selected' : '' }}>{{ ucfirst($m) }}</option>
+                        @foreach(\App\Models\Programme::MODES as $m)
+                            <option value="{{ $m }}" {{ (old('mode', $programme->mode ?? 'ODEL') == $m) ? 'selected' : '' }}>{{ $m }}</option>
                         @endforeach
+                        @if($programme && in_array($programme->mode, \App\Models\Programme::MODES_LEGACY, true))
+                            <option value="{{ $programme->mode }}" selected>{{ ucfirst($programme->mode) }} ({{ get_phrase('legacy') }})</option>
+                        @endif
                     </select>
                 </div>
+                @php
+                    $currentDuration = old('duration', $programme->duration ?? '');
+                    $isPresetDuration = in_array($currentDuration, \App\Models\Programme::DURATIONS, true);
+                @endphp
                 <div class="col-6 fpb-7">
                     <label class="eForm-label">{{ get_phrase('Duration') }}</label>
-                    <input type="text" class="form-control eForm-control" name="duration" value="{{ $programme->duration ?? '' }}" placeholder="e.g. 3 years">
+                    <select class="form-control eForm-control" name="duration_preset"
+                        onchange="var isOther = this.value === 'Other'; document.getElementById('duration_other_input').style.display = isOther ? 'block' : 'none'; document.getElementById('duration_input').value = isOther ? document.getElementById('duration_other_input').value : this.value;">
+                        <option value="">{{ get_phrase('— Select —') }}</option>
+                        @foreach(\App\Models\Programme::DURATIONS as $d)
+                            <option value="{{ $d }}" {{ $currentDuration == $d ? 'selected' : '' }}>{{ $d }}</option>
+                        @endforeach
+                        <option value="Other" {{ (!$isPresetDuration && $currentDuration !== '') ? 'selected' : '' }}>{{ get_phrase('Other') }}</option>
+                    </select>
+                    <input type="hidden" id="duration_input" name="duration" value="{{ $currentDuration }}">
+                    <input type="text" id="duration_other_input"
+                        class="form-control eForm-control mt-1"
+                        style="display: {{ (!$isPresetDuration && $currentDuration !== '') ? 'block' : 'none' }};"
+                        placeholder="{{ get_phrase('e.g. 18 Months') }}"
+                        value="{{ (!$isPresetDuration) ? $currentDuration : '' }}"
+                        oninput="document.getElementById('duration_input').value = this.value;">
                 </div>
             </div>
             <div class="row mt-2">
                 <div class="col-6 fpb-7">
-                    <label class="eForm-label">{{ get_phrase('Tuition Fee') }}</label>
+                    <label class="eForm-label">{{ get_phrase('Tuition Fee (per semester, UGX)') }}</label>
                     <input type="number" class="form-control eForm-control" name="tuition_fee" value="{{ $programme->tuition_fee ?? 0 }}" min="0" step="0.01">
                 </div>
                 <div class="col-6 fpb-7">

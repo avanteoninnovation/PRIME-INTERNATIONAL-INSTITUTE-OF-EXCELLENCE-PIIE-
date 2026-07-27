@@ -15,6 +15,8 @@ use App\Http\Controllers\WebsiteManagementController;
 use App\Http\Controllers\WardenController;
 // New HEI Controllers
 use App\Http\Controllers\ProgrammeController;
+use App\Http\Controllers\CourseController;
+use App\Http\Controllers\CourseMarksController;
 use App\Http\Controllers\AdmissionsController;
 use App\Http\Controllers\FeeStructureController;
 use App\Http\Controllers\LeaveController;
@@ -1173,11 +1175,30 @@ Route::controller(InstallController::class)->middleware('is_installed')->group(f
 Route::controller(ProgrammeController::class)->middleware('auth', 'admin')->group(function () {
     Route::get('admin/programmes',                  'index')->name('admin.programmes.index');
     Route::get('admin/programmes/export',           'exportCsv')->name('admin.programmes.export');
+    Route::get('admin/programmes/export-excel',     'exportExcel')->name('admin.programmes.export_excel');
+    Route::get('admin/programmes/print',            'printPdf')->name('admin.programmes.print');
     Route::get('admin/programmes/open_modal',       'openModal')->name('admin.programmes.open_modal');
     Route::post('admin/programmes/store',           'store')->name('admin.programmes.store');
     Route::post('admin/programmes/update/{id}',     'update')->name('admin.programmes.update');
     Route::get('admin/programmes/delete/{id}',      'destroy')->name('admin.programmes.destroy');
     Route::get('admin/programmes/toggle/{id}',      'toggleStatus')->name('admin.programmes.toggle');
+});
+
+// ── Courses (Programme-linked Subjects) ─────────────────────────
+Route::controller(CourseController::class)->middleware('auth', 'admin')->group(function () {
+    Route::get('admin/courses',                  'index')->name('admin.courses.index');
+    Route::get('admin/courses/export',           'exportCsv')->name('admin.courses.export');
+    Route::get('admin/courses/export-excel',     'exportExcel')->name('admin.courses.export_excel');
+    Route::get('admin/courses/print',            'printPdf')->name('admin.courses.print');
+    Route::get('admin/courses/open_modal',       'openModal')->name('admin.courses.open_modal');
+    Route::post('admin/courses/store',           'store')->name('admin.courses.store');
+    Route::post('admin/courses/update/{id}',     'update')->name('admin.courses.update');
+    Route::get('admin/courses/delete/{id}',      'destroy')->name('admin.courses.destroy');
+});
+
+Route::controller(CourseMarksController::class)->middleware('auth', 'admin')->group(function () {
+    Route::get('admin/courses/{course}/marks',   'edit')->name('admin.courses.marks');
+    Route::post('admin/courses/{course}/marks',  'update')->name('admin.courses.marks.update');
 });
 
 // ── Admissions ────────────────────────────────────────────────

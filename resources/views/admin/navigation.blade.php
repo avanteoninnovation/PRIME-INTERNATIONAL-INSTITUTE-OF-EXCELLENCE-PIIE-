@@ -55,6 +55,7 @@
             'intake_sessions'  => ['admin.intake_sessions'],
             'admissions_agents'=> ['admin.admissions_agents'],
             'programmes'       => ['admin.programmes'],
+            'courses'          => ['admin.courses'],
             'enrolment'        => ['admin.enrolment'],
             'online_exams'     => ['admin.online_exams', 'admin.online_exams.index'],
             'exams'            => ['admin.exam', 'admin.exam_category', 'admin.admit_card'],
@@ -306,7 +307,22 @@
                 </div>
             </li>
 
-            <!-- Courses -->
+            <!-- Courses (HEI, Programme-linked) -->
+            <li class="nav-links-li {{ request()->is('admin/courses*') ? 'showMenu' : '' }}">
+                <div class="iocn-link">
+                    <a href="{{ route('admin.courses.index') }}" class="{{ request()->is('admin/courses*') ? 'active' : '' }}">
+                        <div class="sidebar_icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+                            </svg>
+                        </div>
+                        <span class="link_name">{{ get_phrase('Courses') }}</span>
+                    </a>
+                </div>
+            </li>
+
+            <!-- Subjects (K-12) -->
             @if(empty($user->menu_permission) || in_array('admin.subject_list', $menu_permission))
             <li class="nav-links-li {{ request()->is('admin/subject*') ? 'showMenu' : '' }}">
                 <div class="iocn-link">
@@ -317,7 +333,7 @@
                                 <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
                             </svg>
                         </div>
-                        <span class="link_name">{{ get_phrase('Courses') }}</span>
+                        <span class="link_name">{{ get_phrase('Subjects') }}</span>
                     </a>
                 </div>
             </li>
