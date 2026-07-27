@@ -273,17 +273,28 @@ if (!function_exists('random')) {
     }
 }
 
-// RANDOM NUMBER GENERATOR FOR STUDENT CODE
+// RANDOM NUMBER GENERATOR FOR STUDENT CODE (registration number)
+// The authoritative source of truth for a student's registration number is
+// users.code — this generator retries until it produces a value not already
+// present there, so registration numbers can never collide.
 if (! function_exists('student_code')) {
   function student_code($length_of_string = 8) {
-    // String of all numeric character
-    $str_result = '0123456789';
-    // Shufle the $str_result and returns substring of specified length
-    $unique_id = substr(str_shuffle($str_result), 0, $length_of_string);
-    $splited_unique_id = str_split($unique_id, 4);
     $running_year = date('Y');
-    $student_code = $running_year.'-'.$splited_unique_id[0].'-'.$splited_unique_id[1];
-    return $student_code;
+
+    for ($attempt = 0; $attempt < 20; $attempt++) {
+        $str_result = '0123456789';
+        $unique_id = substr(str_shuffle($str_result), 0, $length_of_string);
+        $splited_unique_id = str_split($unique_id, 4);
+        $student_code = $running_year.'-'.$splited_unique_id[0].'-'.$splited_unique_id[1];
+
+        if (! \App\Models\User::where('code', $student_code)->exists()) {
+            return $student_code;
+        }
+    }
+
+    // Exhausted the random attempts (astronomically unlikely) — fall back to
+    // a sequential suffix so a registration number is still always returned.
+    return $running_year.'-'.str_pad((string) \App\Models\User::where('code', 'like', $running_year.'-%')->count() + 1, 8, '0', STR_PAD_LEFT);
   }
 }
 
@@ -519,5 +530,28 @@ if (!function_exists('role_can_see')) {
     {
         $perms = get_role_nav_permissions($role_id);
         return in_array('all', $perms) || in_array($section, $perms);
+    }
+}
+
+if (!function_exists('is_primary_school')) {
+    /**
+     * The Admissions module (Admissions, Intake Sessions, Agents) is only
+     * meaningful for the one school the public Apply Now portal currently
+     * belongs to (global_settings.primary_school_id — see
+     * App\Support\PublicTenantResolver). Other schools created via Super
+     * Admin have no public application intake yet, so the module is hidden
+     * from their nav and blocked at the route level rather than shown
+     * empty and useless.
+     */
+    function is_primary_school($schoolId): bool
+    {
+        $primarySchoolId = get_settings('primary_school_id');
+
+        if (empty($primarySchoolId)) {
+            // Not configured yet — fail open rather than lock everyone out.
+            return true;
+        }
+
+        return (int) $schoolId === (int) $primarySchoolId;
     }
 }

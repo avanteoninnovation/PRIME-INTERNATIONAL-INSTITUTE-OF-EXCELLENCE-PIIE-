@@ -25,6 +25,16 @@ class AdmissionsController extends Controller
     {
         $this->middleware(function ($request, $next) {
             $this->school_id = Auth::user()->school_id;
+
+            // Admissions/Intake Sessions/Agents only apply to the one school
+            // the public Apply Now portal currently belongs to — block
+            // direct route access for every other school, not just hide the
+            // nav item (see resources/views/admin/navigation.blade.php and
+            // layouts/app.blade.php for the matching nav-level gate).
+            if (! is_primary_school($this->school_id)) {
+                return redirect()->route('admin.dashboard')->with('error', get_phrase('Admissions is not available for your school.'));
+            }
+
             return $next($request);
         });
     }

@@ -3,6 +3,7 @@
     use App\Support\Permissions\OnlineExamPermissionService;
 
     $user = Auth()->user();
+    $isPrimarySchool = is_primary_school($user->school_id);
     $faviconSetting = trim((string) get_settings('favicon'));
     $whiteLogoSetting = trim((string) get_settings('white_logo'));
     $darkLogoSetting = trim((string) get_settings('dark_logo'));
@@ -540,8 +541,12 @@
             </li>
             @endif
 
+            @if($isPrimarySchool)
             <!-- ============================================ -->
             <!-- ADMISSIONS SECTION HEADER                    -->
+            <!-- Admissions/Intake Sessions/Agents only apply  -->
+            <!-- to the one school the public Apply Now portal -->
+            <!-- currently belongs to (primary_school_id).     -->
             <!-- ============================================ -->
             <li class="nav-section-header">ADMISSIONS</li>
 
@@ -599,6 +604,7 @@
                     </a>
                 </div>
             </li>
+            @endif
             @endif
 
             <!-- ============================================ -->

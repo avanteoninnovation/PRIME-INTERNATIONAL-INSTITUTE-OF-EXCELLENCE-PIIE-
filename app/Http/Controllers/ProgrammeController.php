@@ -35,7 +35,7 @@ class ProgrammeController extends Controller
     public function openModal(Request $request)
     {
         $id          = $request->id;
-        $programme   = $id ? Programme::findOrFail($id) : null;
+        $programme   = $id ? Programme::where('school_id', $this->school_id)->findOrFail($id) : null;
         $departments = Department::where('school_id', $this->school_id)->orderBy('name')->get();
         return view('admin.programme.modal', compact('programme', 'departments'));
     }
@@ -102,5 +102,29 @@ class ProgrammeController extends Controller
         $programme = Programme::where('school_id', $this->school_id)->findOrFail($id);
         $programme->update(['is_active' => !$programme->is_active]);
         return redirect()->back()->with('success', get_phrase('Status updated'));
+    }
+
+    public function exportCsv(Request $request)
+    {
+        $search = $request->search ?? '';
+        $headers = [
+            'Content-Type'        => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="programmes_' . date('Y-m-d') . '.csv"',
+        ];
+
+        $callback = function () use ($search) {
+            $out = fopen('php://output', 'w');
+            fputcsv($out, ['#', 'Code', 'Name', 'Level', 'Mode', 'Duration', 'Tuition Fee', 'Status']);
+            Programme::where('school_id', $this->school_id)
+                ->when($search, fn($q) => $q->where('name', 'like', "%$search%")->orWhere('code', 'like', "%$search%"))
+                ->orderBy('name')
+                ->get()
+                ->each(function ($p, $i) use ($out) {
+                    fputcsv($out, [$i+1, $p->code, $p->name, $p->level, ucfirst($p->mode), $p->duration, $p->tuition_fee, $p->is_active ? 'Active' : 'Inactive']);
+                });
+            fclose($out);
+        };
+
+        return response()->stream($callback, 200, $headers);
     }
 }
