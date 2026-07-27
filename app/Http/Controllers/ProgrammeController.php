@@ -137,7 +137,7 @@ class ProgrammeController extends Controller
                 ->orderBy('name')
                 ->get()
                 ->each(function ($p, $i) use ($out) {
-                    fputcsv($out, [$i+1, $p->code, $p->name, $p->level, ucfirst($p->mode), $p->duration, $p->tuition_fee, $p->is_active ? 'Active' : 'Inactive']);
+                    fputcsv($out, csv_safe_row([$i+1, $p->code, $p->name, $p->level, ucfirst($p->mode), $p->duration, $p->tuition_fee, $p->is_active ? 'Active' : 'Inactive']));
                 });
             fclose($out);
         };

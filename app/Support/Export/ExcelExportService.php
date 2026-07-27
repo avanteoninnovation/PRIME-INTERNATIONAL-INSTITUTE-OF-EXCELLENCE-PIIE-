@@ -34,7 +34,12 @@ class ExcelExportService
 
         $rowIndex = 2;
         foreach ($rows as $row) {
-            $sheet->fromArray(array_values($row), null, "A{$rowIndex}");
+            // Guard against formula injection (CWE-1236): PhpSpreadsheet
+            // stores any string starting with = as an actual TYPE_FORMULA
+            // cell, which Excel/LibreOffice/Sheets executes on open — a
+            // real risk since callers may pass through user-supplied text
+            // (names, notes) with no sanitization of their own.
+            $sheet->fromArray(csv_safe_row(array_values($row)), null, "A{$rowIndex}");
             $rowIndex++;
         }
 

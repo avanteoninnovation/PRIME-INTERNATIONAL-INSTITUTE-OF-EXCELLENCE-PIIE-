@@ -163,7 +163,7 @@ class CourseController extends Controller
             $out = fopen('php://output', 'w');
             fputcsv($out, ['#', 'Code', 'Name', 'Programme', 'Credit', 'Type', 'Level', 'CATS Marks', 'EXAM Marks', 'Pass Mark']);
             $this->filteredCourses($search)->each(function ($c, $i) use ($out) {
-                fputcsv($out, [$i + 1, $c->code, $c->name, optional($c->programme)->name, $c->credits, $c->course_type, $c->level, $c->cats_marks, $c->exam_marks, $c->pass_mark]);
+                fputcsv($out, csv_safe_row([$i + 1, $c->code, $c->name, optional($c->programme)->name, $c->credits, $c->course_type, $c->level, $c->cats_marks, $c->exam_marks, $c->pass_mark]));
             });
             fclose($out);
         };

@@ -74,7 +74,13 @@ class PublicApplicationController extends Controller
             }
 
             foreach ($request->file('documents') as $file) {
-                $filename = uniqid('doc_') . '.' . $file->getClientOriginalExtension();
+                // uniqid() without more_entropy is microtime-based and can
+                // collide when several files land in the same request loop
+                // (notably on Windows, where its clock resolution is
+                // coarser) — a collision here silently overwrites an
+                // already-moved document. More entropy is enough to make
+                // that practically impossible.
+                $filename = uniqid('doc_', true) . '.' . $file->getClientOriginalExtension();
                 $file->move($destination, $filename);
                 $documentPaths[] = $filename;
             }

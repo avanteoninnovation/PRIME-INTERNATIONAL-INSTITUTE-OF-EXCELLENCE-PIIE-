@@ -321,6 +321,29 @@ if (! function_exists('staff_code')) {
   }
 }
 
+// CSV/spreadsheet formula-injection guard (CWE-1236). Any exported column
+// that can ever contain user- or applicant-supplied free text (names,
+// notes, etc.) must go through this before being written to a cell —
+// spreadsheet apps treat a leading =, +, -, @ (or tab/CR) as the start of
+// a formula, letting attacker-controlled input execute code/exfiltrate
+// data in the *opening staff member's* desktop app when the export is
+// opened in Excel/LibreOffice/Sheets.
+if (! function_exists('csv_safe')) {
+    function csv_safe($value) {
+        if (is_string($value) && $value !== '' && in_array($value[0], ['=', '+', '-', '@', "\t", "\r"], true)) {
+            return "'" . $value;
+        }
+
+        return $value;
+    }
+}
+
+if (! function_exists('csv_safe_row')) {
+    function csv_safe_row(array $row): array {
+        return array_map('csv_safe', $row);
+    }
+}
+
 // TEACHER PERMISSION. PROVIDE MODULE NAME AND TEACHERS ID
 if (! function_exists('null_checker')) {
   function null_checker($value = "") {

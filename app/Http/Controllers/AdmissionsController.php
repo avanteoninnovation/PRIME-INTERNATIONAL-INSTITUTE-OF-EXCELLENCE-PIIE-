@@ -317,7 +317,7 @@ class AdmissionsController extends Controller
                 ->latest()
                 ->get()
                 ->each(function ($a, $i) use ($out) {
-                    fputcsv($out, [
+                    fputcsv($out, csv_safe_row([
                         $i+1,
                         $a->app_number,
                         trim("{$a->first_name} {$a->last_name}"),
@@ -328,7 +328,7 @@ class AdmissionsController extends Controller
                         ucfirst(str_replace('_', ' ', $a->status)),
                         $a->source === 'public' ? 'Public Application' : 'Staff Entry',
                         $a->offer_date,
-                    ]);
+                    ]));
                 });
             fclose($out);
         };
@@ -350,7 +350,7 @@ class AdmissionsController extends Controller
                 ->orderByDesc('id')
                 ->get()
                 ->each(function ($s, $i) use ($out) {
-                    fputcsv($out, [$i+1, $s->name, $s->open_date, $s->close_date, $s->application_fee, $s->is_open ? 'Open' : 'Closed']);
+                    fputcsv($out, csv_safe_row([$i+1, $s->name, $s->open_date, $s->close_date, $s->application_fee, $s->is_open ? 'Open' : 'Closed']));
                 });
             fclose($out);
         };
@@ -372,7 +372,7 @@ class AdmissionsController extends Controller
                 ->orderBy('name')
                 ->get()
                 ->each(function ($a, $i) use ($out) {
-                    fputcsv($out, [$i+1, $a->name, $a->email, $a->phone, $a->commission_pct, $a->is_active ? 'Active' : 'Inactive']);
+                    fputcsv($out, csv_safe_row([$i+1, $a->name, $a->email, $a->phone, $a->commission_pct, $a->is_active ? 'Active' : 'Inactive']));
                 });
             fclose($out);
         };
@@ -399,7 +399,14 @@ class AdmissionsController extends Controller
      */
     private function createStudentFromAdmission(Admission $admission, ?string $chosenPassword = null): void
     {
-        $existingUser = User::where('email', $admission->email)->first();
+        // Scoped by school_id: users.email has no unique DB constraint, so
+        // the same email can legitimately belong to different people at
+        // different schools. Without this scope, enrolling an applicant
+        // here would silently reuse another school's existing account —
+        // reassigning their StudentProfile.school_id to this school and
+        // billing them under it, while users.school_id still points at
+        // their real school.
+        $existingUser = User::where('email', $admission->email)->where('school_id', $this->school_id)->first();
 
         if ($existingUser && (int) $existingUser->role_id !== 7) {
             // Email already belongs to a non-student account — do not touch

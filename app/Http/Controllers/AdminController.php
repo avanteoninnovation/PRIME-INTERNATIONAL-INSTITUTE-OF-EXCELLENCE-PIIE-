@@ -301,13 +301,30 @@ class AdminController extends Controller
     {
         $firstName = trim($data['first_name'] ?? '');
         $lastName  = trim($data['last_name'] ?? '');
+        $schoolId  = auth()->user()->school_id;
+
+        // department_id/designation_id come straight from a request body —
+        // the create/edit dropdowns only ever list the current school's own
+        // rows, but nothing stops a tampered request from sending another
+        // school's id, so re-check it server-side rather than trusting the
+        // client (same class of cross-tenant FK issue already fixed for
+        // Programme).
+        $departmentId = $data['department_id'] ?? null;
+        if ($departmentId && ! Department::where('id', $departmentId)->where('school_id', $schoolId)->exists()) {
+            $departmentId = null;
+        }
+
+        $designationId = $data['designation_id'] ?? null;
+        if ($designationId && ! Designation::where('id', $designationId)->where('school_id', $schoolId)->exists()) {
+            $designationId = null;
+        }
 
         return [
             'name'            => trim("{$firstName} {$lastName}"),
             'first_name'      => $firstName !== '' ? $firstName : null,
             'last_name'       => $lastName !== '' ? $lastName : null,
-            'department_id'   => $data['department_id'] ?? null,
-            'designation_id'  => $data['designation_id'] ?? null,
+            'department_id'   => $departmentId,
+            'designation_id'  => $designationId,
             'employment_type' => $data['employment_type'] ?? null,
         ];
     }
