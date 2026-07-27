@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\CommonController;
 use App\Models\Appraisal;
+use App\Models\AuditLog;
 use App\Models\Appraisal_submit;
 use App\Models\Book;
 use App\Models\BookIssue;
@@ -544,7 +545,7 @@ class StudentController extends Controller
 
         $data['user_information'] = json_encode($user_info);
 
-        User::where('id', auth()->user()->id)->update($data);
+        auth()->user()->update($data);
 
         return redirect(route('student.profile'))->with('message', get_phrase('Profile info updated successfully'));
     }
@@ -552,7 +553,7 @@ class StudentController extends Controller
     public function user_language(Request $request)
     {
         $data['language'] = $request->language;
-        User::where('id', auth()->user()->id)->update($data);
+        auth()->user()->update($data);
 
         return redirect()->back()->with('message', 'You have successfully transleted language.');
     }
@@ -570,8 +571,15 @@ class StudentController extends Controller
                 return back()->with("error", "Current Password Doesn't match!");
             }
 
+            $wasForced = (bool) auth()->user()->force_password_change;
+
             $data['password'] = Hash::make($request->new_password);
-            User::where('id', auth()->user()->id)->update($data);
+            $data['force_password_change'] = false;
+            auth()->user()->update($data);
+
+            if ($wasForced) {
+                AuditLog::record('update', 'Staff & Students', "Student completed the forced password change after portal activation (#" . auth()->id() . ").");
+            }
 
             return redirect(route('student.password', 'edit'))->with('message', get_phrase('Password changed successfully'));
         }
@@ -1142,13 +1150,29 @@ class StudentController extends Controller
      */
     public function student_hostel_fee_success_payment_student($user_data = "", $response = "")
     {
-        $response  = json_decode($response, true);
         $user_data = json_decode($user_data, true);
 
-        HostelFee::where('id', $user_data['invoice_id'])->update([
-            'paid_amount'    => $user_data['total_amount'],
+        $allowedPaymentMethods = ['stripe', 'paypal', 'razorpay', 'paytm', 'flutterwave'];
+        $paymentMethod         = $user_data['payment_method'] ?? null;
+
+        if (! is_array($user_data) || empty($user_data['invoice_id']) || ! in_array($paymentMethod, $allowedPaymentMethods, true)) {
+            return redirect()->route('student.hostel_fee_manager.list')->with('error', 'Invalid payment confirmation.');
+        }
+
+        $fee = HostelFee::where('id', $user_data['invoice_id'])
+            ->where('student_id', auth()->id())
+            ->where('school_id', auth()->user()->school_id)
+            ->where('status', '!=', 'paid')
+            ->first();
+
+        if (! $fee) {
+            return redirect()->route('student.hostel_fee_manager.list')->with('error', 'Invoice not found or already paid.');
+        }
+
+        $fee->update([
+            'paid_amount'    => $fee->amount,
             'status'         => 'paid',
-            'payment_method' => $user_data['payment_method'],
+            'payment_method' => $paymentMethod,
             'payment_date'   => date('Y-m-d H:i:s'),
         ]);
 

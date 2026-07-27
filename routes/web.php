@@ -77,6 +77,14 @@ Route::controller(HomeController::class)->group(function () {
     Route::get('web_redirect_to_pay_fee', 'webRedirectToPayFee')->name('webRedirectToPayFee');
 });
 
+// Public online application ("Apply Now") — independent of the authenticated
+// HEI Admissions administration area. No school selector: the institution
+// context is resolved automatically (see App\Support\PublicTenantResolver).
+Route::controller(\App\Http\Controllers\PublicApplicationController::class)->group(function () {
+    Route::get('apply', 'showForm')->name('apply.form');
+    Route::post('apply', 'submit')->middleware('throttle:5,1')->name('apply.submit');
+});
+
 // Website management routes for Superadmin
 Route::controller(WebsiteManagementController::class)->middleware('auth', 'superAdmin')->group(function () {
     Route::get('superadmin/website-management', 'superadminIndex')->name('superadmin.website.index');
@@ -249,6 +257,7 @@ Route::controller(AdminController::class)->middleware('admin', 'auth')->group(fu
 
     //Admin users route
     Route::get('admin/admin', 'adminList')->name('admin.admin')->middleware('admin_permission');
+    Route::get('admin/admin/export', 'adminListExport')->name('admin.admin.export')->middleware('admin_permission');
     Route::get('admin/admin/create_modal', 'createModal')->name('admin.open_modal');
     Route::post('admin/admin', 'adminCreate')->name('admin.create');
     Route::get('admin/admin/edit_modal/{id}', 'editModal')->name('admin.open_edit_modal');
@@ -272,6 +281,7 @@ Route::controller(AdminController::class)->middleware('admin', 'auth')->group(fu
 
     //Teacher users route
     Route::get('admin/teacher', 'teacherList')->name('admin.teacher')->middleware('admin_permission');
+    Route::get('admin/teacher/export', 'teacherListExport')->name('admin.teacher.export')->middleware('admin_permission');
     Route::get('admin/teacher/create_modal', 'createTeacherModal')->name('admin.teacher.open_modal');
     Route::post('admin/teacher', 'adminTeacherCreate')->name('admin.teacher.create');
     Route::get('admin/teacher/edit/{id}', 'teacherEditModal')->name('admin.teacher_edit_modal');
@@ -281,6 +291,7 @@ Route::controller(AdminController::class)->middleware('admin', 'auth')->group(fu
 
     //Accountant users route
     Route::get('admin/accountant', 'accountantList')->name('admin.accountant')->middleware('admin_permission');
+    Route::get('admin/accountant/export', 'accountantListExport')->name('admin.accountant.export')->middleware('admin_permission');
     Route::get('admin/accountant/create_modal', 'createAccountantModal')->name('admin.accountant.open_modal');
     Route::post('admin/accountant', 'accountantCreate')->name('admin.accountant.create');
     Route::get('admin/accountant/edit/{id}', 'accountantEditModal')->name('admin.accountant_edit_modal');
@@ -290,6 +301,7 @@ Route::controller(AdminController::class)->middleware('admin', 'auth')->group(fu
 
     //Librarian users route
     Route::get('admin/librarian', 'librarianList')->name('admin.librarian')->middleware('admin_permission');
+    Route::get('admin/librarian/export', 'librarianListExport')->name('admin.librarian.export')->middleware('admin_permission');
     Route::get('admin/librarian/create_modal', 'createLibrarianModal')->name('admin.librarian.open_modal');
     Route::post('admin/librarian', 'librarianCreate')->name('admin.librarian.create');
     Route::get('admin/librarian/edit/{id}', 'librarianEditModal')->name('admin.librarian_edit_modal');
@@ -308,6 +320,7 @@ Route::controller(AdminController::class)->middleware('admin', 'auth')->group(fu
 
     //Student users route
     Route::get('admin/student', 'studentList')->name('admin.student')->middleware('admin_permission');
+    Route::get('admin/student/export', 'studentListExport')->name('admin.student.export')->middleware('admin_permission');
     Route::get('admin/student/create_modal', 'createStudentModal')->name('admin.student.open_modal');
     Route::post('admin/student', 'studentCreate')->name('admin.student.create');
     Route::get('admin/student/id_card/{id}', 'studentIdCardGenerate')->name('admin.student.id_card');
@@ -315,9 +328,15 @@ Route::controller(AdminController::class)->middleware('admin', 'auth')->group(fu
     Route::post('admin/student/{id}', 'studentUpdate')->name('admin.student.update');
     Route::get('admin/student/delete/{id}', 'studentDelete')->name('admin.student.delete');
     Route::get('admin/student/student_profile/{id}', 'studentProfile')->name('admin.student.student_profile');
+    Route::get('admin/student/export-excel', 'studentListExportExcel')->name('admin.student.export_excel')->middleware('admin_permission');
+    Route::get('admin/student/profile-pdf/{id}', 'studentProfilePdf')->name('admin.student.profile_pdf');
+    Route::get('admin/student/profile-excel/{id}', 'studentProfileExportExcel')->name('admin.student.profile_excel');
+    Route::get('admin/student/reset-password/{id}', 'studentResetPassword')->name('admin.student.reset_password');
+    Route::get('admin/student/resend-activation/{id}', 'resendStudentActivationEmail')->name('admin.student.resend_activation');
 
     //Warden users route
     Route::get('admin/warden', 'wardenList')->name('admin.warden')->middleware('admin_permission');
+    Route::get('admin/warden/export', 'wardenListExport')->name('admin.warden.export')->middleware('admin_permission');
     Route::post('admin/warden', 'wardenCreate')->name('admin.warden.create');
     Route::get('admin/warden/create', 'createWarden')->name('admin.warden.create_form');
     Route::get('admin/warden/edit/{id}', 'wardenEditModal')->name('admin.warden_edit_modal');
@@ -349,21 +368,21 @@ Route::controller(AdminController::class)->middleware('admin', 'auth')->group(fu
 
     //Exam category routes
     Route::get('admin/exam_category', 'examCategoryList')->name('admin.exam_category')->middleware('admin_permission');
-    Route::get('admin/exam_category/create', 'createExamCategory')->name('admin.exam_category.open_modal');
-    Route::post('admin/exam_category', 'examCategoryCreate')->name('admin.create.exam_category');
-    Route::get('admin/exam_category/{id}', 'editExamCategory')->name('admin.edit.exam_category');
-    Route::post('admin/exam_category/{id}', 'examCategoryUpdate')->name('admin.exam_category.update');
-    Route::get('admin/exam_category/delete/{id}', 'examCategoryDelete')->name('admin.exam_category.delete');
+    Route::get('admin/exam_category/create', 'createExamCategory')->name('admin.exam_category.open_modal')->middleware('admin_permission');
+    Route::post('admin/exam_category', 'examCategoryCreate')->name('admin.create.exam_category')->middleware('admin_permission');
+    Route::get('admin/exam_category/{id}', 'editExamCategory')->name('admin.edit.exam_category')->middleware('admin_permission');
+    Route::post('admin/exam_category/{id}', 'examCategoryUpdate')->name('admin.exam_category.update')->middleware('admin_permission');
+    Route::get('admin/exam_category/delete/{id}', 'examCategoryDelete')->name('admin.exam_category.delete')->middleware('admin_permission');
 
     //Exam routes
     Route::get('admin/offline_exam', 'offlineExamList')->name('admin.offline_exam')->middleware('admin_permission');
-    Route::get('admin/offline_exam/export/{id}', 'offlineExamExport')->name('admin.offline_exam.export');
-    Route::get('admin/exam', 'createOfflineExam')->name('admin.offline_exam.open_modal');
-    Route::post('admin/offline_exam', 'offlineExamCreate')->name('admin.create.offline_exam');
-    Route::get('admin/offline_exam/{id}', 'editOfflineExam')->name('admin.edit.offline_exam');
-    Route::post('admin/offline_exam/{id}', 'offlineExamUpdate')->name('admin.offline_exam.update');
-    Route::get('admin/offline_exam/delete/{id}', 'offlineExamDelete')->name('admin.offline_exam.delete');
-    Route::get('admin/exam_list_by_class/{id}', 'classWiseOfflineExam')->name('admin.class_wise_exam_list');
+    Route::get('admin/offline_exam/export/{id}', 'offlineExamExport')->name('admin.offline_exam.export')->middleware('admin_permission');
+    Route::get('admin/exam', 'createOfflineExam')->name('admin.offline_exam.open_modal')->middleware('admin_permission');
+    Route::post('admin/offline_exam', 'offlineExamCreate')->name('admin.create.offline_exam')->middleware('admin_permission');
+    Route::get('admin/offline_exam/{id}', 'editOfflineExam')->name('admin.edit.offline_exam')->middleware('admin_permission');
+    Route::post('admin/offline_exam/{id}', 'offlineExamUpdate')->name('admin.offline_exam.update')->middleware('admin_permission');
+    Route::get('admin/offline_exam/delete/{id}', 'offlineExamDelete')->name('admin.offline_exam.delete')->middleware('admin_permission');
+    Route::get('admin/exam_list_by_class/{id}', 'classWiseOfflineExam')->name('admin.class_wise_exam_list')->middleware('admin_permission');
 
     //Admit Card
     Route::get('admin/admit-card-list', 'admitCardList')->name('admin.examination.admit_card_list');
@@ -378,49 +397,49 @@ Route::controller(AdminController::class)->middleware('admin', 'auth')->group(fu
 
     //Attendance routes
     Route::get('admin/attendance', 'dailyAttendance')->name('admin.daily_attendance')->middleware('admin_permission');
-    Route::get('admin/take_attendance', 'takeAttendance')->name('admin.take_attendance.open_modal');
-    Route::post('admin/attendance_take', 'attendanceTake')->name('admin.attendance_take');
-    Route::get('admin/attendance/student', 'studentListAttendance')->name('admin.attendance.student');
-    Route::get('admin/attendance/filter', 'dailyAttendanceFilter')->name('admin.daily_attendance.filter');
-    Route::get('admin/attendance/csv', 'dailyAttendanceFilter_csv')->name('admin.dailyAttendanceFilter_csv');
+    Route::get('admin/take_attendance', 'takeAttendance')->name('admin.take_attendance.open_modal')->middleware('admin_permission');
+    Route::post('admin/attendance_take', 'attendanceTake')->name('admin.attendance_take')->middleware('admin_permission');
+    Route::get('admin/attendance/student', 'studentListAttendance')->name('admin.attendance.student')->middleware('admin_permission');
+    Route::get('admin/attendance/filter', 'dailyAttendanceFilter')->name('admin.daily_attendance.filter')->middleware('admin_permission');
+    Route::get('admin/attendance/csv', 'dailyAttendanceFilter_csv')->name('admin.dailyAttendanceFilter_csv')->middleware('admin_permission');
 
     //Routine routes
     Route::get('admin/routine', 'routine')->name('admin.routine')->middleware('admin_permission');
-    Route::get('admin/routine/add_routine', 'addRoutine')->name('admin.routine.open_modal');
-    Route::post('admin/routine/routine_add', 'routineAdd')->name('admin.routine.routine_add');
-    Route::get('admin/routine/list', 'routineList')->name('admin.routine.routine_list');
-    Route::get('admin/routine/edit/{id}', 'routineEditModal')->name('admin.routine_edit_modal');
-    Route::post('admin/routine/{id}', 'routineUpdate')->name('admin.routine.update');
-    Route::get('admin/routine/delete/{id}', 'routineDelete')->name('admin.routine.delete');
+    Route::get('admin/routine/add_routine', 'addRoutine')->name('admin.routine.open_modal')->middleware('admin_permission');
+    Route::post('admin/routine/routine_add', 'routineAdd')->name('admin.routine.routine_add')->middleware('admin_permission');
+    Route::get('admin/routine/list', 'routineList')->name('admin.routine.routine_list')->middleware('admin_permission');
+    Route::get('admin/routine/edit/{id}', 'routineEditModal')->name('admin.routine_edit_modal')->middleware('admin_permission');
+    Route::post('admin/routine/{id}', 'routineUpdate')->name('admin.routine.update')->middleware('admin_permission');
+    Route::get('admin/routine/delete/{id}', 'routineDelete')->name('admin.routine.delete')->middleware('admin_permission');
 
     //Syllabus routes
     Route::get('admin/syllabus', 'syllabus')->name('admin.syllabus')->middleware('admin_permission');
-    Route::get('admin/syllabus/add_routine', 'addSyllabus')->name('admin.syllabus.open_modal');
-    Route::post('admin/syllabus/routine_add', 'syllabusAdd')->name('admin.syllabus.syllabus_add');
-    Route::get('admin/syllabus/list', 'syllabusList')->name('admin.syllabus.syllabus_list');
-    Route::get('admin/syllabus/edit/{id}', 'syllabusEditModal')->name('admin.syllabus_edit_modal');
-    Route::post('admin/syllabus/{id}', 'syllabusUpdate')->name('admin.syllabus.update');
-    Route::get('admin/syllabus/delete/{id}', 'syllabusDelete')->name('admin.syllabus.delete');
+    Route::get('admin/syllabus/add_routine', 'addSyllabus')->name('admin.syllabus.open_modal')->middleware('admin_permission');
+    Route::post('admin/syllabus/routine_add', 'syllabusAdd')->name('admin.syllabus.syllabus_add')->middleware('admin_permission');
+    Route::get('admin/syllabus/list', 'syllabusList')->name('admin.syllabus.syllabus_list')->middleware('admin_permission');
+    Route::get('admin/syllabus/edit/{id}', 'syllabusEditModal')->name('admin.syllabus_edit_modal')->middleware('admin_permission');
+    Route::post('admin/syllabus/{id}', 'syllabusUpdate')->name('admin.syllabus.update')->middleware('admin_permission');
+    Route::get('admin/syllabus/delete/{id}', 'syllabusDelete')->name('admin.syllabus.delete')->middleware('admin_permission');
 
     //Gradebooks routes
     Route::get('admin/gradebook', 'gradebook')->name('admin.gradebook')->middleware('admin_permission');
-    Route::get('admin/gradebook/list', 'gradebookList')->name('admin.gradebook.list');
-    Route::get('admin/gradebook/subjec_marks/{student_id}', 'subjectWiseMarks')->name('admin.gradebook.subject_wise_marks');
-    Route::get('admin/exam/mark', 'addmark')->name('admin.exam_mark.open_modal');
-    Route::post('admin/exam/mark_add', 'markAdd')->name('admin.add.exam_mark');
+    Route::get('admin/gradebook/list', 'gradebookList')->name('admin.gradebook.list')->middleware('admin_permission');
+    Route::get('admin/gradebook/subjec_marks/{student_id}', 'subjectWiseMarks')->name('admin.gradebook.subject_wise_marks')->middleware('admin_permission');
+    Route::get('admin/exam/mark', 'addmark')->name('admin.exam_mark.open_modal')->middleware('admin_permission');
+    Route::post('admin/exam/mark_add', 'markAdd')->name('admin.add.exam_mark')->middleware('admin_permission');
 
     //Marks route
     Route::get('admin/marks', 'marks')->name('admin.marks')->middleware('admin_permission');
-    Route::get('admin/marks/list', 'marksFilter')->name('admin.marks.list');
-    Route::get('admin/marks/list_pdf/{section_id?}/{class_id?}/{session_id?}/{exam_category_id?}/{subject_id?}', 'marksPdf')->name('admin.marks.list_pdf');
+    Route::get('admin/marks/list', 'marksFilter')->name('admin.marks.list')->middleware('admin_permission');
+    Route::get('admin/marks/list_pdf/{section_id?}/{class_id?}/{session_id?}/{exam_category_id?}/{subject_id?}', 'marksPdf')->name('admin.marks.list_pdf')->middleware('admin_permission');
 
     //Grade routes
     Route::get('admin/grade', 'gradeList')->name('admin.grade_list')->middleware('admin_permission');
-    Route::get('admin/grade_create', 'createGrade')->name('admin.grade.open_modal');
-    Route::post('admin/grade', 'gradeCreate')->name('admin.create.grade');
-    Route::get('admin/grade/{id}', 'editGrade')->name('admin.edit.grade');
-    Route::post('admin/grade/{id}', 'gradeUpdate')->name('admin.grade.update');
-    Route::get('admin/grade/delete/{id}', 'gradeDelete')->name('admin.grade.delete');
+    Route::get('admin/grade_create', 'createGrade')->name('admin.grade.open_modal')->middleware('admin_permission');
+    Route::post('admin/grade', 'gradeCreate')->name('admin.create.grade')->middleware('admin_permission');
+    Route::get('admin/grade/{id}', 'editGrade')->name('admin.edit.grade')->middleware('admin_permission');
+    Route::post('admin/grade/{id}', 'gradeUpdate')->name('admin.grade.update')->middleware('admin_permission');
+    Route::get('admin/grade/delete/{id}', 'gradeDelete')->name('admin.grade.delete')->middleware('admin_permission');
 
     //promotion routes
     Route::get('admin/promotion', 'promotionFilter')->name('admin.promotion')->middleware('admin_permission');
@@ -1121,6 +1140,7 @@ Route::controller(InstallController::class)->middleware('is_installed')->group(f
 // ── Programmes ────────────────────────────────────────────────
 Route::controller(ProgrammeController::class)->middleware('auth', 'admin')->group(function () {
     Route::get('admin/programmes',                  'index')->name('admin.programmes.index');
+    Route::get('admin/programmes/export',           'exportCsv')->name('admin.programmes.export');
     Route::get('admin/programmes/open_modal',       'openModal')->name('admin.programmes.open_modal');
     Route::post('admin/programmes/store',           'store')->name('admin.programmes.store');
     Route::post('admin/programmes/update/{id}',     'update')->name('admin.programmes.update');
@@ -1137,18 +1157,21 @@ Route::controller(AdmissionsController::class)->middleware('auth', 'admin')->gro
     Route::post('admin/hei-admissions/status/{id}',            'updateStatus')->name('admin.hei_admissions.status');
     Route::get('admin/hei-admissions/delete/{id}',             'destroy')->name('admin.hei_admissions.destroy');
     Route::get('admin/hei-admissions/offer-letter/{id}',       'printOfferLetter')->name('admin.hei_admissions.offer_letter');
+    Route::get('admin/hei-admissions/export',                  'exportApplicationsCsv')->name('admin.hei_admissions.export');
     // Intake Sessions
     Route::get('admin/intake-sessions',                        'sessions')->name('admin.intake_sessions.index');
     Route::get('admin/intake-sessions/open_modal',             'openSessionModal')->name('admin.intake_sessions.open_modal');
     Route::post('admin/intake-sessions/store',                 'storeSession')->name('admin.intake_sessions.store');
     Route::post('admin/intake-sessions/update/{id}',           'updateSession')->name('admin.intake_sessions.update');
     Route::get('admin/intake-sessions/delete/{id}',            'destroySession')->name('admin.intake_sessions.destroy');
+    Route::get('admin/intake-sessions/export',                 'exportSessionsCsv')->name('admin.intake_sessions.export');
     // Agents
     Route::get('admin/admissions-agents',                      'agents')->name('admin.admissions_agents.index');
     Route::get('admin/admissions-agents/open_modal',           'openAgentModal')->name('admin.admissions_agents.open_modal');
     Route::post('admin/admissions-agents/store',               'storeAgent')->name('admin.admissions_agents.store');
     Route::post('admin/admissions-agents/update/{id}',         'updateAgent')->name('admin.admissions_agents.update');
     Route::get('admin/admissions-agents/delete/{id}',          'destroyAgent')->name('admin.admissions_agents.destroy');
+    Route::get('admin/admissions-agents/export',               'exportAgentsCsv')->name('admin.admissions_agents.export');
 });
 
 // ── Fee Structures ────────────────────────────────────────────
@@ -1344,6 +1367,7 @@ Route::controller(PayrollController::class)->middleware('auth', 'admin')->group(
     Route::get('admin/payroll/approve/{id}',         'approve')->name('admin.payroll.approve');
     Route::get('admin/payroll/paid/{id}',            'markPaid')->name('admin.payroll.paid');
     Route::get('admin/payroll/print/{id}',           'printSlip')->name('admin.payroll.print');
+    Route::get('admin/payroll/export',               'exportCsv')->name('admin.payroll.export');
     Route::get('admin/salary-structures',            'salaryIndex')->name('admin.salary_structures.index');
     Route::get('admin/salary-structures/modal',      'salaryModal')->name('admin.salary_structures.modal');
     Route::post('admin/salary-structures/store',     'storeSalary')->name('admin.salary_structures.store');
@@ -1375,6 +1399,7 @@ Route::controller(AssetController::class)->middleware('auth', 'admin')->group(fu
     Route::post('admin/assets/store',                 'store')->name('admin.assets.store');
     Route::post('admin/assets/update/{id}',           'update')->name('admin.assets.update');
     Route::get('admin/assets/delete/{id}',            'destroy')->name('admin.assets.destroy');
+    Route::get('admin/assets/export',                 'exportCsv')->name('admin.assets.export');
     Route::get('admin/asset-categories',              'categories')->name('admin.asset_categories.index');
     Route::get('admin/asset-categories/modal',        'categoryModal')->name('admin.asset_categories.modal');
     Route::post('admin/asset-categories/store',       'storeCategory')->name('admin.asset_categories.store');
@@ -1388,12 +1413,15 @@ Route::controller(ProcurementController::class)->middleware('auth', 'admin')->gr
     Route::post('admin/procurement/store',         'store')->name('admin.procurement.store');
     Route::post('admin/procurement/status/{id}',   'updateStatus')->name('admin.procurement.status');
     Route::get('admin/procurement/delete/{id}',    'destroy')->name('admin.procurement.destroy');
+    Route::get('admin/procurement/export',         'exportCsv')->name('admin.procurement.export');
 });
 
 // ── Audit Log ─────────────────────────────────────────────────
 Route::controller(AuditLogController::class)->middleware('auth')->group(function () {
     Route::get('admin/audit-log', 'index')->name('admin.audit_log.index')->middleware('admin');
+    Route::get('admin/audit-log/{id}', 'show')->name('admin.audit_log.show')->middleware('admin');
     Route::get('superadmin/audit-log', 'index')->name('superadmin.audit_log.index')->middleware('superAdmin');
+    Route::get('superadmin/audit-log/{id}', 'show')->name('superadmin.audit_log.show')->middleware('superAdmin');
 });
 
 // ── Transcripts ───────────────────────────────────────────────

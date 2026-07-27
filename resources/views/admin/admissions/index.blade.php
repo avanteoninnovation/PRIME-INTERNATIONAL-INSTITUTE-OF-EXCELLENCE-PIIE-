@@ -11,6 +11,7 @@
                 </ul>
             </div>
             <div class="export-btn-area d-flex gap-2">
+                <a href="{{ route('admin.hei_admissions.export', ['search' => $search, 'status' => $status, 'session_id' => $session_id, 'source' => $source]) }}" class="export_btn export_btn-outline"><i class="bi bi-download"></i> {{ get_phrase('Export CSV') }}</a>
                 <a href="{{ route('admin.intake_sessions.index') }}" class="export_btn export_btn-outline">{{ get_phrase('Intake Sessions') }}</a>
                 <a href="{{ route('admin.admissions_agents.index') }}" class="export_btn export_btn-outline">{{ get_phrase('Agents') }}</a>
                 <a href="javascript:;" class="export_btn" onclick="rightModal('{{ route('admin.hei_admissions.open_modal') }}', '{{ get_phrase('New Application') }}')">{{ get_phrase('Add Application') }}</a>
@@ -43,6 +44,11 @@
                     <option value="{{ $sess->id }}" {{ $session_id == $sess->id ? 'selected' : '' }}>{{ $sess->name }}</option>
                 @endforeach
             </select>
+            <select name="source" class="form-control eForm-control" style="max-width:180px">
+                <option value="">{{ get_phrase('All Sources') }}</option>
+                <option value="public" {{ $source == 'public' ? 'selected' : '' }}>{{ get_phrase('Public Applications') }}</option>
+                <option value="staff_entry" {{ $source == 'staff_entry' ? 'selected' : '' }}>{{ get_phrase('Staff Entries') }}</option>
+            </select>
             <button type="submit" class="eBtn">{{ get_phrase('Filter') }}</button>
         </form>
 
@@ -51,10 +57,11 @@
                 <thead><tr>
                     <th>#</th><th>{{ get_phrase('App No.') }}</th><th>{{ get_phrase('Applicant') }}</th>
                     <th>{{ get_phrase('Programme') }}</th><th>{{ get_phrase('Session') }}</th>
-                    <th>{{ get_phrase('Status') }}</th><th>{{ get_phrase('Date') }}</th><th>{{ get_phrase('Actions') }}</th>
+                    <th>{{ get_phrase('Status') }}</th><th>{{ get_phrase('Source') }}</th><th>{{ get_phrase('Activation') }}</th><th>{{ get_phrase('Date') }}</th><th>{{ get_phrase('Actions') }}</th>
                 </tr></thead>
                 <tbody>
                 @forelse($admissions as $i => $app)
+                @php $studentUser = $studentsByEmail->get(strtolower($app->email ?? '')); @endphp
                 <tr>
                     <td>{{ $admissions->firstItem() + $i }}</td>
                     <td><small class="text-muted">{{ $app->app_number }}</small></td>
@@ -68,12 +75,31 @@
                         @php $colors = ['submitted'=>'info','under_review'=>'warning','accepted'=>'success','rejected'=>'danger','enrolled'=>'primary','withdrawn'=>'secondary']; @endphp
                         <span class="badge bg-{{ $colors[$app->status] ?? 'secondary' }}">{{ ucfirst(str_replace('_',' ',$app->status)) }}</span>
                     </td>
+                    <td>
+                        @if($app->source === 'public')
+                            <span class="badge bg-info-subtle text-info" title="{{ get_phrase('Submitted by the applicant through the public apply form') }}">{{ get_phrase('Public') }}</span>
+                        @else
+                            <span class="badge bg-light text-dark" title="{{ get_phrase('Entered by staff in the Admin panel') }}">{{ get_phrase('Staff Entry') }}</span>
+                        @endif
+                    </td>
+                    <td>
+                        @if(!$studentUser)
+                            <span class="badge bg-secondary">{{ get_phrase('Not Created') }}</span>
+                        @elseif($studentUser->force_password_change)
+                            <span class="badge bg-warning text-dark">{{ get_phrase('Activation Pending') }}</span>
+                        @else
+                            <span class="badge bg-success">{{ get_phrase('Activated') }}</span>
+                        @endif
+                    </td>
                     <td><small>{{ $app->created_at->format('d M Y') }}</small></td>
                     <td>
                         <div class="d-flex gap-1">
                             <a href="javascript:;" class="eBtn eBtn-sm eBtn-primary" onclick="rightModal('{{ route('admin.hei_admissions.open_modal', ['id' => $app->id]) }}', '{{ get_phrase('Edit Application') }}')"><i class="bi bi-pencil"></i></a>
                             @if($app->status === 'accepted')
                             <a href="{{ route('admin.hei_admissions.offer_letter', $app->id) }}" class="eBtn eBtn-sm eBtn-success" title="{{ get_phrase('Offer Letter') }}"><i class="bi bi-file-pdf"></i></a>
+                            @endif
+                            @if($studentUser)
+                            <a href="javascript:;" class="eBtn eBtn-sm eBtn-warning" title="{{ get_phrase('Resend Activation Email') }}" onclick="confirmModal('{{ route('admin.student.resend_activation', $studentUser->id) }}', 'undefined');"><i class="bi bi-envelope-arrow-up"></i></a>
                             @endif
                             <form action="{{ route('admin.hei_admissions.status', $app->id) }}" method="POST" class="d-inline">
                                 @csrf
@@ -88,7 +114,7 @@
                     </td>
                 </tr>
                 @empty
-                <tr><td colspan="8" class="text-center text-muted py-4">{{ get_phrase('No applications found') }}</td></tr>
+                <tr><td colspan="10" class="text-center text-muted py-4">{{ get_phrase('No applications found') }}</td></tr>
                 @endforelse
                 </tbody>
             </table>

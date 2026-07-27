@@ -758,13 +758,20 @@ class SuperAdminController extends Controller
             } 
 
             set_config('MAIL_FROM_ADDRESS', get_settings('system_email'));
-            
-            GlobalSettings::where('key', $key)->update([
-                'key' => $key,
-                'value' => $value,
-            ]);
+
+            if (DB::table('global_settings')->where('key', $key)->get()->count() > 0) {
+                GlobalSettings::where('key', $key)->update([
+                    'key' => $key,
+                    'value' => $value,
+                ]);
+            } else {
+                GlobalSettings::create([
+                    'key' => $key,
+                    'value' => $value,
+                ]);
+            }
         }
-        
+
 
         return redirect()->back()->with('message','Smtp settings updated successfully.');
     }

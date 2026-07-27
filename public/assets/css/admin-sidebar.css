@@ -1,0 +1,254 @@
+/* ============================================================
+   Admin sidebar theme + responsive layout fix.
+   Shared by resources/views/admin/navigation.blade.php and
+   resources/views/layouts/app.blade.php so the two pages stop
+   duplicating (and disagreeing on) the sidebar width — the previous
+   per-page inline overrides forced .sidebar to 280px but only one of
+   the two pages also resized .home-section to match, so the content
+   area on the other page started underneath ~57px of sidebar.
+   Loaded after style.css/main.css, so it intentionally overrides the
+   default 223px blue-gradient sidebar with this dark-navy 280px theme;
+   other roles' navigation partials do not link this file and keep
+   their original look untouched.
+   ============================================================ */
+
+/* ---- Sidebar shell ---- */
+.sidebar {
+    background: #1a2332 !important;
+    width: 280px !important;
+}
+
+.sidebar .logo-details {
+    padding: 20px 25px !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    margin-bottom: 10px !important;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.sidebar .logo-details .img_wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.sidebar .logo-details .img_wrapper img {
+    max-height: 45px !important;
+    width: auto !important;
+    object-fit: contain;
+}
+
+.sidebar .logo-details .logo_name {
+    font-size: 16px !important;
+    font-weight: 600 !important;
+    color: #ffffff !important;
+    letter-spacing: 0.5px;
+}
+
+/* ---- Section headers ---- */
+.nav-section-header {
+    padding: 12px 25px 6px 25px;
+    font-size: 11px;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.35);
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    margin-top: 4px;
+}
+
+.nav-section-header:first-of-type {
+    border-top: none;
+    margin-top: 0;
+}
+
+/* ---- Nav items ---- */
+.nav-links {
+    padding: 0 !important;
+    margin: 0 !important;
+}
+
+.nav-links-li {
+    list-style: none;
+    margin: 2px 0 !important;
+}
+
+.nav-links-li .iocn-link a {
+    display: flex;
+    align-items: center;
+    padding: 10px 20px !important;
+    color: rgba(255, 255, 255, 0.7) !important;
+    text-decoration: none !important;
+    transition: all 0.3s ease;
+    border-radius: 0 !important;
+    font-size: 14px;
+    font-weight: 400;
+}
+
+.nav-links-li .iocn-link a:hover {
+    color: #ffffff !important;
+    background: rgba(255, 255, 255, 0.06) !important;
+}
+
+.nav-links-li .iocn-link a .sidebar_icon {
+    width: 22px;
+    height: 22px;
+    margin-right: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.nav-links-li .iocn-link a .sidebar_icon svg {
+    width: 20px;
+    height: 20px;
+    stroke: rgba(255, 255, 255, 0.6);
+    transition: stroke 0.3s ease;
+}
+
+.nav-links-li .iocn-link a:hover .sidebar_icon svg {
+    stroke: #ffffff;
+}
+
+.nav-links-li .iocn-link a .link_name {
+    font-size: 14px;
+    font-weight: 400;
+    color: rgba(255, 255, 255, 0.7);
+    transition: color 0.3s ease;
+}
+
+.nav-links-li .iocn-link a:hover .link_name {
+    color: #ffffff;
+}
+
+.nav-links-li .iocn-link a.active {
+    background: rgba(52, 110, 235, 0.15) !important;
+    color: #ffffff !important;
+    border-left: 3px solid #346eeb;
+}
+
+.nav-links-li .iocn-link a.active .sidebar_icon svg {
+    stroke: #346eeb !important;
+}
+
+.nav-links-li .iocn-link a.active .link_name {
+    color: #ffffff !important;
+    font-weight: 500;
+}
+
+/* ---- Sub-menu ---- */
+.sub-menu {
+    padding: 0 !important;
+    margin: 0 !important;
+    background: rgba(0, 0, 0, 0.15) !important;
+}
+
+.sub-menu li a {
+    display: flex;
+    align-items: center;
+    padding: 8px 20px 8px 56px !important;
+    color: rgba(255, 255, 255, 0.6) !important;
+    text-decoration: none !important;
+    font-size: 13px;
+    transition: all 0.3s ease;
+    border-left: 2px solid transparent;
+}
+
+.sub-menu li a:hover {
+    color: #ffffff !important;
+    background: rgba(255, 255, 255, 0.04) !important;
+}
+
+.sub-menu li a.active {
+    color: #346eeb !important;
+    border-left: 2px solid #346eeb;
+    background: rgba(52, 110, 235, 0.08) !important;
+}
+
+.sub-menu li a .sidebar_icon {
+    display: none;
+}
+
+/* ---- Arrow ---- */
+.arrow svg {
+    fill: rgba(255, 255, 255, 0.3);
+}
+
+/* ---- Logout item ---- */
+.nav-links-li:last-child .iocn-link a {
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    margin-top: 6px;
+    padding-top: 14px;
+}
+
+.nav-links-li:last-child .iocn-link a .sidebar_icon svg {
+    stroke: #e74c3c;
+}
+
+.nav-links-li:last-child .iocn-link a:hover .sidebar_icon svg {
+    stroke: #ff6b6b;
+}
+
+/* ---- Notification badge (layouts/app.blade.php header) ---- */
+.notification-badge {
+    background: #dc3545;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 700;
+    color: #fff;
+    margin-left: auto;
+    margin-right: 10px;
+}
+
+.sidebar.close .notification-badge {
+    display: none;
+}
+
+/* ============================================================
+   Layout widths — kept in sync with .sidebar above so the content
+   area (.home-section, from style.css) never disagrees with the
+   sidebar's actual rendered width. This is the fix for the reported
+   overlap: previously only one of the two pages using this theme
+   also resized .home-section to match the 280px override.
+   ============================================================ */
+.home-section {
+    left: 280px;
+    width: calc(100% - 280px);
+}
+
+.sidebar.close ~ .home-section {
+    left: 78px;
+    width: calc(100% - 78px);
+}
+
+/* ---- Mobile: off-canvas drawer (same .close-toggle convention used
+   everywhere else in the app — see public/assets/js/script.js's
+   .menuList/.closeIcon handlers — no separate toggle mechanism) ---- */
+@media screen and (max-width: 991px) {
+    .sidebar {
+        width: 240px !important;
+        left: -240px;
+    }
+
+    .sidebar.close {
+        width: 260px !important;
+        left: 0;
+    }
+
+    .home-section,
+    .sidebar.close ~ .home-section {
+        left: 0;
+        width: 100%;
+    }
+
+    .closeIcon {
+        display: block;
+    }
+}

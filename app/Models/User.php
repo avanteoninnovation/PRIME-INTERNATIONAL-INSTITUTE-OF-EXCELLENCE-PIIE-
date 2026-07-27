@@ -35,7 +35,8 @@ class User extends Authenticatable
         'designation',
         'language',
         'school_role',
-        'account_status'
+        'account_status',
+        'force_password_change'
     ];
 
     /**
@@ -55,6 +56,7 @@ class User extends Authenticatable
      */
     protected $casts = [
         'email_verified_at' => 'datetime',
+        'force_password_change' => 'boolean',
     ];
 
     public function checkEnrollment()
@@ -75,6 +77,11 @@ class User extends Authenticatable
     return $this->hasOne(Enrollment::class, 'user_id');
 }
 
+    public function studentProfile()
+    {
+        return $this->hasOne(StudentProfile::class, 'user_id');
+    }
+
         public function liveClassesAsLecturer()
         {
             return $this->hasMany(LiveClass::class, 'teacher_id');
@@ -85,5 +92,11 @@ class User extends Authenticatable
             return $this->hasMany(LiveClass::class, 'created_by');
         }
 
+    /** Human-readable label for audit log entries (see AuditableObserver). */
+    public function auditLabel(): string
+    {
+        $role = AuditLog::roleName($this->role_id);
 
+        return trim(($role ? "{$role} " : '') . ($this->name ?? "User #{$this->id}"));
+    }
 }

@@ -7,7 +7,9 @@ use App\Mail\FreeEmail;
 use App\Mail\NewUserEmail;
 use App\Mail\StudentsEmail;
 use App\Models\Admin;
+use App\Models\Admission;
 use App\Models\AdmitCard;
+use App\Models\AcademicCalendar;
 use App\Models\Appraisal;
 use App\Models\Appraisal_submit;
 use App\Models\AuditLog;
@@ -43,16 +45,21 @@ use App\Models\Package;
 use App\Models\PaymentHistory;
 use App\Models\PaymentMethods;
 use App\Models\Payments;
+use App\Models\Programme;
+use App\Models\IntakeSession;
 use App\Models\Routine;
 use App\Models\School;
 use App\Models\Section;
 use App\Models\Session;
 use App\Models\StudentFeeManager;
+use App\Models\StudentProfile;
 use App\Models\Subject;
 use App\Models\Subscription;
 use App\Models\Syllabus;
 use App\Models\TeacherPermission;
 use App\Models\User;
+use App\Support\StudentFeeInvoiceGenerator;
+use App\Support\StudentPortalActivation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -60,6 +67,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Mail;
 use PDF;
 
@@ -171,20 +179,10 @@ class AdminController extends Controller
 
     public function adminDashboard()
     {
-        $account_status = auth()->user()->account_status;
         if (auth()->user()->role_id != "") {
             $roleId = (int) auth()->user()->role_id;
-            $data = [
-                'totalSchools' => School::count(),
-                'activeSchools' => School::where('status', 1)->count(),
-                'pendingSchools' => School::where('status', 0)->count(),
-                'totalAdmins' => User::where('role_id', 2)->count(),
-                'totalSubscriptions' => Subscription::where('active', 1)->count(),
-                'totalRevenue' => Subscription::sum('paid_amount'),
-                'recentSchools' => School::orderBy('id', 'desc')->limit(5)->get(),
-                'recentActivities' => AuditLog::orderBy('id', 'desc')->limit(10)->get(),
-                'activeSubscriptions' => Subscription::with(['school', 'package'])->where('active', 1)->limit(5)->get(),
-            ];
+            $data = $this->schoolDashboardData();
+
             // Role-specific dashboards for new HEI roles
             $roleDashboards = [
                 14 => 'admin.dashboard_director',
@@ -205,6 +203,90 @@ class AdminController extends Controller
             redirect()->route('login')
                 ->with('error', 'You are not logged in.');
         }
+    }
+
+    /**
+     * School-scoped stats for the (school) Admin dashboard.
+     *
+     * Deliberately never touches platform-wide tables (schools, subscriptions,
+     * packages) — that data belongs solely to the Super Admin dashboard
+     * (SuperAdminController::superadminDashboard()). Every query here is
+     * filtered by the authenticated admin's own school_id so one school's
+     * admin can never see another school's counts.
+     */
+    private function schoolDashboardData(): array
+    {
+        $schoolId = auth()->user()->school_id;
+
+        $todayStart = strtotime(date('d M Y'));
+        $todayEnd   = $todayStart + 86400;
+        $monthStart = strtotime(date('1 M Y'));
+        $monthEnd   = strtotime(date('t M Y', $monthStart)) + 86400;
+
+        return [
+            'totalStudents'   => User::where('school_id', $schoolId)->where('role_id', 7)->count(),
+            'activeStudents'  => User::where('school_id', $schoolId)->where('role_id', 7)->where('account_status', '!=', 'disable')->count(),
+            'totalTeachers'   => User::where('school_id', $schoolId)->where('role_id', 3)->count(),
+            'totalStaff'      => User::where('school_id', $schoolId)->whereNotIn('role_id', [6, 7])->count(),
+            'totalParents'    => User::where('school_id', $schoolId)->where('role_id', 6)->count(),
+            'totalClasses'    => Classes::where('school_id', $schoolId)->count(),
+            'totalCourses'    => Programme::where('school_id', $schoolId)->where('is_active', 1)->count(),
+            'totalSubjects'   => Subject::where('school_id', $schoolId)->count(),
+            'attendanceToday' => DailyAttendances::where('school_id', $schoolId)->whereBetween('timestamp', [$todayStart, $todayEnd])->count(),
+            'classesToday'    => Routine::where('school_id', $schoolId)->where('day', strtolower(date('l')))->count(),
+            'feeCollectedThisMonth' => (float) StudentFeeManager::where('school_id', $schoolId)->whereBetween('timestamp', [$monthStart, $monthEnd])->sum('paid_amount'),
+            'outstandingFees' => max(0, (float) StudentFeeManager::where('school_id', $schoolId)->sum('total_amount') - (float) StudentFeeManager::where('school_id', $schoolId)->sum('paid_amount')),
+            'pendingApprovals'    => Admission::where('school_id', $schoolId)->whereIn('status', ['submitted', 'under_review'])->count(),
+            'totalBooks'          => Book::where('school_id', $schoolId)->count(),
+            'booksIssued'         => BookIssue::where('school_id', $schoolId)->where('status', 0)->count(),
+            'recentAdmissions'    => Admission::where('school_id', $schoolId)->with('programme')->latest()->limit(5)->get(),
+            'recentAnnouncements' => Noticeboard::where('school_id', $schoolId)->latest()->limit(5)->get(),
+            'upcomingEvents'      => FrontendEvent::where('school_id', $schoolId)->where('timestamp', '>', time())->orderBy('timestamp')->limit(5)->get(),
+            'upcomingCalendar'    => AcademicCalendar::where('school_id', $schoolId)->whereDate('event_date', '>=', now()->toDateString())->orderBy('event_date')->limit(5)->get(),
+        ];
+    }
+
+    /**
+     * Stream a CSV export of users for a given role, honoring the same
+     * name/email search filter used by that role's list page.
+     */
+    private function exportUsersByRoleCsv($role_id, $search, $filename)
+    {
+        $school_id = auth()->user()->school_id;
+        $users = User::where('school_id', $school_id)
+            ->where('role_id', $role_id)
+            ->when($search, function ($query) use ($search) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('name', 'LIKE', "%{$search}%")
+                        ->orWhere('email', 'LIKE', "%{$search}%");
+                });
+            })
+            ->orderBy('name')
+            ->get();
+
+        $headers = [
+            'Content-Type'        => 'text/csv',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        ];
+
+        $callback = function () use ($users) {
+            $out = fopen('php://output', 'w');
+            fputcsv($out, ['#', 'Name', 'Email', 'Phone', 'Address', 'Account status']);
+            foreach ($users as $i => $user) {
+                $info = (object) array_merge(['phone' => null, 'address' => null], (array) (json_decode($user->user_information ?? '') ?: []));
+                fputcsv($out, [
+                    $i+1,
+                    $user->name,
+                    $user->email,
+                    $info->phone,
+                    $info->address,
+                    $user->account_status == 'disable' ? 'Disabled' : 'Enabled',
+                ]);
+            }
+            fclose($out);
+        };
+
+        return response()->stream($callback, 200, $headers);
     }
 
     /**
@@ -233,6 +315,11 @@ class AdminController extends Controller
         }
 
         return view('admin.admin.admin_list', compact('admins', 'search'));
+    }
+
+    public function adminListExport(Request $request)
+    {
+        return $this->exportUsersByRoleCsv(2, $request['search'] ?? '', 'admins_' . date('Y-m-d') . '.csv');
     }
 
     /**
@@ -332,11 +419,14 @@ class AdminController extends Controller
         ];
 
         $data['user_information'] = json_encode($info);
-        User::where('id', $id)->update([
-            'name'             => $data['name'],
-            'email'            => $data['email'],
-            'user_information' => $data['user_information'],
-        ]);
+        $user = User::find($id);
+        if ($user) {
+            $user->update([
+                'name'             => $data['name'],
+                'email'            => $data['email'],
+                'user_information' => $data['user_information'],
+            ]);
+        }
 
         return redirect()->back()->with('message', 'You have successfully update user.');
     }
@@ -386,9 +476,12 @@ class AdminController extends Controller
 
         $normalized = array_values(array_unique($normalized));
 
-        User::where('id', $id)->update([
-            'menu_permission' => json_encode($normalized),
-        ]);
+        $user = User::find($id);
+        if ($user) {
+            $user->update([
+                'menu_permission' => json_encode($normalized),
+            ]);
+        }
 
         return redirect()->back()->with('message', 'You have successfully updated user permissions.');
     }
@@ -406,7 +499,10 @@ class AdminController extends Controller
         $userId = $request->input('user_id');
 
         $data['password'] = Hash::make($request->password);
-        User::where('id', $userId)->update($data);
+        $user = User::find($userId);
+        if ($user) {
+            $user->update($data);
+        }
 
         return redirect()->back()->with('message', 'You have successfully update password.');
     }
@@ -538,6 +634,11 @@ class AdminController extends Controller
         return view('admin.teacher.teacher_list', compact('teachers', 'search'));
     }
 
+    public function teacherListExport(Request $request)
+    {
+        return $this->exportUsersByRoleCsv(3, $request['search'] ?? '', 'teachers_' . date('Y-m-d') . '.csv');
+    }
+
     /**
      * Show the teacher add modal.
      *
@@ -650,13 +751,16 @@ class AdminController extends Controller
         ];
 
         $data['user_information'] = json_encode($info);
-        User::where('id', $id)->update([
-            'name'             => $data['name'],
-            'email'            => $data['email'],
-            'user_information' => $data['user_information'],
-            'department_id'    => $data['department_id'] ?? null,
-            'designation'      => $data['designation'] ?? '',
-        ]);
+        $user = User::find($id);
+        if ($user) {
+            $user->update([
+                'name'             => $data['name'],
+                'email'            => $data['email'],
+                'user_information' => $data['user_information'],
+                'department_id'    => $data['department_id'] ?? null,
+                'designation'      => $data['designation'] ?? '',
+            ]);
+        }
         return redirect()->back()->with('message', 'You have successfully update teacher.');
     }
 
@@ -698,6 +802,11 @@ class AdminController extends Controller
         }
 
         return view('admin.accountant.accountant_list', compact('accountants', 'search'));
+    }
+
+    public function accountantListExport(Request $request)
+    {
+        return $this->exportUsersByRoleCsv(4, $request['search'] ?? '', 'accountants_' . date('Y-m-d') . '.csv');
     }
 
     public function createAccountantModal(Request $request)
@@ -803,11 +912,14 @@ class AdminController extends Controller
 
         $data['user_information'] = json_encode($info);
 
-        User::where('id', $id)->update([
-            'name'             => $data['name'],
-            'email'            => $data['email'],
-            'user_information' => $data['user_information'],
-        ]);
+        $user = User::find($id);
+        if ($user) {
+            $user->update([
+                'name'             => $data['name'],
+                'email'            => $data['email'],
+                'user_information' => $data['user_information'],
+            ]);
+        }
 
         return redirect()->back()->with('message', 'You have successfully update accountant.');
     }
@@ -851,6 +963,11 @@ class AdminController extends Controller
         }
 
         return view('admin.librarian.librarian_list', compact('librarians', 'search'));
+    }
+
+    public function librarianListExport(Request $request)
+    {
+        return $this->exportUsersByRoleCsv(5, $request['search'] ?? '', 'librarians_' . date('Y-m-d') . '.csv');
     }
 
     public function createLibrarianModal()
@@ -942,11 +1059,14 @@ class AdminController extends Controller
         ];
 
         $data['user_information'] = json_encode($info);
-        User::where('id', $id)->update([
-            'name'             => $data['name'],
-            'email'            => $data['email'],
-            'user_information' => $data['user_information'],
-        ]);
+        $user = User::find($id);
+        if ($user) {
+            $user->update([
+                'name'             => $data['name'],
+                'email'            => $data['email'],
+                'user_information' => $data['user_information'],
+            ]);
+        }
         return redirect()->back()->with('message', 'You have successfully update librarian.');
     }
 
@@ -1050,7 +1170,7 @@ class AdminController extends Controller
             $users = User::where('id', $student)->get();
 
             if (count($users) == 1) {
-                User::where('id', $student)->update([
+                $users->first()->update([
                     'parent_id' => $parent->id,
                 ]);
             } else {
@@ -1059,7 +1179,7 @@ class AdminController extends Controller
                         $enrollment = Enrollment::where('class_id', $class_id)->where('section_id', $section_id)->where('user_id', $user->id)->where('school_id', auth()->user()->school_id)->first();
 
                         if ($enrollment != '') {
-                            User::where('id', $user->id)->update([
+                            $user->update([
                                 'parent_id' => $parent->id,
                             ]);
                         }
@@ -1116,14 +1236,19 @@ class AdminController extends Controller
 
         $data['user_information'] = json_encode($info);
 
-        User::where('id', $id)->update([
-            'name'             => $data['name'],
-            'email'            => $data['email'],
-            'user_information' => $data['user_information'],
-        ]);
+        $parentUser = User::find($id);
+        if ($parentUser) {
+            $parentUser->update([
+                'name'             => $data['name'],
+                'email'            => $data['email'],
+                'user_information' => $data['user_information'],
+            ]);
+        }
 
         //Previous parent has been empty
-        User::where('parent_id', $id)->update(['parent_id' => null]);
+        foreach (User::where('parent_id', $id)->get() as $previousChild) {
+            $previousChild->update(['parent_id' => null]);
+        }
 
         $students = $data['student_id'] ?? [];
         foreach ($students as $student) {
@@ -1131,7 +1256,7 @@ class AdminController extends Controller
                 $user = User::where('id', $student)->first();
 
                 if ($user != '') {
-                    User::where('id', $user->id)->update([
+                    $user->update([
                         'parent_id' => $id,
                     ]);
                 }
@@ -1174,6 +1299,11 @@ class AdminController extends Controller
         }
 
         return view('admin.warden.warden_list', compact('wardens', 'search'));
+    }
+
+    public function wardenListExport(Request $request)
+    {
+        return $this->exportUsersByRoleCsv(10, $request['search'] ?? '', 'wardens_' . date('Y-m-d') . '.csv');
     }
 
     public function createWarden()
@@ -1267,11 +1397,14 @@ class AdminController extends Controller
         ];
 
         $data['user_information'] = json_encode($info);
-        User::where('id', $id)->update([
-            'name'             => $data['name'],
-            'email'            => $data['email'],
-            'user_information' => $data['user_information'],
-        ]);
+        $user = User::find($id);
+        if ($user) {
+            $user->update([
+                'name'             => $data['name'],
+                'email'            => $data['email'],
+                'user_information' => $data['user_information'],
+            ]);
+        }
         return redirect()->back()->with('message', 'You have successfully update warden.');
     }
 
@@ -1315,30 +1448,256 @@ class AdminController extends Controller
             $users->where('class_id', $class_id);
         }
 
-        $students = $users->join('enrollments', 'users.id', '=', 'enrollments.user_id')->select('enrollments.*')->paginate(10);
+        $students = $users->join('enrollment', 'users.id', '=', 'enrollment.user_id')->select('enrollment.*')->paginate(10);
 
         $classes = Classes::get()->where('school_id', auth()->user()->school_id);
 
         return view('admin.student.student_list', compact('students', 'search', 'classes', 'class_id', 'section_id'));
     }
 
+    public function studentListExport(Request $request)
+    {
+        $search     = $request['search'] ?? "";
+        $class_id   = $request['class_id'] ?? "";
+        $section_id = $request['section_id'] ?? "";
+        $school_id  = auth()->user()->school_id;
+
+        $users = User::where(function ($query) use ($search) {
+            $query->where('users.name', 'LIKE', "%{$search}%")
+                ->orWhere('users.email', 'LIKE', "%{$search}%");
+        });
+
+        $users->where('users.school_id', $school_id)
+            ->where('users.role_id', 7);
+
+        if ($section_id == 'all' || $section_id != "") {
+            $users->where('section_id', $section_id);
+        }
+
+        if ($class_id == 'all' || $class_id != "") {
+            $users->where('class_id', $class_id);
+        }
+
+        $students = $users->join('enrollment', 'users.id', '=', 'enrollment.user_id')->select('enrollment.*')->get();
+
+        $headers = [
+            'Content-Type'        => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="students_' . date('Y-m-d') . '.csv"',
+        ];
+
+        $callback = function () use ($students) {
+            $out = fopen('php://output', 'w');
+            fputcsv($out, ['#', 'Name', 'Email', 'Phone', 'Address', 'Account status']);
+            foreach ($students as $i => $enrollment) {
+                $student = DB::table('users')->where('id', $enrollment->user_id)->first();
+                if (!$student) {
+                    continue;
+                }
+                $info = (object) array_merge(['phone' => null, 'address' => null], (array) (json_decode($student->user_information ?? '') ?: []));
+                fputcsv($out, [
+                    $i+1,
+                    $student->name,
+                    $student->email,
+                    $info->phone,
+                    $info->address,
+                    $student->account_status == 'disable' ? 'Disabled' : 'Enabled',
+                ]);
+            }
+            fclose($out);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
+
+    /**
+     * Genuine .xlsx export (PhpSpreadsheet — see App\Support\Export\ExcelExportService),
+     * alongside the existing CSV export above, which is left untouched.
+     */
+    public function studentListExportExcel(Request $request)
+    {
+        $search     = $request['search'] ?? "";
+        $class_id   = $request['class_id'] ?? "";
+        $section_id = $request['section_id'] ?? "";
+        $school_id  = auth()->user()->school_id;
+
+        $users = User::where('users.school_id', $school_id)
+            ->where('users.role_id', 7)
+            ->where(function ($query) use ($search) {
+                $query->where('users.name', 'LIKE', "%{$search}%")
+                    ->orWhere('users.email', 'LIKE', "%{$search}%");
+            });
+
+        if ($section_id == 'all' || $section_id != "") {
+            $users->where('section_id', $section_id);
+        }
+        if ($class_id == 'all' || $class_id != "") {
+            $users->where('class_id', $class_id);
+        }
+
+        $enrollments = $users->join('enrollment', 'users.id', '=', 'enrollment.user_id')->select('enrollment.*')->get();
+
+        $rows = [];
+        foreach ($enrollments as $i => $enrollment) {
+            $student = User::find($enrollment->user_id);
+            if (! $student) {
+                continue;
+            }
+            $profile = StudentProfile::where('user_id', $student->id)->first();
+            $info = (object) array_merge(['phone' => null, 'gender' => null, 'blood_group' => null], (array) (json_decode($student->user_information ?? '') ?: []));
+
+            $rows[] = [
+                $i + 1,
+                $student->code,
+                $student->name,
+                $student->email,
+                $info->phone,
+                $info->gender,
+                $info->blood_group,
+                optional($profile?->programme)->name,
+                optional($profile?->intakeSession)->name,
+                $profile->status ?? 'active',
+                $student->account_status == 'disable' ? 'Disabled' : 'Enabled',
+            ];
+        }
+
+        return \App\Support\Export\ExcelExportService::download(
+            'students_' . date('Y-m-d'),
+            ['#', 'Registration No.', 'Name', 'Email', 'Phone', 'Gender', 'Blood Group', 'Programme', 'Intake', 'Status', 'Account Status'],
+            $rows
+        );
+    }
+
+    /**
+     * Printable / PDF student profile (dompdf — same package already used
+     * for transcripts and admission offer letters). ?inline=1 streams it in
+     * the browser for printing rather than forcing a file download.
+     */
+    public function studentProfilePdf(Request $request, $id)
+    {
+        $student_details = (new CommonController)->get_student_details_by_id($id);
+        $profile = StudentProfile::where('user_id', $id)->first();
+        $pdf = PDF::loadView('admin.student.profile_pdf', ['student_details' => $student_details, 'profile' => $profile]);
+        $filename = 'Student_Profile_' . ($student_details['code'] ?? $id) . '.pdf';
+
+        return $request->boolean('inline') ? $pdf->stream($filename) : $pdf->download($filename);
+    }
+
+    /**
+     * Single-student genuine .xlsx export (see App\Support\Export\ExcelExportService).
+     */
+    public function studentProfileExportExcel($id)
+    {
+        $student_details = (new CommonController)->get_student_details_by_id($id);
+        $profile = StudentProfile::where('user_id', $id)->first();
+
+        $rows = [[
+            $student_details['code'] ?? '',
+            $student_details['name'] ?? '',
+            $student_details['email'] ?? '',
+            $student_details['phone'] ?? '',
+            $student_details['gender'] ?? '',
+            strtoupper($student_details['blood_group'] ?? ''),
+            optional($profile?->programme)->name,
+            optional($profile?->intakeSession)->name,
+            $profile->nationality ?? '',
+            $profile->status ?? 'active',
+        ]];
+
+        return \App\Support\Export\ExcelExportService::download(
+            'student_' . ($student_details['code'] ?? $id),
+            ['Registration No.', 'Name', 'Email', 'Phone', 'Gender', 'Blood Group', 'Programme', 'Intake', 'Nationality', 'Status'],
+            $rows
+        );
+    }
+
+    /**
+     * Admin-triggered password reset: generates a new random password (never
+     * logged, never exported — see AuditLog::redact) and emails it to the
+     * student the same way initial account creation does.
+     */
+    public function studentResetPassword($id)
+    {
+        $student = User::where('id', $id)->where('school_id', auth()->user()->school_id)->where('role_id', 7)->firstOrFail();
+
+        $plainPassword = Str::random(10);
+        $student->update(['password' => Hash::make($plainPassword)]);
+
+        if (! empty(get_settings('smtp_user')) && get_settings('smtp_pass') && get_settings('smtp_host') && get_settings('smtp_port')) {
+            Mail::to($student->email)->send(new NewUserEmail([
+                'name'     => $student->name,
+                'email'    => $student->email,
+                'password' => $plainPassword,
+            ]));
+        }
+
+        AuditLog::record('update', 'Staff & Students', "Reset portal password for student {$student->name} (#{$student->id})");
+
+        return redirect()->back()->with('message', get_phrase('Password has been reset and emailed to the student.'));
+    }
+
+    /**
+     * Re-sends the student portal activation email with a freshly generated
+     * temporary password. Never creates a new User/StudentProfile/invoice —
+     * it only reissues credentials on the existing account and forces a
+     * password change on next login, same as a first-time activation.
+     */
+    public function resendStudentActivationEmail($id)
+    {
+        $student = User::where('id', $id)->where('school_id', auth()->user()->school_id)->where('role_id', 7)->firstOrFail();
+
+        $plainPassword = Str::random(10);
+        $student->update([
+            'password'               => Hash::make($plainPassword),
+            'force_password_change'  => true,
+        ]);
+
+        $profile = StudentProfile::where('user_id', $student->id)->first();
+        $sent    = StudentPortalActivation::sendActivationEmail($student, $plainPassword, $profile->programme_id ?? null, $profile->intake_session_id ?? null);
+
+        AuditLog::record('update', 'Staff & Students', "Resent portal activation email to student {$student->name} (#{$student->id})");
+
+        return redirect()->back()->with('message', $sent
+            ? get_phrase('Activation email resent to the student.')
+            : get_phrase('Password reset, but the activation email could not be sent — check SMTP settings.'));
+    }
+
     public function createStudentModal(Request $request)
     {
-        $classes = Classes::get()->where('school_id', auth()->user()->school_id);
+        $school_id  = auth()->user()->school_id;
+        $classes    = Classes::get()->where('school_id', $school_id);
+        $programmes = Programme::where('school_id', $school_id)->where('is_active', 1)->orderBy('name')->get();
+        $intakeSessions = IntakeSession::where('school_id', $school_id)->orderByDesc('id')->get();
+        $view_data  = ['classes' => $classes, 'programmes' => $programmes, 'intakeSessions' => $intakeSessions];
         if (! $request->ajax()) {
             return view('admin.common.modal_standalone_wrapper', [
                 'page_title' => get_phrase('Create Student'),
                 'inner_view' => 'admin.student.add_student',
-                'view_data'  => ['classes' => $classes],
+                'view_data'  => $view_data,
             ]);
         }
-        return view('admin.student.add_student', ['classes' => $classes]);
+        return view('admin.student.add_student', $view_data);
     }
 
     public function studentCreate(Request $request)
     {
         $data = $request->all();
-        $code = student_code();
+
+        $request->validate([
+            'name'             => 'required|max:255',
+            'email'            => 'required|email|max:255',
+            'password_option'  => 'nullable|in:auto,manual',
+            'password'         => 'nullable|min:6',
+            'programme_id'     => 'nullable|exists:programmes,id',
+            'intake_session_id' => 'nullable|exists:intake_sessions,id',
+            'nationality'      => 'nullable|max:80',
+            'national_id_or_passport' => 'nullable|max:50',
+            'year_of_study'    => 'nullable|integer|min:1|max:20',
+            'next_of_kin_address'  => 'nullable|string',
+            'next_of_kin_contact'  => 'nullable|max:30',
+            'status'           => 'nullable|in:active,suspended,graduated,withdrawn,deferred',
+            'additional_photo' => 'nullable|image|max:4096',
+        ]);
+
         if (! empty($data['photo'])) {
 
             $imageName = time() . '.' . $data['photo']->extension();
@@ -1349,6 +1708,13 @@ class AdminController extends Controller
         } else {
             $photo = '';
         }
+
+        $additionalImageName = '';
+        if ($request->hasFile('additional_photo')) {
+            $additionalImageName = 'additional_' . time() . '.' . $request->file('additional_photo')->extension();
+            $request->file('additional_photo')->move(public_path('assets/uploads/user-images/'), $additionalImageName);
+        }
+
         $info = [
             'gender'      => $data['gender'],
             'blood_group' => $data['blood_group'],
@@ -1363,21 +1729,57 @@ class AdminController extends Controller
 
         if (count($duplicate_user_check) == 0) {
 
-            User::create([
+            // Portal password: administrator either chooses a preferred
+            // password, or one is generated automatically. Never logged or
+            // exported — only ever used here to hash it and (optionally)
+            // email it once to the new student.
+            $passwordOption = $data['password_option'] ?? 'manual';
+            $plainPassword  = ($passwordOption === 'auto' || empty($data['password']))
+                ? Str::random(10)
+                : $data['password'];
+
+            $school_id = auth()->user()->school_id;
+
+            $student = User::create([
                 'name'             => $data['name'],
                 'email'            => $data['email'],
-                'password'         => Hash::make($data['password']),
+                'password'         => Hash::make($plainPassword),
                 'code'             => student_code(),
                 'role_id'          => '7',
-                'school_id'        => auth()->user()->school_id,
+                'school_id'        => $school_id,
                 'user_information' => $data['user_information'],
                 'status'           => 1,
             ]);
+
+            StudentProfile::updateOrCreate(
+                ['user_id' => $student->id],
+                [
+                    'school_id'               => $school_id,
+                    'programme_id'            => $data['programme_id'] ?? null,
+                    'intake_session_id'       => $data['intake_session_id'] ?? null,
+                    'year_of_study'           => $data['year_of_study'] ?? null,
+                    'nationality'             => $data['nationality'] ?? null,
+                    'national_id_or_passport' => $data['national_id_or_passport'] ?? null,
+                    'next_of_kin_address'     => $data['next_of_kin_address'] ?? null,
+                    'next_of_kin_contact'     => $data['next_of_kin_contact'] ?? null,
+                    'additional_image'        => $additionalImageName ?: null,
+                    'status'                  => $data['status'] ?? 'active',
+                ]
+            );
+
+            if (! empty($data['programme_id'])) {
+                StudentFeeInvoiceGenerator::generateForStudent($student, (int) $data['programme_id'], $school_id);
+            }
+
+            if (! empty(get_settings('smtp_user')) && (get_settings('smtp_pass')) && (get_settings('smtp_host')) && (get_settings('smtp_port'))) {
+                Mail::to($data['email'])->send(new NewUserEmail([
+                    'name'     => $data['name'],
+                    'email'    => $data['email'],
+                    'password' => $plainPassword,
+                ]));
+            }
         } else {
             return redirect()->back()->with('error', 'Email was already taken.');
-        }
-        if (! empty(get_settings('smtp_user')) && (get_settings('smtp_pass')) && (get_settings('smtp_host')) && (get_settings('smtp_port'))) {
-            Mail::to($data['email'])->send(new NewUserEmail($data));
         }
         return redirect()->back()->with('message', 'You have successfully add student.');
     }
@@ -1398,19 +1800,41 @@ class AdminController extends Controller
         $user            = User::find($id);
         $student_details = (new CommonController)->get_student_details_by_id($id);
         $classes         = Classes::get()->where('school_id', auth()->user()->school_id);
+        $programmes      = Programme::where('school_id', auth()->user()->school_id)->where('is_active', 1)->orderBy('name')->get();
+        $intakeSessions  = IntakeSession::where('school_id', auth()->user()->school_id)->orderByDesc('id')->get();
+        $studentProfile  = StudentProfile::where('user_id', $id)->first();
+        $view_data = [
+            'user' => $user, 'student_details' => $student_details, 'classes' => $classes,
+            'programmes' => $programmes, 'intakeSessions' => $intakeSessions, 'studentProfile' => $studentProfile,
+        ];
         if (! $request->ajax()) {
             return view('admin.common.modal_standalone_wrapper', [
                 'page_title' => get_phrase('Edit Student'),
                 'inner_view' => 'admin.student.edit_student',
-                'view_data'  => ['user' => $user, 'student_details' => $student_details, 'classes' => $classes],
+                'view_data'  => $view_data,
             ]);
         }
-        return view('admin.student.edit_student', ['user' => $user, 'student_details' => $student_details, 'classes' => $classes]);
+        return view('admin.student.edit_student', $view_data);
     }
 
     public function studentUpdate(Request $request, $id)
     {
         $data = $request->all();
+
+        $request->validate([
+            'name'  => 'required|max:255',
+            'email' => 'required|email|max:255',
+            'programme_id'     => 'nullable|exists:programmes,id',
+            'intake_session_id' => 'nullable|exists:intake_sessions,id',
+            'nationality'       => 'nullable|max:80',
+            'national_id_or_passport' => 'nullable|max:50',
+            'year_of_study'     => 'nullable|integer|min:1|max:20',
+            'next_of_kin_address'  => 'nullable|string',
+            'next_of_kin_contact'  => 'nullable|max:30',
+            'status'            => 'nullable|in:active,suspended,graduated,withdrawn,deferred',
+            'additional_photo'  => 'nullable|image|max:4096',
+        ]);
+
         if (! empty($data['photo'])) {
 
             $imageName = time() . '.' . $data['photo']->extension();
@@ -1438,16 +1862,43 @@ class AdminController extends Controller
             'photo'       => $photo,
         ];
         $data['user_information'] = json_encode($info);
-        User::where('id', $id)->update([
-            'name'             => $data['name'],
-            'email'            => $data['email'],
-            'user_information' => $data['user_information'],
-        ]);
+        $user = User::find($id);
+        if ($user) {
+            $user->update([
+                'name'             => $data['name'],
+                'email'            => $data['email'],
+                'user_information' => $data['user_information'],
+            ]);
+        }
 
         Enrollment::where('user_id', $id)->update([
             'class_id'   => $data['class_id'],
             'section_id' => $data['section_id'],
         ]);
+
+        $additionalImageName = null;
+        if ($request->hasFile('additional_photo')) {
+            $additionalImageName = 'additional_' . time() . '.' . $request->file('additional_photo')->extension();
+            $request->file('additional_photo')->move(public_path('assets/uploads/user-images/'), $additionalImageName);
+        }
+
+        $profileData = [
+            'school_id'               => auth()->user()->school_id,
+            'programme_id'            => $data['programme_id'] ?? null,
+            'intake_session_id'       => $data['intake_session_id'] ?? null,
+            'year_of_study'           => $data['year_of_study'] ?? null,
+            'nationality'             => $data['nationality'] ?? null,
+            'national_id_or_passport' => $data['national_id_or_passport'] ?? null,
+            'next_of_kin_address'     => $data['next_of_kin_address'] ?? null,
+            'next_of_kin_contact'     => $data['next_of_kin_contact'] ?? null,
+            'status'                  => $data['status'] ?? 'active',
+        ];
+
+        if ($additionalImageName) {
+            $profileData['additional_image'] = $additionalImageName;
+        }
+
+        StudentProfile::updateOrCreate(['user_id' => $id], $profileData);
 
         return redirect()->back()->with('message', 'You have successfully update student.');
     }
@@ -1862,7 +2313,10 @@ class AdminController extends Controller
 
     public function editExamCategory($id = '')
     {
-        $exam_category = ExamCategory::find($id);
+        $exam_category = ExamCategory::where('id', $id)->where('school_id', auth()->user()->school_id)->first();
+        if (! $exam_category) {
+            return redirect()->back()->with('error', 'Exam category not found.');
+        }
         return view('admin.exam_category.edit', ['exam_category' => $exam_category]);
     }
 
@@ -1876,18 +2330,29 @@ class AdminController extends Controller
                 ?? 1;
         }
 
-        ExamCategory::where('id', $id)->update([
+        $exam_category = ExamCategory::where('id', $id)
+            ->where('school_id', auth()->user()->school_id)
+            ->first();
+
+        if (! $exam_category) {
+            return redirect()->back()->with('error', 'Exam category not found.');
+        }
+
+        $exam_category->update([
             'name'       => $data['name'],
-            'school_id'  => auth()->user()->school_id,
             'session_id' => $active_session,
             'timestamp'  => strtotime(date('Y-m-d')),
         ]);
+
         return redirect()->back()->with('message', 'Exam category updated successfully.');
     }
 
     public function examCategoryDelete($id = '')
     {
-        $exam_category = ExamCategory::find($id);
+        $exam_category = ExamCategory::where('id', $id)->where('school_id', auth()->user()->school_id)->first();
+        if (! $exam_category) {
+            return redirect()->back()->with('error', 'Exam category not found.');
+        }
         $exam_category->delete();
         return redirect()->back()->with('message', 'You have successfully delete exam category.');
     }
@@ -1911,9 +2376,10 @@ class AdminController extends Controller
             $exams = Exam::where([
                 'exam_type' => 'offline',
                 'class_id'  => $id,
+                'school_id' => auth()->user()->school_id,
             ])->get();
         } else {
-            $exams = Exam::get()->where('exam_type', 'offline');
+            $exams = Exam::where('exam_type', 'offline')->where('school_id', auth()->user()->school_id)->get();
         }
         $classes = Classes::where('school_id', auth()->user()->school_id)->get();
         return view('admin.examination.offline_exam_export', ['exams' => $exams, 'classes' => $classes]);
@@ -1924,6 +2390,7 @@ class AdminController extends Controller
         $exams = Exam::where([
             'exam_type' => 'offline',
             'class_id'  => $id,
+            'school_id' => auth()->user()->school_id,
         ])->get();
         $classes = Classes::where('school_id', auth()->user()->school_id)->get();
         return view('admin.examination.exam_list', ['exams' => $exams, 'classes' => $classes, 'id' => $id]);
@@ -1964,7 +2431,8 @@ class AdminController extends Controller
         $endingTime   = strtotime($request->ending_date . '' . $request->ending_time);
 
         // Check if the room is occupied for the specified time range
-        $occupiedExams = Exam::where('room_number', $data)
+        $occupiedExams = Exam::where('school_id', auth()->user()->school_id)
+            ->where('room_number', $data)
             ->where(function ($query) use ($startingTime, $endingTime) {
                 $query->whereBetween('starting_time', [$startingTime, $endingTime])
                     ->orWhereBetween('ending_time', [$startingTime, $endingTime])
@@ -1980,7 +2448,14 @@ class AdminController extends Controller
         } else {
             $data           = $request->all();
             $active_session = get_school_settings(auth()->user()->school_id)->value('running_session');
-            $exam_category  = ExamCategory::find($data['exam_category_id']);
+            $exam_category  = ExamCategory::where('id', $data['exam_category_id'])
+                ->where('school_id', auth()->user()->school_id)
+                ->first();
+
+            if (! $exam_category) {
+                return redirect()->back()->with(['warning' => 'Invalid exam category.'], 422);
+            }
+
             Exam::create([
                 'name'             => $exam_category->name,
                 'exam_category_id' => $data['exam_category_id'],
@@ -2002,7 +2477,10 @@ class AdminController extends Controller
 
     public function editOfflineExam(Request $request, $id)
     {
-        $exam            = Exam::find($id);
+        $exam = Exam::where('id', $id)->where('school_id', auth()->user()->school_id)->first();
+        if (! $exam) {
+            return redirect()->back()->with('error', 'Exam not found.');
+        }
         $classes         = Classes::where('school_id', auth()->user()->school_id)->get();
         $subjects        = Subject::get()->where('class_id', $exam->class_id);
         $exam_categories = ExamCategory::where('school_id', auth()->user()->school_id)->get();
@@ -2027,30 +2505,43 @@ class AdminController extends Controller
     {
         $data           = $request->all();
         $active_session = get_school_settings(auth()->user()->school_id)->value('running_session');
-        $exam_category  = ExamCategory::find($data['exam_category_id']);
-        Exam::where('id', $id)->update([
-            'name'             => $exam_category->name,
-            'exam_category_id' => $data['exam_category_id'],
-            'exam_type'        => 'offline',
-            'room_number'      => $data['class_room_id'],
-            'starting_time'    => strtotime($data['starting_date'] . '' . $data['starting_time']),
-            'ending_time'      => strtotime($data['ending_date'] . '' . $data['ending_time']),
-            'total_marks'      => $data['total_marks'],
-            'status'           => 'pending',
-            'class_id'         => $data['class_id'],
-            'subject_id'       => $data['subject_id'],
-            'school_id'        => auth()->user()->school_id,
-            'session_id'       => $active_session,
-        ]);
+        $exam_category  = ExamCategory::where('id', $data['exam_category_id'])
+            ->where('school_id', auth()->user()->school_id)
+            ->first();
 
+        if (! $exam_category) {
+            return redirect()->back()->with(['warning' => 'Invalid exam category.'], 422);
+        }
+
+        $updated = Exam::where('id', $id)
+            ->where('school_id', auth()->user()->school_id)
+            ->update([
+                'name'             => $exam_category->name,
+                'exam_category_id' => $exam_category->id,
+                'exam_type'        => 'offline',
+                'room_number'      => $data['class_room_id'],
+                'starting_time'    => strtotime($data['starting_date'] . '' . $data['starting_time']),
+                'ending_time'      => strtotime($data['ending_date'] . '' . $data['ending_time']),
+                'total_marks'      => $data['total_marks'],
+                'status'           => 'pending',
+                'class_id'         => $data['class_id'],
+                'subject_id'       => $data['subject_id'],
+                'session_id'       => $active_session,
+            ]);
+
+        if (! $updated) {
+            return redirect()->back()->with('error', 'Exam not found.');
+        }
         return redirect()->back()->with('message', 'You have successfully update exam.');
     }
 
     public function offlineExamDelete($id)
     {
-        $exam = Exam::find($id);
+        $exam = Exam::where('id', $id)->where('school_id', auth()->user()->school_id)->first();
+        if (! $exam) {
+            return redirect()->back()->with('error', 'Exam not found.');
+        }
         $exam->delete();
-        $exams = Exam::get()->where('exam_type', 'offline');
         return redirect()->back()->with('message', 'You have successfully delete exam.');
     }
 
@@ -2327,20 +2818,24 @@ class AdminController extends Controller
             return redirect()->back()->with('error', 'Please create or set an active academic session before updating routine.');
         }
 
-        Routine::where('id', $id)->update([
-            'class_id'        => $data['class_id'],
-            'section_id'      => $data['section_id'],
-            'subject_id'      => $data['subject_id'],
-            'teacher_id'      => $data['teacher_id'],
-            'room_id'         => $data['class_room_id'],
-            'day'             => $data['day'],
-            'starting_hour'   => $data['starting_hour'],
-            'starting_minute' => $data['starting_minute'],
-            'ending_hour'     => $data['ending_hour'],
-            'ending_minute'   => $data['ending_minute'],
-            'school_id'       => auth()->user()->school_id,
-            'session_id'      => $active_session,
-        ]);
+        $routine = Routine::find($id);
+
+        if ($routine) {
+            $routine->update([
+                'class_id'        => $data['class_id'],
+                'section_id'      => $data['section_id'],
+                'subject_id'      => $data['subject_id'],
+                'teacher_id'      => $data['teacher_id'],
+                'room_id'         => $data['class_room_id'],
+                'day'             => $data['day'],
+                'starting_hour'   => $data['starting_hour'],
+                'starting_minute' => $data['starting_minute'],
+                'ending_hour'     => $data['ending_hour'],
+                'ending_minute'   => $data['ending_minute'],
+                'school_id'       => auth()->user()->school_id,
+                'session_id'      => $active_session,
+            ]);
+        }
 
         return redirect()->back()->with('message', 'You have successfully update routine.');
     }
@@ -2455,15 +2950,17 @@ class AdminController extends Controller
             $filepath = asset('assets/uploads/syllabus/' . $filename);
         }
 
-        Syllabus::where('id', $id)->update([
-            'title'      => $data['title'],
-            'class_id'   => $data['class_id'],
-            'section_id' => $data['section_id'],
-            'subject_id' => $data['subject_id'],
-            'file'       => $filename,
-            'school_id'  => auth()->user()->school_id,
-            'session_id' => $active_session,
-        ]);
+        if ($syllabus) {
+            $syllabus->update([
+                'title'      => $data['title'],
+                'class_id'   => $data['class_id'],
+                'section_id' => $data['section_id'],
+                'subject_id' => $data['subject_id'],
+                'file'       => $filename,
+                'school_id'  => auth()->user()->school_id,
+                'session_id' => $active_session,
+            ]);
+        }
 
         return redirect('/admin/syllabus/list?class_id=' . $data['class_id'] . '&section_id=' . $data['section_id'])->with('message', 'You have successfully update a syllabus.');
     }
@@ -2678,19 +3175,29 @@ class AdminController extends Controller
 
     public function editGrade($id)
     {
-        $grade = Grade::find($id);
+        $grade = Grade::where('id', $id)->where('school_id', auth()->user()->school_id)->first();
+        if (! $grade) {
+            return redirect()->back()->with('error', 'Grade not found.');
+        }
         return view('admin.grade.edit_grade', ['grade' => $grade]);
     }
 
     public function gradeUpdate(Request $request, $id)
     {
-        $data = $request->all();
-        Grade::where('id', $id)->update([
+        $data  = $request->all();
+        $grade = Grade::where('id', $id)
+            ->where('school_id', auth()->user()->school_id)
+            ->first();
+
+        if (! $grade) {
+            return redirect()->back()->with('error', 'Grade not found.');
+        }
+
+        $grade->update([
             'name'        => $data['grade'],
             'grade_point' => $data['grade_point'],
             'mark_from'   => $data['mark_from'],
             'mark_upto'   => $data['mark_upto'],
-            'school_id'   => auth()->user()->school_id,
         ]);
 
         return redirect()->back()->with('message', 'You have successfully update grade.');
@@ -2698,9 +3205,11 @@ class AdminController extends Controller
 
     public function gradeDelete($id)
     {
-        $grade = Grade::find($id);
+        $grade = Grade::where('id', $id)->where('school_id', auth()->user()->school_id)->first();
+        if (! $grade) {
+            return redirect()->back()->with('error', 'Grade not found.');
+        }
         $grade->delete();
-        $grades = Grade::get()->where('school_id', auth()->user()->school_id);
         return redirect()->back()->with('message', 'You have successfully delete grade.');
     }
 
@@ -2886,10 +3395,14 @@ class AdminController extends Controller
         $duplicate_department_check = Department::get()->where('name', $data['name'])->where('school_id', auth()->user()->school_id);
 
         if (count($duplicate_department_check) == 0) {
-            Department::where('id', $id)->update([
-                'name'      => $data['name'],
-                'school_id' => auth()->user()->school_id,
-            ]);
+            $department = Department::find($id);
+
+            if ($department) {
+                $department->update([
+                    'name'      => $data['name'],
+                    'school_id' => auth()->user()->school_id,
+                ]);
+            }
 
             return redirect()->back()->with('message', 'You have successfully update subject.');
         } else {
@@ -3036,10 +3549,14 @@ class AdminController extends Controller
         $duplicate_class_check = Classes::get()->where('name', $data['name'])->where('school_id', auth()->user()->school_id);
 
         if (count($duplicate_class_check) == 0) {
-            Classes::where('id', $id)->update([
-                'name'      => $data['name'],
-                'school_id' => auth()->user()->school_id,
-            ]);
+            $class = Classes::find($id);
+
+            if ($class) {
+                $class->update([
+                    'name'      => $data['name'],
+                    'school_id' => auth()->user()->school_id,
+                ]);
+            }
 
             return redirect()->back()->with('message', 'You have successfully update class.');
         } else {
@@ -3601,12 +4118,16 @@ class AdminController extends Controller
         $duplicate_book_check = Book::get()->where('name', $data['name']);
 
         if (count($duplicate_book_check) == 0) {
-            Book::where('id', $id)->update([
-                'name'      => $data['name'],
-                'author'    => $data['author'],
-                'copies'    => $data['copies'],
-                'timestamp' => strtotime(date('d-M-Y')),
-            ]);
+            $book = Book::find($id);
+
+            if ($book) {
+                $book->update([
+                    'name'      => $data['name'],
+                    'author'    => $data['author'],
+                    'copies'    => $data['copies'],
+                    'timestamp' => strtotime(date('d-M-Y')),
+                ]);
+            }
 
             return redirect()->back()->with('message', 'You have successfully update book.');
         } else {
@@ -3703,17 +4224,25 @@ class AdminController extends Controller
 
         unset($data['_token']);
 
-        BookIssue::where('id', $id)->update($data);
+        $book_issue = BookIssue::find($id);
+
+        if ($book_issue) {
+            $book_issue->update($data);
+        }
 
         return redirect()->back()->with('message', 'Updated successfully.');
     }
 
     public function bookIssueReturn($id)
     {
-        BookIssue::where('id', $id)->update([
-            'status'    => 1,
-            'timestamp' => strtotime(date('d-M-Y')),
-        ]);
+        $book_issue = BookIssue::find($id);
+
+        if ($book_issue) {
+            $book_issue->update([
+                'status'    => 1,
+                'timestamp' => strtotime(date('d-M-Y')),
+            ]);
+        }
 
         return redirect()->back()->with('message', 'Return successfully.');
     }
@@ -4660,7 +5189,7 @@ class AdminController extends Controller
 
         $data['user_information'] = json_encode($user_info);
 
-        User::where('id', auth()->user()->id)->update($data);
+        auth()->user()->update($data);
 
         return redirect(route('admin.profile'))->with('message', get_phrase('Profile info updated successfully'));
     }
@@ -4668,7 +5197,7 @@ class AdminController extends Controller
     public function user_language(Request $request)
     {
         $data['language'] = $request->language;
-        User::where('id', auth()->user()->id)->update($data);
+        auth()->user()->update($data);
 
         return redirect()->back()->with('message', 'You have successfully transleted language.');
     }
@@ -4687,7 +5216,7 @@ class AdminController extends Controller
             }
 
             $data['password'] = Hash::make($request->new_password);
-            User::where('id', auth()->user()->id)->update($data);
+            auth()->user()->update($data);
 
             return redirect(route('admin.password', 'edit'))->with('message', get_phrase('Password changed successfully'));
         }
@@ -4789,18 +5318,24 @@ class AdminController extends Controller
     // Account Disable
     public function account_disable($id)
     {
-        User::where('id', $id)->update([
-            'account_status' => 'disable',
-        ]);
+        $user = User::find($id);
+        if ($user) {
+            $user->update([
+                'account_status' => 'disable',
+            ]);
+        }
         return redirect()->back()->with('message', 'Account Disable Successfully');
     }
 
     // Account Enable
     public function account_enable($id)
     {
-        User::where('id', $id)->update([
-            'account_status' => 'enable',
-        ]);
+        $user = User::find($id);
+        if ($user) {
+            $user->update([
+                'account_status' => 'enable',
+            ]);
+        }
         return redirect()->back()->with('message', 'Account Enable Successfully');
     }
 

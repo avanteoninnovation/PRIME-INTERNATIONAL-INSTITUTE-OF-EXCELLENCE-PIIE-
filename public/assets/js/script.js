@@ -136,9 +136,51 @@ $(".menuList").on("click", function () {
 $(".closeIcon").on("click", function () {
   $(".sidebar").removeClass("close");
 });
+
+// Close the off-canvas sidebar when tapping outside it on mobile/tablet.
+$(document).on("click", function (e) {
+  if (window.innerWidth > 991) {
+    return;
+  }
+  if (!$(e.target).closest(".sidebar, .sidebar_menu_icon").length) {
+    $(".sidebar").removeClass("close");
+  }
+});
+
+// Accordion submenu: opening one section closes the others, and the last
+// opened section is remembered (by its link text) so it re-opens on the
+// next page load if the server-side "active route" detection didn't
+// already open a section (e.g. on the dashboard itself).
+var SIDEBAR_MENU_STORAGE_KEY = "sidebar_expanded_section";
+
 $(".nav-links-li").on("click", function () {
   $(this).toggleClass("showMenu");
   $(".nav-links-li").not($(this)).removeClass("showMenu");
+
+  var sectionKey = $(this).find("> .iocn-link .link_name").first().text().trim();
+  if (sectionKey) {
+    if ($(this).hasClass("showMenu")) {
+      localStorage.setItem(SIDEBAR_MENU_STORAGE_KEY, sectionKey);
+    } else {
+      localStorage.removeItem(SIDEBAR_MENU_STORAGE_KEY);
+    }
+  }
+});
+
+$(function () {
+  if ($(".nav-links-li.showMenu").length) {
+    return;
+  }
+  var savedSectionKey = localStorage.getItem(SIDEBAR_MENU_STORAGE_KEY);
+  if (!savedSectionKey) {
+    return;
+  }
+  $(".nav-links-li").each(function () {
+    if ($(this).find("> .iocn-link .link_name").first().text().trim() === savedSectionKey) {
+      $(this).addClass("showMenu");
+      return false;
+    }
+  });
 });
 
 // Date range picker

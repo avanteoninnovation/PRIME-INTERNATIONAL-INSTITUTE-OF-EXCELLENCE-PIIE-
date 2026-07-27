@@ -28,7 +28,7 @@ table.info td:first-child { font-weight: bold; width: 35%; background: #f8f8f8; 
     <p>Email: {{ $school->email ?? '' }} | Tel: {{ $school->phone ?? '' }}</p>
 </div>
 <div class="clearfix">
-    <div class="ref">Ref: {{ $admission->app_number }}<br>Date: {{ $admission->offer_date?->format('d F Y') ?? date('d F Y') }}</div>
+    <div class="ref">Ref: {{ $admission->app_number }}<br>Date: {{ $admission->offer_date ? \Carbon\Carbon::parse($admission->offer_date)->format('d F Y') : date('d F Y') }}</div>
 </div>
 <br>
 <p>Dear <strong>{{ $admission->first_name }} {{ $admission->last_name }}</strong>,</p>

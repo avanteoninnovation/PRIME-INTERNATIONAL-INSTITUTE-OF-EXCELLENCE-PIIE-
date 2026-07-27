@@ -14,6 +14,22 @@
         margin-bottom: 24px;
     }
 
+    /* Explicit per-breakpoint card counts (desktop 4 / laptop 3 / tablet 2
+       (see the 768px rule below) / mobile 1 (see the 480px rule below)),
+       on top of the auto-fit default above so cards never overflow even
+       at widths between these breakpoints. */
+    @media (min-width: 1400px) {
+        .dashboard-stats {
+            grid-template-columns: repeat(4, 1fr);
+        }
+    }
+
+    @media (min-width: 993px) and (max-width: 1399px) {
+        .dashboard-stats {
+            grid-template-columns: repeat(3, 1fr);
+        }
+    }
+
     .stat-card {
         background: #ffffff;
         border-radius: 12px;
@@ -352,53 +368,101 @@
             </h1>
         </div>
         <div class="section-actions">
-            <a href="{{ route('superadmin.school.add') }}" class="btn-primary-custom">
-                <i class="fas fa-plus"></i> Add School
+            <a href="{{ route('admin.hei_admissions.index') }}" class="btn-primary-custom">
+                <i class="fas fa-plus"></i> New Admission
             </a>
-            <a href="{{ route('superadmin.package') }}" class="btn-outline-primary-custom">
-                <i class="fas fa-cube"></i> Packages
+            <a href="{{ route('admin.student') }}" class="btn-outline-primary-custom">
+                <i class="fas fa-user-graduate"></i> Add Student
             </a>
         </div>
     </div>
 
     <!-- ============================================ -->
-    <!-- STATS CARDS                                 -->
+    <!-- STATS CARDS (this school only)               -->
     <!-- ============================================ -->
     <div class="dashboard-stats">
         <div class="stat-card blue">
-            <span class="stat-number">{{ $totalSchools ?? 0 }}</span>
-            <span class="stat-label">Total Schools</span>
-            <i class="fas fa-school stat-icon"></i>
-        </div>
-
-        <div class="stat-card gold">
-            <span class="stat-number">{{ $activeSchools ?? 0 }}</span>
-            <span class="stat-label">Active Schools</span>
-            <i class="fas fa-check-circle stat-icon"></i>
+            <span class="stat-number">{{ $totalStudents ?? 0 }}</span>
+            <span class="stat-label">Total Students</span>
+            <i class="fas fa-user-graduate stat-icon"></i>
         </div>
 
         <div class="stat-card green">
-            <span class="stat-number">{{ $totalAdmins ?? 0 }}</span>
-            <span class="stat-label">Total Admins</span>
-            <i class="fas fa-user-shield stat-icon"></i>
+            <span class="stat-number">{{ $activeStudents ?? 0 }}</span>
+            <span class="stat-label">Active Students</span>
+            <i class="fas fa-check-circle stat-icon"></i>
+        </div>
+
+        <div class="stat-card gold">
+            <span class="stat-number">{{ $totalTeachers ?? 0 }}</span>
+            <span class="stat-label">Teachers</span>
+            <i class="fas fa-chalkboard-teacher stat-icon"></i>
         </div>
 
         <div class="stat-card purple">
-            <span class="stat-number">{{ $totalSubscriptions ?? 0 }}</span>
-            <span class="stat-label">Active Subscriptions</span>
-            <i class="fas fa-crown stat-icon"></i>
+            <span class="stat-number">{{ $totalStaff ?? 0 }}</span>
+            <span class="stat-label">Staff</span>
+            <i class="fas fa-user-shield stat-icon"></i>
+        </div>
+
+        <div class="stat-card teal">
+            <span class="stat-number">{{ $totalParents ?? 0 }}</span>
+            <span class="stat-label">Parents</span>
+            <i class="fas fa-users stat-icon"></i>
         </div>
 
         <div class="stat-card red">
-            <span class="stat-number">{{ $pendingRequests ?? 0 }}</span>
-            <span class="stat-label">Pending Requests</span>
+            <span class="stat-number">{{ $totalClasses ?? 0 }}</span>
+            <span class="stat-label">Classes</span>
+            <i class="fas fa-school stat-icon"></i>
+        </div>
+
+        <div class="stat-card blue">
+            <span class="stat-number">{{ $totalCourses ?? 0 }}</span>
+            <span class="stat-label">Courses / Programmes</span>
+            <i class="fas fa-graduation-cap stat-icon"></i>
+        </div>
+
+        <div class="stat-card green">
+            <span class="stat-number">{{ $totalSubjects ?? 0 }}</span>
+            <span class="stat-label">Subjects</span>
+            <i class="fas fa-book stat-icon"></i>
+        </div>
+
+        <div class="stat-card gold">
+            <span class="stat-number">{{ $attendanceToday ?? 0 }}</span>
+            <span class="stat-label">Attendance Marked Today</span>
+            <i class="fas fa-calendar-check stat-icon"></i>
+        </div>
+
+        <div class="stat-card purple">
+            <span class="stat-number">{{ $classesToday ?? 0 }}</span>
+            <span class="stat-label">Classes on Today's Timetable</span>
             <i class="fas fa-clock stat-icon"></i>
         </div>
 
         <div class="stat-card teal">
-            <span class="stat-number">UGX {{ number_format($totalRevenue ?? 0) }}</span>
-            <span class="stat-label">Total Revenue</span>
+            <span class="stat-number">{{ currency(number_format($feeCollectedThisMonth ?? 0)) }}</span>
+            <span class="stat-label">Fee Collected This Month</span>
             <i class="fas fa-coins stat-icon"></i>
+        </div>
+
+        <div class="stat-card red">
+            <span class="stat-number">{{ currency(number_format($outstandingFees ?? 0)) }}</span>
+            <span class="stat-label">Outstanding Fees</span>
+            <i class="fas fa-file-invoice-dollar stat-icon"></i>
+        </div>
+
+        <div class="stat-card blue">
+            <span class="stat-number">{{ $pendingApprovals ?? 0 }}</span>
+            <span class="stat-label">Pending Admission Approvals</span>
+            <i class="fas fa-hourglass-half stat-icon"></i>
+        </div>
+
+        <div class="stat-card green">
+            <span class="stat-number">{{ $booksIssued ?? 0 }} / {{ $totalBooks ?? 0 }}</span>
+            <span class="stat-label">Books Issued / Library Titles</span>
+            <i class="fas fa-book-reader stat-icon"></i>
         </div>
     </div>
 
@@ -408,64 +472,90 @@
     <div class="row-two">
 
         <!-- ============================================ -->
-        <!-- LEFT COLUMN - Recent Schools                 -->
+        <!-- LEFT COLUMN - Recent Admissions               -->
         <!-- ============================================ -->
         <div class="card-dashboard">
             <div class="card-header">
-                <span><i class="fas fa-school" style="color: #1a3a6b; margin-right: 8px;"></i>Recent Schools</span>
-                <a href="{{ route('superadmin.school.list') }}" style="font-size: 12px; color: #1a3a6b; text-decoration: none; font-weight: 500;">View All →</a>
+                <span><i class="fas fa-user-plus" style="color: #1a3a6b; margin-right: 8px;"></i>Recent Admissions</span>
+                <a href="{{ route('admin.hei_admissions.index') }}" style="font-size: 12px; color: #1a3a6b; text-decoration: none; font-weight: 500;">View All →</a>
             </div>
             <div class="card-body">
-                @if(isset($recentSchools) && count($recentSchools) > 0)
-                    @foreach($recentSchools as $school)
+                @if(isset($recentAdmissions) && count($recentAdmissions) > 0)
+                    @foreach($recentAdmissions as $application)
                     <div class="school-item">
-                        <div class="school-avatar">{{ substr($school->title ?? 'S', 0, 2) }}</div>
+                        <div class="school-avatar">{{ substr($application->first_name ?? 'A', 0, 2) }}</div>
                         <div class="school-info">
-                            <div class="school-name">{{ $school->title ?? 'School Name' }}</div>
+                            <div class="school-name">{{ trim(($application->first_name ?? '') . ' ' . ($application->last_name ?? '')) ?: 'Applicant' }}</div>
                             <div class="school-details">
-                                {{ $school->email ?? '' }} 
-                                <span class="badge-status {{ $school->status == 1 ? 'active' : 'inactive' }}">
-                                    {{ $school->status == 1 ? 'Active' : 'Inactive' }}
+                                {{ optional($application->programme)->name ?? 'No programme' }}
+                                <span class="badge-status {{ $application->status === 'enrolled' ? 'active' : 'inactive' }}">
+                                    {{ ucfirst(str_replace('_', ' ', $application->status)) }}
                                 </span>
                             </div>
                         </div>
-                        <a href="{{ route('superadmin.edit.school', $school->id) }}" style="color: #adb5bd; font-size: 12px; flex-shrink: 0;">
+                        <a href="{{ route('admin.hei_admissions.index') }}" style="color: #adb5bd; font-size: 12px; flex-shrink: 0;">
                             <i class="fas fa-chevron-right"></i>
                         </a>
                     </div>
                     @endforeach
                 @else
                     <div style="text-align: center; padding: 30px 20px; color: #6c757d;">
-                        <i class="fas fa-school" style="font-size: 28px; opacity: 0.2; display: block; margin-bottom: 8px;"></i>
-                        <p style="font-size: 13px; margin: 0;">No schools found.</p>
+                        <i class="fas fa-user-plus" style="font-size: 28px; opacity: 0.2; display: block; margin-bottom: 8px;"></i>
+                        <p style="font-size: 13px; margin: 0;">No admissions yet.</p>
                     </div>
                 @endif
             </div>
         </div>
 
         <!-- ============================================ -->
-        <!-- RIGHT COLUMN - Upcoming Events               -->
+        <!-- RIGHT COLUMN - Recent Announcements           -->
         <!-- ============================================ -->
         <div class="card-dashboard">
             <div class="card-header">
-                <span><i class="fas fa-calendar-alt" style="color: #c8860a; margin-right: 8px;"></i>Upcoming Events</span>
-                <a href="{{ route('admin.academic_calendar.index') }}" style="font-size: 12px; color: #1a3a6b; text-decoration: none; font-weight: 500;">See all →</a>
+                <span><i class="fas fa-bullhorn" style="color: #c8860a; margin-right: 8px;"></i>Recent Announcements</span>
+                <a href="{{ route('admin.noticeboard.list') }}" style="font-size: 12px; color: #1a3a6b; text-decoration: none; font-weight: 500;">View All →</a>
+            </div>
+            <div class="card-body">
+                @if(isset($recentAnnouncements) && count($recentAnnouncements) > 0)
+                    @foreach($recentAnnouncements as $notice)
+                    <div class="event-item">
+                        <div class="event-info">
+                            <div class="title">{{ $notice->notice_title }}</div>
+                            <div class="meta">{{ optional($notice->created_at)->format('l, M d Y') }}</div>
+                        </div>
+                    </div>
+                    @endforeach
+                @else
+                    <div style="text-align: center; padding: 20px; color: #6c757d; font-size: 13px;">
+                        No announcements yet
+                    </div>
+                @endif
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================ -->
+    <!-- TWO COLUMN LAYOUT — EVENTS / CALENDAR        -->
+    <!-- ============================================ -->
+    <div class="row-two">
+
+        <div class="card-dashboard">
+            <div class="card-header">
+                <span><i class="fas fa-calendar-alt" style="color: #1a3a6b; margin-right: 8px;"></i>Upcoming Events</span>
+                <a href="{{ route('admin.events.list') }}" style="font-size: 12px; color: #1a3a6b; text-decoration: none; font-weight: 500;">See all →</a>
             </div>
             <div class="card-body">
                 @if(isset($upcomingEvents) && count($upcomingEvents) > 0)
                     @foreach($upcomingEvents as $event)
                     <div class="event-item">
                         <div class="event-date">
-                            <span class="day">{{ \Carbon\Carbon::parse($event->event_date)->format('d') }}</span>
-                            {{ \Carbon\Carbon::parse($event->event_date)->format('M') }}
+                            <span class="day">{{ date('d', $event->timestamp) }}</span>
+                            {{ date('M', $event->timestamp) }}
                         </div>
                         <div class="event-info">
                             <div class="title">{{ $event->title }}</div>
-                            <div class="meta">{{ \Carbon\Carbon::parse($event->event_date)->format('l, M d Y') }}</div>
+                            <div class="meta">{{ date('l, M d Y', $event->timestamp) }}</div>
                         </div>
-                        <span style="padding: 2px 10px; border-radius: 12px; font-size: 9px; font-weight: 600; background: #dbeafe; color: #1a3a6b; flex-shrink: 0;">
-                            {{ $event->event_type ?? 'Event' }}
-                        </span>
                     </div>
                     @endforeach
                 @else
@@ -475,53 +565,34 @@
                 @endif
             </div>
         </div>
-    </div>
 
-    <!-- ============================================ -->
-    <!-- ACTIVE SUBSCRIPTIONS TABLE                  -->
-    <!-- ============================================ -->
-    <div class="card-dashboard">
-        <div class="card-header">
-            <span><i class="fas fa-crown" style="color: #c8860a; margin-right: 8px;"></i>Active Subscriptions</span>
-            <a href="{{ route('superadmin.subscription.report') }}" style="font-size: 12px; color: #1a3a6b; text-decoration: none; font-weight: 500;">View All →</a>
-        </div>
-        <div class="card-body" style="padding: 0;">
-            <div style="overflow-x: auto;">
-                <table class="table-superadmin">
-                    <thead>
-                        <tr>
-                            <th>School</th>
-                            <th>Package</th>
-                            <th>Amount</th>
-                            <th>Expiry Date</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @if(isset($activeSubscriptions) && count($activeSubscriptions) > 0)
-                            @foreach($activeSubscriptions as $sub)
-                            <tr>
-                                <td><strong>{{ $sub->school->title ?? 'N/A' }}</strong></td>
-                                <td>{{ $sub->package->name ?? 'N/A' }}</td>
-                                <td>UGX {{ number_format($sub->paid_amount ?? 0) }}</td>
-                                <td>{{ \Carbon\Carbon::parse($sub->expire_date)->format('M d, Y') }}</td>
-                                <td>
-                                    <span class="badge-status active">
-                                        {{ $sub->active ? 'Active' : 'Expired' }}
-                                    </span>
-                                </td>
-                            </tr>
-                            @endforeach
-                        @else
-                            <tr>
-                                <td colspan="5" style="text-align: center; padding: 30px 20px; color: #6c757d;">
-                                    <i class="fas fa-crown" style="font-size: 24px; opacity: 0.2; display: block; margin-bottom: 8px;"></i>
-                                    No active subscriptions found.
-                                </td>
-                            </tr>
-                        @endif
-                    </tbody>
-                </table>
+        <div class="card-dashboard">
+            <div class="card-header">
+                <span><i class="fas fa-calendar-week" style="color: #c8860a; margin-right: 8px;"></i>School Calendar</span>
+                <a href="{{ route('admin.academic_calendar.index') }}" style="font-size: 12px; color: #1a3a6b; text-decoration: none; font-weight: 500;">See all →</a>
+            </div>
+            <div class="card-body">
+                @if(isset($upcomingCalendar) && count($upcomingCalendar) > 0)
+                    @foreach($upcomingCalendar as $calendarEvent)
+                    <div class="event-item">
+                        <div class="event-date">
+                            <span class="day">{{ \Carbon\Carbon::parse($calendarEvent->event_date)->format('d') }}</span>
+                            {{ \Carbon\Carbon::parse($calendarEvent->event_date)->format('M') }}
+                        </div>
+                        <div class="event-info">
+                            <div class="title">{{ $calendarEvent->title }}</div>
+                            <div class="meta">{{ \Carbon\Carbon::parse($calendarEvent->event_date)->format('l, M d Y') }}</div>
+                        </div>
+                        <span style="padding: 2px 10px; border-radius: 12px; font-size: 9px; font-weight: 600; background: #dbeafe; color: #1a3a6b; flex-shrink: 0;">
+                            {{ $calendarEvent->event_type ?? 'Event' }}
+                        </span>
+                    </div>
+                    @endforeach
+                @else
+                    <div style="text-align: center; padding: 20px; color: #6c757d; font-size: 13px;">
+                        No calendar entries yet
+                    </div>
+                @endif
             </div>
         </div>
     </div>

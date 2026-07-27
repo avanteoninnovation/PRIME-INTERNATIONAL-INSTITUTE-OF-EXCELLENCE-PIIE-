@@ -126,242 +126,8 @@
     <link rel="stylesheet" type="text/css" href="{{ asset('assets/vendors/bootstrap-icons-1.8.1/bootstrap-icons.css') }}" />
     <link rel="stylesheet" type="text/css" href="{{ asset('assets/css/toastr.min.css') }}" />
     <link rel="stylesheet" type="text/css" href="{{ asset('assets/calender/main.css') }}" />
+    <link rel="stylesheet" type="text/css" href="{{ asset('assets/css/admin-sidebar.css') }}" />
     <script src="{{ asset('assets/vendors/jquery/jquery-3.6.0.min.js') }}"></script>
-
-    <style>
-        /* ============================================ */
-        /* ENHANCED SIDEBAR STYLES                      */
-        /* ============================================ */
-
-        .sidebar {
-            background: #1a2332 !important;
-            width: 280px !important;
-            transition: all 0.3s ease;
-        }
-
-        .sidebar .logo-details {
-            padding: 20px 25px !important;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-            margin-bottom: 10px !important;
-        }
-
-        .sidebar .logo-details .img_wrapper {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .sidebar .logo-details .img_wrapper img {
-            max-height: 45px !important;
-            width: auto !important;
-            object-fit: contain;
-        }
-
-        .sidebar .logo-details .logo_name {
-            font-size: 16px !important;
-            font-weight: 600 !important;
-            color: #ffffff !important;
-            margin-left: 12px !important;
-            letter-spacing: 0.5px;
-        }
-
-        /* Section Headers */
-        .nav-section-header {
-            padding: 12px 25px 6px 25px;
-            font-size: 11px;
-            font-weight: 700;
-            color: rgba(255, 255, 255, 0.35);
-            text-transform: uppercase;
-            letter-spacing: 1.2px;
-            border-top: 1px solid rgba(255, 255, 255, 0.06);
-            margin-top: 4px;
-        }
-
-        .nav-section-header:first-of-type {
-            border-top: none;
-            margin-top: 0;
-        }
-
-        /* Navigation Items */
-        .nav-links {
-            padding: 0 !important;
-            margin: 0 !important;
-        }
-
-        .nav-links-li {
-            list-style: none;
-            margin: 2px 0 !important;
-        }
-
-        .nav-links-li .iocn-link a {
-            display: flex;
-            align-items: center;
-            padding: 10px 20px !important;
-            color: rgba(255, 255, 255, 0.7) !important;
-            text-decoration: none !important;
-            transition: all 0.3s ease;
-            border-radius: 0 !important;
-            font-size: 14px;
-            font-weight: 400;
-        }
-
-        .nav-links-li .iocn-link a:hover {
-            color: #ffffff !important;
-            background: rgba(255, 255, 255, 0.06) !important;
-        }
-
-        .nav-links-li .iocn-link a .sidebar_icon {
-            width: 22px;
-            height: 22px;
-            margin-right: 14px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-        }
-
-        .nav-links-li .iocn-link a .sidebar_icon svg {
-            width: 20px;
-            height: 20px;
-            stroke: rgba(255, 255, 255, 0.6);
-            transition: stroke 0.3s ease;
-        }
-
-        .nav-links-li .iocn-link a:hover .sidebar_icon svg {
-            stroke: #ffffff;
-        }
-
-        .nav-links-li .iocn-link a .link_name {
-            font-size: 14px;
-            font-weight: 400;
-            color: rgba(255, 255, 255, 0.7);
-            transition: color 0.3s ease;
-        }
-
-        .nav-links-li .iocn-link a:hover .link_name {
-            color: #ffffff;
-        }
-
-        /* Active state */
-        .nav-links-li .iocn-link a.active {
-            background: rgba(52, 110, 235, 0.15) !important;
-            color: #ffffff !important;
-            border-left: 3px solid #346eeb;
-        }
-
-        .nav-links-li .iocn-link a.active .sidebar_icon svg {
-            stroke: #346eeb !important;
-        }
-
-        .nav-links-li .iocn-link a.active .link_name {
-            color: #ffffff !important;
-            font-weight: 500;
-        }
-
-        /* Sub-menu */
-        .sub-menu {
-            display: none;
-            padding: 0 !important;
-            margin: 0 !important;
-            background: rgba(0, 0, 0, 0.15) !important;
-        }
-
-        .sub-menu li {
-            list-style: none;
-        }
-
-        .sub-menu li a {
-            display: flex;
-            align-items: center;
-            padding: 8px 20px 8px 56px !important;
-            color: rgba(255, 255, 255, 0.6) !important;
-            text-decoration: none !important;
-            font-size: 13px;
-            transition: all 0.3s ease;
-            border-left: 2px solid transparent;
-        }
-
-        .sub-menu li a:hover {
-            color: #ffffff !important;
-            background: rgba(255, 255, 255, 0.04) !important;
-        }
-
-        .sub-menu li a.active {
-            color: #346eeb !important;
-            border-left: 2px solid #346eeb;
-            background: rgba(52, 110, 235, 0.08) !important;
-        }
-
-        .sub-menu li a span {
-            position: relative;
-        }
-
-        /* Arrow */
-        .arrow {
-            margin-left: auto;
-            padding-right: 10px;
-            transition: transform 0.3s ease;
-        }
-
-        .arrow svg {
-            width: 10px;
-            height: 10px;
-            fill: rgba(255, 255, 255, 0.3);
-            transition: fill 0.3s ease;
-        }
-
-        .showMenu .arrow {
-            transform: rotate(90deg);
-        }
-
-        .showMenu .sub-menu {
-            display: block !important;
-        }
-
-        /* Special styling for section headers in nav */
-        .nav-section-header + .nav-links-li .iocn-link a {
-            padding-top: 4px;
-        }
-
-        /* Hover effect for section headers */
-        .nav-section-header:hover {
-            color: rgba(255, 255, 255, 0.5);
-        }
-
-        /* Logout item special styling */
-        .nav-links-li:last-child .iocn-link a {
-            border-top: 1px solid rgba(255, 255, 255, 0.06);
-            margin-top: 6px;
-            padding-top: 14px;
-        }
-
-        .nav-links-li:last-child .iocn-link a .sidebar_icon svg {
-            stroke: #e74c3c;
-        }
-
-        .nav-links-li:last-child .iocn-link a:hover .sidebar_icon svg {
-            stroke: #ff6b6b;
-        }
-
-        /* Logo area */
-        .logo-details {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        /* Responsive fixes */
-        @media (max-width: 768px) {
-            .sidebar {
-                width: 100% !important;
-            }
-        }
-
-        /* Dark mode support for icons in submenu */
-        .sub-menu li a .sidebar_icon {
-            display: none;
-        }
-    </style>
 
 </head>
 
@@ -505,6 +271,21 @@
                 </div>
             </li>
             @endif
+
+            <!-- My Leave (self-service) -->
+            <li class="nav-links-li {{ request()->is('staff/leave*') ? 'showMenu' : '' }}">
+                <div class="iocn-link">
+                    <a href="{{ route('staff.leave.index') }}" class="{{ request()->is('staff/leave*') ? 'active' : '' }}">
+                        <div class="sidebar_icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                                <circle cx="12" cy="7" r="4"></circle>
+                            </svg>
+                        </div>
+                        <span class="link_name">{{ get_phrase('My Leave') }}</span>
+                    </a>
+                </div>
+            </li>
 
             <!-- Programmes -->
             <li class="nav-links-li {{ request()->is('admin/programmes*') ? 'showMenu' : '' }}">
@@ -968,6 +749,25 @@
                     </a>
                 </div>
             </li>
+
+            <!-- Audit Logs (School Admin only) -->
+            @if($user->role_id == 2)
+            <li class="nav-links-li {{ request()->is('admin/audit-log*') ? 'showMenu' : '' }}">
+                <div class="iocn-link">
+                    <a href="{{ route('admin.audit_log.index') }}" class="{{ request()->is('admin/audit-log*') ? 'active' : '' }}">
+                        <div class="sidebar_icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                <polyline points="14 2 14 8 20 8"></polyline>
+                                <line x1="9" y1="13" x2="15" y2="13"></line>
+                                <line x1="9" y1="17" x2="15" y2="17"></line>
+                            </svg>
+                        </div>
+                        <span class="link_name">{{ get_phrase('Audit Logs') }}</span>
+                    </a>
+                </div>
+            </li>
+            @endif
 
             <!-- Settings (if user has permission) -->
             @if(empty($user->menu_permission) || in_array('admin.settings.school', $menu_permission))

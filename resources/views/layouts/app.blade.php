@@ -115,261 +115,17 @@
     <link rel="stylesheet" type="text/css" href="{{ asset('assets/vendors/bootstrap-icons-1.8.1/bootstrap-icons.css') }}" />
     <link rel="stylesheet" type="text/css" href="{{ asset('assets/css/toastr.min.css') }}" />
     <link rel="stylesheet" type="text/css" href="{{ asset('assets/calender/main.css') }}" />
-    
+    <link rel="stylesheet" type="text/css" href="{{ asset('assets/css/admin-sidebar.css') }}" />
+
     <!-- Font Awesome 6 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-    
+
     <script src="{{ asset('assets/vendors/jquery/jquery-3.6.0.min.js') }}"></script>
 
     <style>
-        /* ============================================ */
-        /* FIXED SIDEBAR & LAYOUT STYLES                */
-        /* ============================================ */
-
-        /* Sidebar */
-        .sidebar {
-            background: #1a2332 !important;
-            width: 280px !important;
-            height: 100vh;
-            position: fixed;
-            top: 0;
-            left: 0;
-            overflow-y: auto;
-            overflow-x: hidden;
-            z-index: 1000;
-            transition: all 0.3s ease;
-        }
-
-        .sidebar .logo-details {
-            padding: 20px 25px !important;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-            margin-bottom: 10px !important;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .sidebar .logo-details .img_wrapper {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .sidebar .logo-details .img_wrapper img {
-            max-height: 45px !important;
-            width: auto !important;
-            object-fit: contain;
-        }
-
-        .sidebar .logo-details .logo_name {
-            font-size: 16px !important;
-            font-weight: 600 !important;
-            color: #ffffff !important;
-            letter-spacing: 0.5px;
-        }
-
-        /* Section Headers */
-        .nav-section-header {
-            padding: 12px 25px 6px 25px;
-            font-size: 10px;
-            font-weight: 700;
-            color: rgba(255, 255, 255, 0.3);
-            text-transform: uppercase;
-            letter-spacing: 1.2px;
-            border-top: 1px solid rgba(255, 255, 255, 0.06);
-            margin-top: 4px;
-        }
-
-        .nav-section-header:first-of-type {
-            border-top: none;
-            margin-top: 0;
-        }
-
-        .nav-section-header i {
-            margin-right: 8px;
-            font-size: 11px;
-            opacity: 0.5;
-        }
-
-        /* Navigation */
-        .nav-links {
-            padding: 0 !important;
-            margin: 0 !important;
-        }
-
-        .nav-links-li {
-            list-style: none;
-            margin: 2px 0 !important;
-        }
-
-        .nav-links-li .iocn-link a {
-            display: flex;
-            align-items: center;
-            padding: 10px 20px !important;
-            color: rgba(255, 255, 255, 0.7) !important;
-            text-decoration: none !important;
-            transition: all 0.3s ease;
-            font-size: 14px;
-            font-weight: 400;
-        }
-
-        .nav-links-li .iocn-link a:hover {
-            color: #ffffff !important;
-            background: rgba(255, 255, 255, 0.06) !important;
-        }
-
-        .nav-links-li .iocn-link a .sidebar_icon {
-            width: 22px;
-            height: 22px;
-            margin-right: 14px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-        }
-
-        .nav-links-li .iocn-link a .sidebar_icon svg {
-            width: 20px;
-            height: 20px;
-            stroke: rgba(255, 255, 255, 0.6);
-            transition: stroke 0.3s ease;
-        }
-
-        .nav-links-li .iocn-link a:hover .sidebar_icon svg {
-            stroke: #ffffff;
-        }
-
-        .nav-links-li .iocn-link a .link_name {
-            font-size: 14px;
-            font-weight: 400;
-            color: rgba(255, 255, 255, 0.7);
-            transition: color 0.3s ease;
-        }
-
-        .nav-links-li .iocn-link a:hover .link_name {
-            color: #ffffff;
-        }
-
-        .nav-links-li .iocn-link a.active {
-            background: rgba(52, 110, 235, 0.15) !important;
-            color: #ffffff !important;
-            border-left: 3px solid #346eeb;
-        }
-
-        .nav-links-li .iocn-link a.active .sidebar_icon svg {
-            stroke: #346eeb !important;
-        }
-
-        .nav-links-li .iocn-link a.active .link_name {
-            color: #ffffff !important;
-            font-weight: 500;
-        }
-
-        /* Sub-menu */
-        .sub-menu {
-            display: none;
-            padding: 0 !important;
-            margin: 0 !important;
-            background: rgba(0, 0, 0, 0.15) !important;
-        }
-
-        .sub-menu li a {
-            display: flex;
-            align-items: center;
-            padding: 8px 20px 8px 56px !important;
-            color: rgba(255, 255, 255, 0.6) !important;
-            text-decoration: none !important;
-            font-size: 13px;
-            transition: all 0.3s ease;
-            border-left: 2px solid transparent;
-        }
-
-        .sub-menu li a:hover {
-            color: #ffffff !important;
-            background: rgba(255, 255, 255, 0.04) !important;
-        }
-
-        .sub-menu li a.active {
-            color: #346eeb !important;
-            border-left: 2px solid #346eeb;
-            background: rgba(52, 110, 235, 0.08) !important;
-        }
-
-        /* Arrow */
-        .arrow {
-            margin-left: auto;
-            padding-right: 10px;
-            transition: transform 0.3s ease;
-        }
-
-        .arrow svg {
-            width: 10px;
-            height: 10px;
-            fill: rgba(255, 255, 255, 0.3);
-            transition: fill 0.3s ease;
-        }
-
-        .showMenu .arrow {
-            transform: rotate(90deg);
-        }
-
-        .showMenu .sub-menu {
-            display: block !important;
-        }
-
-        /* Logout */
-        .nav-links-li:last-child .iocn-link a {
-            border-top: 1px solid rgba(255, 255, 255, 0.06);
-            margin-top: 6px;
-            padding-top: 14px;
-        }
-
-        .nav-links-li:last-child .iocn-link a .sidebar_icon svg {
-            stroke: #e74c3c;
-        }
-
-        .nav-links-li:last-child .iocn-link a:hover .sidebar_icon svg {
-            stroke: #ff6b6b;
-        }
-
-        /* Notification Badge */
-        .notification-badge {
-            background: #dc3545;
-            border-radius: 50%;
-            width: 20px;
-            height: 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 10px;
-            font-weight: 700;
-            color: #fff;
-            margin-left: auto;
-            margin-right: 10px;
-        }
-
-        .sidebar.close .notification-badge {
-            display: none;
-        }
-
-        /* ============================================ */
-        /* HOME SECTION - FIXED OVERLAP                 */
-        /* ============================================ */
-
-        .home-section {
-            position: relative;
-            background: #f6f6f9;
-            margin-left: 280px !important;
-            min-height: 100vh;
-            transition: all 0.3s ease;
-            padding: 0 !important;
-            width: calc(100% - 280px) !important;
-        }
-
-        .sidebar.close ~ .home-section {
-            margin-left: 78px !important;
-            width: calc(100% - 78px) !important;
-        }
+        /* Sidebar theme + layout widths live in assets/css/admin-sidebar.css
+           (shared with admin/navigation.blade.php). Only this page's own
+           content-wrapper spacing stays here. */
 
         .home-content {
             background-color: #f6f6f9;
@@ -435,32 +191,6 @@
         /* RESPONSIVE                                  */
         /* ============================================ */
 
-        @media (max-width: 991px) {
-            .sidebar {
-                width: 240px !important;
-                left: -240px !important;
-            }
-            .sidebar.show {
-                left: 0 !important;
-            }
-            .home-section {
-                margin-left: 0 !important;
-                width: 100% !important;
-            }
-            .sidebar.close ~ .home-section {
-                margin-left: 0 !important;
-                width: 100% !important;
-            }
-            .closeIcon {
-                display: block !important;
-                position: absolute;
-                top: 15px;
-                right: 15px;
-                cursor: pointer;
-                z-index: 999;
-            }
-        }
-
         @media (max-width: 768px) {
             .main_content {
                 padding: 15px !important;
@@ -487,7 +217,7 @@
             </div>
             <span class="logo_name">{{ get_settings('navbar_title') ?: 'HEMS Portal' }}</span>
         </div>
-        <div class="closeIcon" onclick="toggleSidebar()">
+        <div class="closeIcon">
             <span>
                 <img src="{{ asset('assets/images/close.svg') }}">
             </span>
@@ -1091,7 +821,7 @@
             <div class="home-header">
                 <div class="row w-100 justify-content-between align-items-center">
                     <div class="col-auto">
-                        <div class="sidebar_menu_icon" onclick="toggleSidebar()">
+                        <div class="sidebar_menu_icon">
                             <div class="menuList">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="15" height="12" viewBox="0 0 15 12">
                                     <path id="Union_5" data-name="Union 5" d="M-2188.5,52.5v-2h15v2Zm0-5v-2h15v2Zm0-5v-2h15v2Z" transform="translate(2188.5 -40.5)" fill="#6e6f78"/>
@@ -1276,21 +1006,9 @@
     <script src="{{ asset('assets/js/html2canvas.min.js') }}"></script>
 
     <script>
-        // Toggle Sidebar
-        function toggleSidebar() {
-            document.getElementById('sidebar').classList.toggle('show');
-        }
-
-        // Close sidebar on outside click (mobile)
-        document.addEventListener('click', function(event) {
-            const sidebar = document.getElementById('sidebar');
-            const isClickInsideSidebar = sidebar.contains(event.target);
-            const isClickOnMenuIcon = event.target.closest('.sidebar_menu_icon');
-            
-            if (!isClickInsideSidebar && !isClickOnMenuIcon && window.innerWidth <= 991) {
-                sidebar.classList.remove('show');
-            }
-        });
+        // Sidebar collapse/off-canvas toggling is handled globally by
+        // assets/js/script.js (.menuList / .closeIcon / .nav-links-li),
+        // shared with the rest of the app.
 
         // Language selection
         document.addEventListener('DOMContentLoaded', function() {
