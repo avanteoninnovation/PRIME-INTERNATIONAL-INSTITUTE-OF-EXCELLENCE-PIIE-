@@ -404,7 +404,6 @@ class StudentController extends Controller
     public function FeeManagerList(Request $request)
     {
         $active_session            = get_school_settings(auth()->user()->school_id)->value('running_session');
-        $student_class_information = Enrollment::where('user_id', auth()->user()->id)->first()->toArray();
 
         if (count($request->all()) > 0) {
 

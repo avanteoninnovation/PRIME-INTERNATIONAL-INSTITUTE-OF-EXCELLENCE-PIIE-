@@ -15,7 +15,7 @@
             </div>
             <div class="row mt-2">
                 <div class="col-6 fpb-7"><label class="eForm-label">{{ get_phrase('Duration (minutes)') }}</label>
-                    <input type="number" class="form-control eForm-control" name="duration_minutes" value="{{ $exam->duration_minutes ?? 60 }}" min="5"></div>
+                    <input type="number" class="form-control eForm-control" name="duration_minutes" value="{{ $exam->duration_minutes ?? 60 }}" min="1"></div>
                 <div class="col-6 fpb-7"><label class="eForm-label">{{ get_phrase('Pass Mark (%)') }}</label>
                     <input type="number" class="form-control eForm-control" name="pass_mark" value="{{ $exam->pass_mark ?? 50 }}" min="0" max="100"></div>
             </div>

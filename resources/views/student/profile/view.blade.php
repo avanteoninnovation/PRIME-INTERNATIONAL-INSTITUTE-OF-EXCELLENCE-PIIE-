@@ -1,6 +1,12 @@
 @extends('student.navigation')
-   
+
 @section('content')
+    @php
+        $user_information = array_merge(
+            ['phone' => null, 'address' => null, 'birthday' => null, 'gender' => null, 'photo' => null],
+            (array) (json_decode(auth()->user()->user_information ?? '', true) ?: [])
+        );
+    @endphp
     <!-- Start User Profile area -->
     <div class="user-profile-area d-flex flex-wrap">
         <!-- Left side -->
@@ -43,12 +49,12 @@
                 </div>
                 <div class="item">
                 <p class="title">{{ get_phrase('Phone Number') }}</p>
-                <p class="info">{{ json_decode(auth()->user()->user_information, true)['phone'] }}</p>
+                <p class="info">{{ $user_information['phone'] }}</p>
                 </div>
                 <div class="item">
                 <p class="title">{{ get_phrase('Address') }}</p>
                 <p class="info">
-                {{ json_decode(auth()->user()->user_information, true)['address'] }}
+                {{ $user_information['address'] }}
                 </p>
                 </div>
             </div>
@@ -102,7 +108,7 @@
                         >{{ get_phrase('Birthday') }}</label
                     >
                     @php
-                        $birthday = json_decode(auth()->user()->user_information, true)['birthday'];
+                        $birthday = $user_information['birthday'];
                         if(empty($birthday)){
                             $birthday = time();
                         }
@@ -123,8 +129,8 @@
                         class="form-select eForm-select eChoice-multiple-without-remove"
                         data-placeholder="Type to search..."
                     >
-                        <option value="Male" @php strtolower(json_decode(auth()->user()->user_information, true)['gender']) == 'male' ? 'selected':''; @endphp>{{ get_phrase('Male') }}</option>
-                        <option value="Female" @php strtolower(json_decode(auth()->user()->user_information, true)['gender']) == 'female' ? 'selected':''; @endphp>{{ get_phrase('Female') }}</option>
+                        <option value="Male" @php strtolower($user_information['gender'] ?? '') == 'male' ? 'selected':''; @endphp>{{ get_phrase('Male') }}</option>
+                        <option value="Female" @php strtolower($user_information['gender'] ?? '') == 'female' ? 'selected':''; @endphp>{{ get_phrase('Female') }}</option>
                     </select>
                     </div>
                     <div class="fpb-7">
@@ -136,7 +142,7 @@
                         class="form-control eForm-control"
                         id="eInputPhone"
                         name="phone"
-                        value="{{ json_decode(auth()->user()->user_information, true)['phone'] }}"
+                        value="{{ $user_information['phone'] }}"
                         placeholder="00 (00) 12345 6789"
                         aria-label="00 (00) 12345 6789"
                     />
@@ -150,7 +156,7 @@
                         class="form-control eForm-control"
                         id="eInputAddress"
                         name="address"
-                        value="{{ json_decode(auth()->user()->user_information, true)['address'] }}"
+                        value="{{ $user_information['address'] }}"
                         placeholder="Enter Address"
                         aria-label="Enter Address"
                     />
@@ -160,7 +166,7 @@
                     <label for="eInputAddress" class="eForm-label"
                         >{{ get_phrase('Photo') }}</label
                     >
-                    <input type="hidden" class="form-control" name="old_photo" value="{{ json_decode(auth()->user()->user_information, true)['photo'] }}"/>
+                    <input type="hidden" class="form-control" name="old_photo" value="{{ $user_information['photo'] }}"/>
                     <input type="file" class="form-control eForm-control-file" name="photo" accept="image/*" />
                     </div>
 

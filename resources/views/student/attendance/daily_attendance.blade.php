@@ -10,8 +10,8 @@ use App\Models\Classes;
 use App\Models\Section;
 use App\Models\Session;
 
-$class_name = Classes::find($student_data['class_id'])->name;
-$section_name = Section::find($student_data['section_id'])->name;
+$class_name = optional(Classes::find($student_data['class_id']))->name;
+$section_name = optional(Section::find($student_data['section_id']))->name;
 $active_session = Session::where('status', 1)->where('school_id', auth()->user()->school_id)->first();
 
 $date = '01 ' . $page_data['month'] . ' ' . $page_data['year'];

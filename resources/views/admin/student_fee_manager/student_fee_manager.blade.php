@@ -64,6 +64,18 @@
 					            </div>
 					        @endif
 				        </div>
+				@if($programmes->count() > 0)
+				<div class="col-xl-2 mb-3">
+					<div class="form-group">
+						<select name="programme" id="programme_id" class="form-select eForm-select eChoice-multiple-with-remove">
+							<option value="all">{{ get_phrase('All programmes') }}</option>
+							@foreach($programmes as $programme)
+								<option value="{{ $programme->id }}" {{ (isset($selected_programme) && (string) $programme->id === (string) $selected_programme) ? 'selected' : '' }}>{{ $programme->name }}</option>
+							@endforeach
+						</select>
+					</div>
+				</div>
+				@endif
 				        <div class="col-xl-2 mb-3">
 				        	@if(isset($selected_status) && $selected_status != "")
 					            <div class="form-group">

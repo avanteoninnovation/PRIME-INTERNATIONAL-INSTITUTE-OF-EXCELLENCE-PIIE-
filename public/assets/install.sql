@@ -381,11 +381,13 @@ INSERT INTO `currency` (`id`, `name`, `code`, `symbol`, `paypal_supported`, `str
 
 CREATE TABLE `daily_attendances` (
   `id` bigint UNSIGNED NOT NULL,
-  `class_id` int NOT NULL,
-  `section_id` int NOT NULL,
+  `class_id` bigint UNSIGNED DEFAULT NULL,
+  `programme_id` bigint UNSIGNED DEFAULT NULL,
+  `intake_session_id` bigint UNSIGNED DEFAULT NULL,
+  `section_id` int DEFAULT NULL,
   `student_id` int NOT NULL,
   `status` int NOT NULL,
-  `session_id` int NOT NULL,
+  `session_id` int DEFAULT NULL,
   `school_id` int NOT NULL,
   `timestamp` int DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT NULL,
@@ -409,10 +411,10 @@ CREATE TABLE `departments` (
 -- --------------------------------------------------------
 
 --
--- Table structure for table `enrollments`
+-- Table structure for table `enrollment`
 --
 
-CREATE TABLE `enrollments` (
+CREATE TABLE `enrollment` (
   `id` bigint UNSIGNED NOT NULL,
   `user_id` int NOT NULL,
   `class_id` int NOT NULL,
@@ -2326,9 +2328,10 @@ INSERT INTO `roles` (`role_id`, `name`, `created_at`, `updated_at`) VALUES
 
 CREATE TABLE `routines` (
   `id` bigint UNSIGNED NOT NULL,
-  `class_id` int NOT NULL,
-  `section_id` int NOT NULL,
-  `subject_id` int NOT NULL,
+  `class_id` int DEFAULT NULL,
+  `section_id` int DEFAULT NULL,
+  `subject_id` int DEFAULT NULL,
+  `programme_id` bigint UNSIGNED DEFAULT NULL,
   `starting_hour` int NOT NULL,
   `ending_hour` int NOT NULL,
   `starting_minute` int NOT NULL,
@@ -2613,9 +2616,9 @@ ALTER TABLE `departments`
   ADD PRIMARY KEY (`id`);
 
 --
--- Indexes for table `enrollments`
+-- Indexes for table `enrollment`
 --
-ALTER TABLE `enrollments`
+ALTER TABLE `enrollment`
   ADD PRIMARY KEY (`id`);
 
 --
@@ -2903,9 +2906,9 @@ ALTER TABLE `departments`
   MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
--- AUTO_INCREMENT for table `enrollments`
+-- AUTO_INCREMENT for table `enrollment`
 --
-ALTER TABLE `enrollments`
+ALTER TABLE `enrollment`
   MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --

@@ -4,6 +4,14 @@
 
     $user = Auth()->user();
     $isPrimarySchool = is_primary_school($user->school_id);
+    // Classes (legacy K-12 class/section structure) don't apply to a
+    // purely higher_ed school — those use Programmes/Courses instead.
+    // 'k12' and 'mixed' schools (and the 'k12' column default) see it.
+    $schoolType = \Illuminate\Support\Facades\DB::table('schools')->where('id', $user->school_id)->value('school_type') ?? 'k12';
+    $canSeeClasses = $schoolType !== 'higher_ed';
+    // Symmetric to $canSeeClasses: Programmes/Courses don't apply to a
+    // purely k12 school. 'higher_ed' and 'mixed' schools see them.
+    $canSeeProgrammes = $schoolType !== 'k12';
     $faviconSetting = trim((string) get_settings('favicon'));
     $whiteLogoSetting = trim((string) get_settings('white_logo'));
     $darkLogoSetting = trim((string) get_settings('dark_logo'));
@@ -310,8 +318,9 @@
             @endif
 
             <!-- ============================================ -->
-            <!-- PROGRAMMES                                  -->
+            <!-- PROGRAMMES (higher_ed/mixed only)             -->
             <!-- ============================================ -->
+            @if($canSeeProgrammes)
             <li class="nav-links-li {{ request()->is('admin/programmes*') ? 'showMenu' : '' }}">
                 <div class="iocn-link">
                     <a href="{{ route('admin.programmes.index') }}" class="{{ request()->is('admin/programmes*') ? 'active' : '' }}">
@@ -325,6 +334,7 @@
                     </a>
                 </div>
             </li>
+            @endif
 
             <!-- ============================================ -->
             <!-- COURSES                                     -->
@@ -349,6 +359,24 @@
             <!-- ACADEMIC SECTION HEADER                      -->
             <!-- ============================================ -->
             <li class="nav-section-header"><i class="fas fa-graduation-cap"></i> ACADEMIC</li>
+
+            <!-- Classes (K-12 class/section structure; hidden for higher_ed schools) -->
+            @if($canSeeClasses && (empty($user->menu_permission) || in_array('admin.class_list', $menu_permission)))
+            <li class="nav-links-li {{ request()->is('admin/class_list') || request()->is('admin/class/*') || request()->is('admin/class_create') ? 'showMenu' : '' }}">
+                <div class="iocn-link">
+                    <a href="{{ route('admin.class_list') }}" class="{{ request()->is('admin/class_list') || request()->is('admin/class/*') || request()->is('admin/class_create') ? 'active' : '' }}">
+                        <div class="sidebar_icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+                                <polyline points="2 17 12 22 22 17"></polyline>
+                                <polyline points="2 12 12 17 22 12"></polyline>
+                            </svg>
+                        </div>
+                        <span class="link_name">{{ get_phrase('Classes') }}</span>
+                    </a>
+                </div>
+            </li>
+            @endif
 
             <!-- Attendance -->
             @if(empty($user->menu_permission) || in_array('admin.daily_attendance', $menu_permission))

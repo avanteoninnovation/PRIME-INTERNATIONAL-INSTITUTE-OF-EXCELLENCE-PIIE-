@@ -23,7 +23,7 @@ table.info td:first-child { font-weight: bold; width: 35%; background: #f8f8f8; 
 </head>
 <body>
 <div class="header">
-    <h2>{{ $school->school_name ?? 'Institution Name' }}</h2>
+    <h2>{{ $school->title ?? 'Institution Name' }}</h2>
     <p>{{ $school->address ?? '' }}</p>
     <p>Email: {{ $school->email ?? '' }} | Tel: {{ $school->phone ?? '' }}</p>
 </div>
@@ -35,7 +35,7 @@ table.info td:first-child { font-weight: bold; width: 35%; background: #f8f8f8; 
 
 <h4>OFFER OF ADMISSION</h4>
 
-<p>We are pleased to inform you that following a review of your application, you have been offered admission to <strong>{{ $school->school_name ?? 'this institution' }}</strong> for the following programme:</p>
+<p>We are pleased to inform you that following a review of your application, you have been offered admission to <strong>{{ $school->title ?? 'this institution' }}</strong> for the following programme:</p>
 
 <table class="info">
     <tr><td>Programme</td><td>{{ optional($admission->programme)->name }}</td></tr>
@@ -74,7 +74,7 @@ table.info td:first-child { font-weight: bold; width: 35%; background: #f8f8f8; 
 </div>
 
 <div class="footer">
-    {{ $school->school_name ?? '' }} &bull; {{ $school->address ?? '' }}<br>
+    {{ $school->title ?? '' }} &bull; {{ $school->address ?? '' }}<br>
     This letter was generated on {{ date('d F Y') }}
 </div>
 </body>

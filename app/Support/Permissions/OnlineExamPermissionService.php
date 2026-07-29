@@ -3,6 +3,7 @@
 namespace App\Support\Permissions;
 
 use App\Models\TeacherPermission;
+use App\Models\TeacherProgrammeAssignment;
 use App\Models\User;
 
 class OnlineExamPermissionService
@@ -89,6 +90,29 @@ class OnlineExamPermissionService
 
         if (!$subject) {
             return false;
+        }
+
+        // Programme-linked (HEI) subjects have no class_id — check the
+        // programme-based assignment table instead. Fail open only while
+        // this school hasn't configured any programme assignment yet (no
+        // rows at all for the school), so schools that haven't adopted this
+        // feature aren't suddenly locked out of every HEI subject; once an
+        // admin assigns at least one teacher to a programme, it's enforced
+        // normally, same as class_id-based TeacherPermission always was.
+        if (empty($subject->class_id)) {
+            if (empty($subject->programme_id)) {
+                return true;
+            }
+
+            $schoolHasConfiguredAssignments = TeacherProgrammeAssignment::where('school_id', $user->school_id)->exists();
+            if (!$schoolHasConfiguredAssignments) {
+                return true;
+            }
+
+            return TeacherProgrammeAssignment::where('teacher_id', $user->id)
+                ->where('school_id', $user->school_id)
+                ->where('programme_id', $subject->programme_id)
+                ->exists();
         }
 
         return TeacherPermission::where('teacher_id', $user->id)

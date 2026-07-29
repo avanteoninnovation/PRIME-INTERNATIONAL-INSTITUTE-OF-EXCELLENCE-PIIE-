@@ -12,6 +12,7 @@ use App\Models\Programme;
 use App\Models\Session;
 use App\Models\Subject;
 use App\Models\TeacherPermission;
+use App\Models\TeacherProgrammeAssignment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -591,8 +592,31 @@ class LiveClassController extends Controller
                 ->pluck('class_id')
                 ->unique();
 
-            if ($classIds->isNotEmpty()) {
-                $query->whereIn('class_id', $classIds);
+            // Programme-linked (HEI) subjects have no class_id, so the
+            // class_id filter below must not silently exclude them. Only
+            // restrict them once this school has actually started assigning
+            // teachers to programmes (see TeacherProgrammeAssignment) —
+            // until then, fail open the same way class-based access always
+            // did before TeacherPermission existed.
+            $schoolHasConfiguredProgrammeAssignments = TeacherProgrammeAssignment::where('school_id', $this->school_id)->exists();
+
+            $programmeIds = $schoolHasConfiguredProgrammeAssignments
+                ? TeacherProgrammeAssignment::where('school_id', $this->school_id)
+                    ->where('teacher_id', Auth::id())
+                    ->pluck('programme_id')
+                    ->unique()
+                : collect();
+
+            if ($classIds->isNotEmpty() || $schoolHasConfiguredProgrammeAssignments) {
+                $query->where(function ($q) use ($classIds, $schoolHasConfiguredProgrammeAssignments, $programmeIds) {
+                    $q->whereIn('class_id', $classIds);
+
+                    if ($schoolHasConfiguredProgrammeAssignments) {
+                        $q->orWhereIn('programme_id', $programmeIds);
+                    } else {
+                        $q->orWhereNull('class_id');
+                    }
+                });
             }
         }
 

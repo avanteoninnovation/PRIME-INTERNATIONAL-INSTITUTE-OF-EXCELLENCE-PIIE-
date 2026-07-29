@@ -377,6 +377,10 @@ Route::controller(AdminController::class)->middleware('admin', 'auth')->group(fu
     Route::get('admin/permission', 'teacherPermission')->name('admin.teacher.permission');
     Route::get('admin/permission/list/{filter}', 'teacherPermissionList')->name('admin.teacher.permission_list');
     Route::get('admin/teacher/permission_update', 'teacherPermissionUpdate')->name('admin.teacher.modify_permission');
+
+    //Teacher programme assignment route (programme-based equivalent of the class-based permission above)
+    Route::get('admin/programme-permission/list/{programme_id}', 'teacherProgrammeAssignmentList')->name('admin.teacher.programme_permission_list');
+    Route::get('admin/teacher/programme_permission_update', 'teacherProgrammeAssignmentUpdate')->name('admin.teacher.modify_programme_permission');
     Route::get('admin/upgrade_subscription', 'upgreadeSubscription')->name('admin.subscription.upgrade_subscription');
 
     //Admissions routes

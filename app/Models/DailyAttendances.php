@@ -15,7 +15,8 @@ class DailyAttendances extends Model
      * @var array
      */
     protected $fillable = [
-        'class_id', 'section_id', 'student_id', 'status', 'session_id', 'school_id', 'timestamp'
+        'class_id', 'section_id', 'student_id', 'status', 'session_id', 'school_id', 'timestamp',
+        'programme_id', 'intake_session_id',
     ];
 
     public function student()

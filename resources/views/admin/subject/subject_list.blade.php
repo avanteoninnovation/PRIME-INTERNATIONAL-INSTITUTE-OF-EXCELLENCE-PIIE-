@@ -1,4 +1,4 @@
-<?php use App\Models\Classes; ?>
+<?php use App\Models\Classes; use App\Models\Programme; ?>
 
 @extends('admin.navigation')
    
@@ -52,16 +52,19 @@
                             <th>#</th>
                             <th>{{ get_phrase('Name') }}</th>
                             <th>{{ get_phrase('Class') }}</th>
+                            <th>{{ get_phrase('Programme') }}</th>
                             <th class="text-end">{{ get_phrase('Action') }}</th>
                         </tr>
                     </thead>
                     <tbody>
                         @foreach($subjects as $key => $subject)
-                            <?php $class = Classes::get()->where('id', $subject->class_id)->first(); ?>
+                            <?php $class = $subject->class_id ? Classes::find($subject->class_id) : null; ?>
+                            <?php $programme = $subject->programme_id ? Programme::find($subject->programme_id) : null; ?>
                              <tr>
                                 <td>{{ $subjects->firstItem() + $key }}</td>
                                 <td>{{ $subject->name }}</td>
-                                <td>{{ $class->name }}</td>
+                                <td>{{ $class->name ?? '-' }}</td>
+                                <td>{{ $programme->name ?? '-' }}</td>
                                 <td class="text-start">
                                     <div class="adminTable-action">
                                         <button

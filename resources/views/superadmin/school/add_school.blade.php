@@ -59,6 +59,27 @@
 					                <label for="school_logo" class="eForm-label">{{ get_phrase('School Logo') }}</label>
 					                <input class="form-control eForm-control-file" type="file" id="school_logo" name="school_logo" accept="image/*">
 					            </div>
+								<div class="fpb-7">
+					                <label for="education_level" class="eForm-label">{{ get_phrase('Education Level') }}</label>
+					                <select name="education_level" id="education_level" class="form-select eForm-select eChoice-multiple-with-remove">
+					                    <option value="">{{ get_phrase('Select an education level') }}</option>
+					                    <option value="primary">{{ get_phrase('Primary School') }}</option>
+					                    <option value="secondary">{{ get_phrase('Secondary School') }}</option>
+					                    <option value="tertiary">{{ get_phrase('Tertiary Institution / University') }}</option>
+					                    <option value="vocational">{{ get_phrase('Vocational / Technical Institution') }}</option>
+					                    <option value="mixed">{{ get_phrase('Mixed / Multi-Level Institution') }}</option>
+					                </select>
+					                <small class="text-muted">{{ get_phrase('Descriptive only — does not change application behavior.') }}</small>
+					            </div>
+								<div class="fpb-7">
+					                <label for="school_type" class="eForm-label">{{ get_phrase('Academic Structure') }}</label>
+					                <select name="school_type" id="school_type" class="form-select eForm-select eChoice-multiple-with-remove">
+					                    <option value="k12">{{ get_phrase('Class-Based (K-12)') }}</option>
+					                    <option value="higher_ed">{{ get_phrase('Programme-Based (Higher Education)') }}</option>
+					                    <option value="mixed">{{ get_phrase('Mixed (both structures)') }}</option>
+					                </select>
+					                <small class="text-muted">{{ get_phrase('Controls which academic modules (Classes vs Programmes/Courses) this school sees.') }}</small>
+					            </div>
 							</div>
 						</div>
 						<div class="col-md-6 pb-3">

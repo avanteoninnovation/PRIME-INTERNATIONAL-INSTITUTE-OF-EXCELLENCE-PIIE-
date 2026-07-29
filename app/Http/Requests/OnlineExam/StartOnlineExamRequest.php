@@ -70,17 +70,19 @@ class StartOnlineExamRequest extends FormRequest
                 $validator->errors()->add('exam', 'Exam has ended.');
             }
 
-            $enrollment = Enrollment::where('user_id', $user->id)
-                ->where('school_id', $user->school_id)
-                ->first();
+            // Only class-scoped exams require a matching Enrollment — a null
+            // class_id exam is visible/sittable by any student in the school
+            // (see OnlineExam::scopeVisibleToStudent()), including
+            // programme-based (HEI) students who have no Enrollment row at
+            // all and use StudentProfile instead.
+            if (!empty($exam->class_id)) {
+                $enrollment = Enrollment::where('user_id', $user->id)
+                    ->where('school_id', $user->school_id)
+                    ->first();
 
-            if (!$enrollment) {
-                $validator->errors()->add('exam', 'No active enrollment found.');
-                return;
-            }
-
-            if (!empty($exam->class_id) && (int) $exam->class_id !== (int) $enrollment->class_id) {
-                $validator->errors()->add('exam', 'You are not assigned to this exam class.');
+                if (!$enrollment || (int) $exam->class_id !== (int) $enrollment->class_id) {
+                    $validator->errors()->add('exam', 'You are not assigned to this exam class.');
+                }
             }
 
             $attemptCount = OnlineExamSubmission::where('online_exam_id', $exam->id)

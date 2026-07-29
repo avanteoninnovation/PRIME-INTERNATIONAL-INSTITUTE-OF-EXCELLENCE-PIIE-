@@ -63,8 +63,10 @@ class StudentFeeInvoiceGenerator
                 // No class/section concept for a programme-based (HEI)
                 // student — 0 is a sentinel meaning "not class-based";
                 // class-filtered fee views will not surface this invoice,
-                // but student-scoped views (by student_id) will.
+                // but student-scoped views (by student_id) and the
+                // programme_id-filtered admin view will.
                 'class_id'         => 0,
+                'programme_id'     => $programmeId,
                 'student_id'       => $student->id,
                 'fee_structure_id' => $fee->id,
                 'parent_id'        => $student->parent_id,

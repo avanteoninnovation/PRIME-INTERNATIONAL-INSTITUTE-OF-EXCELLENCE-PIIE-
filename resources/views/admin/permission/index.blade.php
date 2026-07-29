@@ -71,6 +71,69 @@
 </div>
 <!-- End Teacher Permission area -->
 
+@if($programmes->count() > 0)
+<!-- Start Teacher Programme Permission area -->
+<div class="row mt-4">
+    <div class="col-10 offset-md-1">
+        <div class="eSection-wrap-2">
+            <h4 class="mb-3">{{ get_phrase('Assigned Permission For Teacher (Programme-Based)') }}</h4>
+            <form method="GET" class="d-block ajaxForm">
+                <div class="row mt-3">
+
+                    <div class="col-md-2"></div>
+
+                    <div class="col-md-6">
+                        <select name="programme_id" id="programme_id" class="form-select eForm-select eChoice-multiple-with-remove">
+                            @foreach($programmes as $programme)
+                                <option value="{{ $programme->id }}" {{ (string)$programme->id === (string)$default_programme_id ? 'selected' : '' }}>{{ $programme->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div class="col-md-3">
+                        <button class="eBtn eBtn btn-secondary" type="button" onclick="filterProgramme()">{{ get_phrase('Filter') }}</button>
+                    </div>
+
+                    <div class="card-body programme_permission_content">
+                        @if(!empty($default_programme_id))
+                            @include('admin.permission.programme_list', ['teachers' => $teachers, 'programme_id' => $default_programme_id])
+                        @else
+                            <div class="empty_box center">
+                                <img class="mb-3" width="150px" src="{{ asset('assets/images/empty_box.png') }}" />
+                            </div>
+                        @endif
+                    </div>
+
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<!-- End Teacher Programme Permission area -->
+<script type="text/javascript">
+    "use strict";
+
+    function filterProgramme(){
+        var programme_id = $('#programme_id').val();
+
+        if(programme_id == ""){
+            toastr.error('{{ get_phrase('Please select a programme') }}');
+            return;
+        }
+
+        let url = "{{ route('admin.teacher.programme_permission_list', ['programme_id' => ':value']) }}";
+        url = url.replace(':value', programme_id);
+
+        $.ajax({
+            url: url,
+            success: function(response){
+                $('.programme_permission_content').html(response);
+            }
+        });
+    }
+</script>
+@endif
+
 <script type="text/javascript">
 
   "use strict";

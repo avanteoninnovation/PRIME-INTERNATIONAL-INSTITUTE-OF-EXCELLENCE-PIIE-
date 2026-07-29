@@ -87,6 +87,11 @@
 
                     <tbody>
 
+                        @if (!$application || !$application->accepted_at)
+                        <tr>
+                            <td colspan="6" class="text-center">{{ get_phrase('No data found') }}</td>
+                        </tr>
+                        @else
                         @php
                             $startMonth = $application->accepted_at->format('m');
                             $startYear = $application->accepted_at->format('Y');
@@ -170,6 +175,7 @@
                                 </tr>
                             @endfor
                         @endfor
+                        @endif
 
                     </tbody>
                 </table>

@@ -35,17 +35,17 @@ class ReportsController extends Controller
         $active_students = User::where('school_id', $school_id)->where('role_id', 7)->where('status', 1)->count();
         $total_staff     = User::where('school_id', $school_id)->whereIn('role_id', [2, 3, 10, 11, 12, 13])->count();
 
-        // By programme — count students enrolled in classes linked to each programme
+        // By programme — count students via StudentProfile.programme_id, the
+        // one reliable currently-enrolled signal for programme-based
+        // students (see Programme::activeStudentCount()). Previously this
+        // bridged Subject.programme_id -> class_id -> Enrollment.count(),
+        // which undercounted (or reported 0 for) any school without
+        // class-linked Subject rows tagged to a programme — i.e. every
+        // pure-HEI school, including PIIE.
         $programmes = Programme::where('school_id', $school_id)->where('is_active', 1)
             ->get()
-            ->map(function ($p) use ($school_id) {
-                // Students whose enrollment class_id is in a class with this programme's subjects
-                $class_ids = \App\Models\Subject::where('school_id', $school_id)
-                    ->where('programme_id', $p->id)
-                    ->pluck('class_id')->unique();
-                $p->student_count = $class_ids->isNotEmpty()
-                    ? Enrollment::where('school_id', $school_id)->whereIn('class_id', $class_ids)->count()
-                    : 0;
+            ->map(function ($p) {
+                $p->student_count = $p->activeStudentCount();
                 return $p;
             })
             ->sortByDesc('student_count');
@@ -80,7 +80,11 @@ class ReportsController extends Controller
             ->where('timestamp', '>=', $today_ts)
             ->where('timestamp', '<', $today_ts + 86400)
             ->count();
-        $total_enrolled = Enrollment::where('school_id', $school_id)->count();
+        // Enrollment (K-12) + StudentProfile (programme-based) are fully
+        // disjoint student populations — sum both so a mixed or pure-HEI
+        // school isn't reported as having 0 enrolled students.
+        $total_enrolled = Enrollment::where('school_id', $school_id)->count()
+            + \App\Models\StudentProfile::where('school_id', $school_id)->where('status', 'active')->count();
 
         // ── Exam stats ─────────────────────────────────────────
         $total_submissions = 0;

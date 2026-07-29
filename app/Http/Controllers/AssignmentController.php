@@ -118,8 +118,7 @@ class AssignmentController extends Controller
     {
         $student_id = Auth::id();
         $school_id  = Auth::user()->school_id;
-        $enroll     = \App\Models\Enrollment::where('user_id', $student_id)->where('school_id', $school_id)->first();
-        $class_id   = $enroll?->class_id;
+        $class_id   = resolve_student_academic_context($student_id, $school_id)['class_id'];
 
         $assignments = Assignment::where('school_id', $school_id)
             ->where('is_published', 1)

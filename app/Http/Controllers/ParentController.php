@@ -212,9 +212,10 @@ class ParentController extends Controller
     public function subjectList_by_student_name(Request $request)
     {
         $data = $request->all();
-        $class_id = Enrollment::where('user_id', $data['user_id'])->first()->toArray();
-        $class_name = Classes::where('id', $class_id['class_id'])->get()->toArray();
-        $subjects = Subject::where('class_id', $class_id['class_id'])->get()->toArray();
+        $enrollment = Enrollment::where('user_id', $data['user_id'])->first();
+        $class_id = $enrollment ? $enrollment->class_id : null;
+        $class_name = $class_id ? Classes::where('id', $class_id)->get()->toArray() : [];
+        $subjects = $class_id ? Subject::where('class_id', $class_id)->get()->toArray() : [];
         return view('parent.subject.table', ['class_name' => $class_name, 'subjects' => $subjects]);
     }
 
@@ -274,9 +275,10 @@ class ParentController extends Controller
     public function syllabusList_by_student_name(Request $request)
     {
         $data = $request->all();
-        $class_id = Enrollment::where('user_id', $data['user_id'])->first()->toArray();
-        $class_name = Classes::where('id', $class_id['class_id'])->get()->toArray();
-        $syllabus = Syllabus::where('class_id', $class_id['class_id'])->get()->toArray();
+        $enrollment = Enrollment::where('user_id', $data['user_id'])->first();
+        $class_id = $enrollment ? $enrollment->class_id : null;
+        $class_name = $class_id ? Classes::where('id', $class_id)->get()->toArray() : [];
+        $syllabus = $class_id ? Syllabus::where('class_id', $class_id)->get()->toArray() : [];
 
         return view('parent.syllabus.table', ['class_name' => $class_name, 'syllabus' => $syllabus]);
     }
@@ -308,11 +310,11 @@ class ParentController extends Controller
 
         $student_id = $data['student_id'];
 
-        $academic_info = Enrollment::where('user_id', $student_id)->first()->toArray();
+        $enrollment = Enrollment::where('user_id', $student_id)->first();
 
         $classes = Classes::where('school_id', auth()->user()->school_id)->get();
 
-        return view('parent.routine.routine_list', ['student_id' => $student_id, 'class_id' => $academic_info['class_id'], 'section_id' => $academic_info['section_id'], 'classes' => $classes]);
+        return view('parent.routine.routine_list', ['student_id' => $student_id, 'class_id' => $enrollment ? $enrollment->class_id : null, 'section_id' => $enrollment ? $enrollment->section_id : null, 'classes' => $classes]);
     }
 
 

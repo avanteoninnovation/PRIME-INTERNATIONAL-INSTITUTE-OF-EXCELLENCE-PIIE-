@@ -578,3 +578,69 @@ if (!function_exists('is_primary_school')) {
         return (int) $schoolId === (int) $primarySchoolId;
     }
 }
+
+if (!function_exists('resolve_student_academic_context')) {
+    /**
+     * The one shared way to answer "what class/programme is this student
+     * currently in" — generalizes the branching already used ad-hoc in
+     * TranscriptController::buildTranscriptViewData(). A K-12 (class-based)
+     * student has an Enrollment row (class_id/section_id/session_id); a
+     * programme-based (HEI) student has no Enrollment row at all and uses
+     * StudentProfile (programme_id/intake_session_id) instead. The two are
+     * fully disjoint — a student is one or the other, never both.
+     *
+     * Every module that needs "this student's current class/programme"
+     * should call this rather than re-querying Enrollment directly with no
+     * StudentProfile fallback — that ad-hoc pattern, with varying (and
+     * sometimes missing) null-safety, was found duplicated across
+     * CommonController, AssignmentController, OnlineExamController,
+     * ParentController and others during the Phase 0 audit. This helper
+     * does not change any of those existing call sites by itself — modules
+     * are migrated to it individually, one at a time, in later phases.
+     *
+     * Returns an array shaped:
+     *   mode              'class' | 'programme' | null (no academic record at all)
+     *   class_id          int|null
+     *   section_id        int|null
+     *   session_id        int|null
+     *   programme_id      int|null
+     *   intake_session_id int|null
+     */
+    function resolve_student_academic_context(int $userId, int $schoolId): array
+    {
+        $context = [
+            'mode' => null,
+            'class_id' => null,
+            'section_id' => null,
+            'session_id' => null,
+            'programme_id' => null,
+            'intake_session_id' => null,
+        ];
+
+        $enrollment = \App\Models\Enrollment::where('user_id', $userId)
+            ->where('school_id', $schoolId)
+            ->latest()
+            ->first();
+
+        if ($enrollment && $enrollment->class_id) {
+            $context['mode'] = 'class';
+            $context['class_id'] = $enrollment->class_id;
+            $context['section_id'] = $enrollment->section_id;
+            $context['session_id'] = $enrollment->session_id;
+
+            return $context;
+        }
+
+        $studentProfile = \App\Models\StudentProfile::where('user_id', $userId)
+            ->where('school_id', $schoolId)
+            ->first();
+
+        if ($studentProfile && $studentProfile->programme_id) {
+            $context['mode'] = 'programme';
+            $context['programme_id'] = $studentProfile->programme_id;
+            $context['intake_session_id'] = $studentProfile->intake_session_id;
+        }
+
+        return $context;
+    }
+}

@@ -58,6 +58,7 @@ use App\Models\Subject;
 use App\Models\Subscription;
 use App\Models\Syllabus;
 use App\Models\TeacherPermission;
+use App\Models\TeacherProgrammeAssignment;
 use App\Models\User;
 use App\Support\StudentFeeInvoiceGenerator;
 use App\Support\StudentPortalActivation;
@@ -2190,8 +2191,19 @@ class AdminController extends Controller
 
     public function studentDelete($id)
     {
+        // A programme-based (HEI) student has no Enrollment row at all — only
+        // a StudentProfile — so both must be handled without assuming either
+        // exists, or this crashes/orphans data depending on which structure
+        // the student actually belongs to.
         $enroll = Enrollment::where('user_id', $id)->first();
-        $enroll->delete();
+        if ($enroll) {
+            $enroll->delete();
+        }
+
+        $studentProfile = StudentProfile::where('user_id', $id)->first();
+        if ($studentProfile) {
+            $studentProfile->delete();
+        }
 
         $fee_history = StudentFeeManager::get()->where('student_id', $id);
         $fee_history->map->delete();
@@ -2238,13 +2250,50 @@ class AdminController extends Controller
         $teachers = User::where('role_id', 3)
             ->where('school_id', auth()->user()->school_id)
             ->get();
+
+        $programmes = Programme::where('school_id', auth()->user()->school_id)->where('is_active', 1)->orderBy('name')->get();
+        $default_programme_id = optional($programmes->first())->id;
+
         return view('admin.permission.index', [
             'classes'            => $classes,
             'sections'           => $sections,
             'teachers'           => $teachers,
             'default_class_id'   => $default_class_id,
             'default_section_id' => $default_section_id,
+            'programmes'            => $programmes,
+            'default_programme_id'  => $default_programme_id,
         ]);
+    }
+
+    public function teacherProgrammeAssignmentList($programme_id = "")
+    {
+        $teachers = User::where('role_id', 3)
+            ->where('school_id', auth()->user()->school_id)
+            ->get();
+        return view('admin.permission.programme_list', ['teachers' => $teachers, 'programme_id' => $programme_id]);
+    }
+
+    public function teacherProgrammeAssignmentUpdate(Request $request)
+    {
+        $data = $request->all();
+
+        $programme_id = $data['programme_id'];
+        $teacher_id    = $data['teacher_id'];
+        $column_name   = $data['column_name'];
+
+        TeacherProgrammeAssignment::updateOrCreate(
+            [
+                'programme_id' => $programme_id,
+                'teacher_id'   => $teacher_id,
+                'school_id'    => auth()->user()->school_id,
+            ],
+            [
+                $column_name  => $data['value'],
+                'updated_at'  => now(),
+            ]
+        );
+
+        return response()->json(['status' => 'success', 'message' => get_phrase('Permission updated successfully.')]);
     }
 
     public function teacherPermissionList($value = "")
@@ -3566,51 +3615,117 @@ class AdminController extends Controller
 
     public function createSubject()
     {
-        $classes = Classes::where('school_id', auth()->user()->school_id)->get();
-        return view('admin.subject.add_subject', ['classes' => $classes]);
+        $classes    = Classes::where('school_id', auth()->user()->school_id)->get();
+        $programmes = Programme::where('school_id', auth()->user()->school_id)->where('is_active', 1)->orderBy('name')->get();
+        return view('admin.subject.add_subject', ['classes' => $classes, 'programmes' => $programmes]);
     }
 
     public function subjectCreate(Request $request)
     {
-        $data           = $request->all();
-        $active_session = get_school_settings(auth()->user()->school_id)->value('running_session');
-        if (empty($active_session)) {
-            $active_session = Session::where('school_id', auth()->user()->school_id)->value('id')
-                ?? Session::value('id')
-                ?? null;
-        }
+        $data = $request->all();
 
-        if (empty($active_session)) {
-            return redirect()->back()->with('error', 'Please create or set an active academic session before adding subjects.');
-        }
-
-        Subject::create([
-            'name'       => $data['name'],
-            'class_id'   => $data['class_id'],
-            'school_id'  => auth()->user()->school_id,
-            'session_id' => $active_session,
+        $request->validate([
+            'name'         => 'required|string|max:255',
+            'class_id'     => 'nullable|exists:classes,id',
+            'programme_id' => 'nullable|exists:programmes,id',
+            'code'         => 'nullable|string|max:30',
         ]);
 
-        return redirect('/admin/subject?class_id=' . $data['class_id'])->with('message', 'You have successfully create subject.');
+        if (empty($data['class_id']) && empty($data['programme_id'])) {
+            return redirect()->back()->with('error', get_phrase('Please select a class or a programme.'));
+        }
+
+        if (! empty($data['class_id']) && ! empty($data['programme_id'])) {
+            return redirect()->back()->with('error', get_phrase('Please select a class OR a programme, not both.'));
+        }
+
+        $subject_data = [
+            'name'      => $data['name'],
+            'school_id' => auth()->user()->school_id,
+            'code'      => $data['code'] ?? null,
+        ];
+
+        if (! empty($data['programme_id'])) {
+            $subject_data['programme_id'] = $data['programme_id'];
+            $subject_data['class_id']     = null;
+            $subject_data['session_id']   = null;
+        } else {
+            $active_session = get_school_settings(auth()->user()->school_id)->value('running_session');
+            if (empty($active_session)) {
+                $active_session = Session::where('school_id', auth()->user()->school_id)->value('id');
+            }
+
+            if (empty($active_session)) {
+                return redirect()->back()->with('error', 'Please create or set an active academic session before adding subjects.');
+            }
+
+            $subject_data['class_id']   = $data['class_id'];
+            $subject_data['session_id'] = $active_session;
+        }
+
+        try {
+            Subject::create($subject_data);
+        } catch (\Illuminate\Database\QueryException $e) {
+            if ($e->getCode() == 23000) {
+                return redirect()->back()->with('error', get_phrase('A subject with this code already exists.'));
+            }
+            throw $e;
+        }
+
+        return redirect('/admin/subject' . (! empty($data['class_id']) ? '?class_id=' . $data['class_id'] : ''))->with('message', 'You have successfully create subject.');
     }
 
     public function editSubject($id)
     {
-        $subject = Subject::find($id);
-        $classes = Classes::where('school_id', auth()->user()->school_id)->get();
-        return view('admin.subject.edit_subject', ['subject' => $subject, 'classes' => $classes]);
+        $subject    = Subject::find($id);
+        $classes    = Classes::where('school_id', auth()->user()->school_id)->get();
+        $programmes = Programme::where('school_id', auth()->user()->school_id)->where('is_active', 1)->orderBy('name')->get();
+        return view('admin.subject.edit_subject', ['subject' => $subject, 'classes' => $classes, 'programmes' => $programmes]);
     }
 
     public function subjectUpdate(Request $request, $id)
     {
         $data = $request->all();
-        Subject::where('id', $id)->update([
-            'name'      => $data['name'],
-            'class_id'  => $data['class_id'],
-            'school_id' => auth()->user()->school_id,
+
+        $request->validate([
+            'name'         => 'required|string|max:255',
+            'class_id'     => 'nullable|exists:classes,id',
+            'programme_id' => 'nullable|exists:programmes,id',
+            'code'         => 'nullable|string|max:30',
         ]);
 
-        return redirect('/admin/subject?class_id=' . $data['class_id'])->with('message', 'You have successfully update subject.');
+        if (empty($data['class_id']) && empty($data['programme_id'])) {
+            return redirect()->back()->with('error', get_phrase('Please select a class or a programme.'));
+        }
+
+        if (! empty($data['class_id']) && ! empty($data['programme_id'])) {
+            return redirect()->back()->with('error', get_phrase('Please select a class OR a programme, not both.'));
+        }
+
+        $subject_data = [
+            'name'      => $data['name'],
+            'school_id' => auth()->user()->school_id,
+            'code'      => $data['code'] ?? null,
+        ];
+
+        if (! empty($data['programme_id'])) {
+            $subject_data['programme_id'] = $data['programme_id'];
+            $subject_data['class_id']     = null;
+        } else {
+            $subject_data['class_id']     = $data['class_id'];
+            $subject_data['programme_id'] = null;
+        }
+
+        try {
+            Subject::where('id', $id)->update($subject_data);
+        } catch (\Illuminate\Database\QueryException $e) {
+            if ($e->getCode() == 23000) {
+                return redirect()->back()->with('error', get_phrase('A subject with this code already exists.'));
+            }
+            throw $e;
+        }
+
+        return redirect('/admin/subject' . (! empty($data['class_id']) ? '?class_id=' . $data['class_id'] : ''))->with('message', 'You have successfully update subject.');
     }
 
     public function subjectDelete($id)
@@ -3893,7 +4008,7 @@ class AdminController extends Controller
 
     public function editClass($id)
     {
-        $class = Classes::find($id);
+        $class = Classes::where('id', $id)->where('school_id', auth()->user()->school_id)->firstOrFail();
         return view('admin.class.edit_class', ['class' => $class]);
     }
 
@@ -3901,17 +4016,14 @@ class AdminController extends Controller
     {
         $data = $request->all();
 
-        $duplicate_class_check = Classes::get()->where('name', $data['name'])->where('school_id', auth()->user()->school_id);
+        $class = Classes::where('id', $id)->where('school_id', auth()->user()->school_id)->firstOrFail();
 
-        if (count($duplicate_class_check) == 0) {
-            $class = Classes::find($id);
+        $duplicate_class_check = Classes::where('id', '!=', $id)->where('name', $data['name'])->where('school_id', auth()->user()->school_id);
 
-            if ($class) {
-                $class->update([
-                    'name'      => $data['name'],
-                    'school_id' => auth()->user()->school_id,
-                ]);
-            }
+        if ($duplicate_class_check->count() == 0) {
+            $class->update([
+                'name' => $data['name'],
+            ]);
 
             return redirect()->back()->with('message', 'You have successfully update class.');
         } else {
@@ -3922,12 +4034,15 @@ class AdminController extends Controller
 
     public function editSection($id)
     {
+        Classes::where('id', $id)->where('school_id', auth()->user()->school_id)->firstOrFail();
         $sections = Section::get()->where('class_id', $id);
         return view('admin.class.sections', ['class_id' => $id, 'sections' => $sections]);
     }
 
     public function sectionUpdate(Request $request, $id)
     {
+        Classes::where('id', $id)->where('school_id', auth()->user()->school_id)->firstOrFail();
+
         $data = $request->all();
 
         $section_id   = $data['section_id'];
@@ -3960,7 +4075,7 @@ class AdminController extends Controller
 
     public function classDelete($id)
     {
-        $class = Classes::find($id);
+        $class = Classes::where('id', $id)->where('school_id', auth()->user()->school_id)->firstOrFail();
         $class->delete();
         $sections = Section::get()->where('class_id', $id);
         $sections->map->delete();
@@ -3977,36 +4092,37 @@ class AdminController extends Controller
     public function studentFeeManagerList(Request $request)
     {
         $active_session = get_school_settings(auth()->user()->school_id)->value('running_session');
+        $programmes = Programme::where('school_id', auth()->user()->school_id)->where('is_active', 1)->orderBy('name')->get();
 
         if (count($request->all()) > 0) {
-            $data            = $request->all();
-            $date            = explode('-', $data['eDateRange']);
-            $date_from       = strtotime($date[0] . ' 00:00:00');
-            $date_to         = strtotime($date[1] . ' 23:59:59');
-            $selected_class  = $data['class'];
-            $selected_status = $data['status'];
+            $data              = $request->all();
+            $date              = explode('-', $data['eDateRange']);
+            $date_from         = strtotime($date[0] . ' 00:00:00');
+            $date_to           = strtotime($date[1] . ' 23:59:59');
+            $selected_class    = $data['class'];
+            $selected_status   = $data['status'];
+            $selected_programme = $data['programme'] ?? 'all';
 
-            if ($selected_class != "all" && $selected_status != "all") {
-                $invoices = StudentFeeManager::where('timestamp', '>=', $date_from)->where('timestamp', '<=', $date_to)->where('class_id', $selected_class)->where('status', $selected_status)->where('school_id', auth()->user()->school_id)->where('session_id', $active_session)->get();
-            } else if ($selected_class != "all") {
-                $invoices = StudentFeeManager::where('timestamp', '>=', $date_from)->where('timestamp', '<=', $date_to)->where('class_id', $selected_class)->where('school_id', auth()->user()->school_id)->where('session_id', $active_session)->get();
-            } else if ($selected_status != "all") {
-                $invoices = StudentFeeManager::where('timestamp', '>=', $date_from)->where('timestamp', '<=', $date_to)->where('status', $selected_status)->where('school_id', auth()->user()->school_id)->where('session_id', $active_session)->get();
-            } else {
-                $invoices = StudentFeeManager::where('timestamp', '>=', $date_from)->where('timestamp', '<=', $date_to)->where('school_id', auth()->user()->school_id)->where('session_id', $active_session)->get();
-            }
+            $invoices = StudentFeeManager::where('timestamp', '>=', $date_from)->where('timestamp', '<=', $date_to)
+                ->where('school_id', auth()->user()->school_id)
+                ->where('session_id', $active_session)
+                ->when($selected_class != "all", fn($q) => $q->where('class_id', $selected_class))
+                ->when($selected_status != "all", fn($q) => $q->where('status', $selected_status))
+                ->when($selected_programme != "all", fn($q) => $q->where('programme_id', $selected_programme))
+                ->get();
 
             $classes = Classes::where('school_id', auth()->user()->school_id)->get();
 
-            return view('admin.student_fee_manager.student_fee_manager', ['classes' => $classes, 'invoices' => $invoices, 'date_from' => $date_from, 'date_to' => $date_to, 'selected_class' => $selected_class, 'selected_status' => $selected_status]);
+            return view('admin.student_fee_manager.student_fee_manager', ['classes' => $classes, 'programmes' => $programmes, 'invoices' => $invoices, 'date_from' => $date_from, 'date_to' => $date_to, 'selected_class' => $selected_class, 'selected_status' => $selected_status, 'selected_programme' => $selected_programme]);
         } else {
             $classes         = Classes::where('school_id', auth()->user()->school_id)->get();
             $date_from       = strtotime(date('d-m-Y', strtotime('first day of this month')) . ' 00:00:00');
             $date_to         = strtotime(date('d-m-Y', strtotime('last day of this month')) . ' 23:59:59');
             $selected_class  = "";
             $selected_status = "";
+            $selected_programme = "";
             $invoices        = StudentFeeManager::where('timestamp', '>=', $date_from)->where('timestamp', '<=', $date_to)->where('school_id', auth()->user()->school_id)->where('session_id', $active_session)->get();
-            return view('admin.student_fee_manager.student_fee_manager', ['classes' => $classes, 'invoices' => $invoices, 'date_from' => $date_from, 'date_to' => $date_to, 'selected_class' => $selected_class, 'selected_status' => $selected_status]);
+            return view('admin.student_fee_manager.student_fee_manager', ['classes' => $classes, 'programmes' => $programmes, 'invoices' => $invoices, 'date_from' => $date_from, 'date_to' => $date_to, 'selected_class' => $selected_class, 'selected_status' => $selected_status, 'selected_programme' => $selected_programme]);
         }
     }
 

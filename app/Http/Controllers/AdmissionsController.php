@@ -7,6 +7,7 @@ use App\Models\AdmissionAgent;
 use App\Models\AuditLog;
 use App\Models\IntakeSession;
 use App\Models\Programme;
+use App\Models\School;
 use App\Models\StudentProfile;
 use App\Models\User;
 use App\Support\StudentFeeInvoiceGenerator;
@@ -154,7 +155,8 @@ class AdmissionsController extends Controller
     public function printOfferLetter($id)
     {
         $admission  = Admission::where('school_id', $this->school_id)->with(['programme', 'intakeSession'])->findOrFail($id);
-        $pdf        = PDF::loadView('admin.admissions.offer_letter', compact('admission'));
+        $school     = School::find($this->school_id);
+        $pdf        = PDF::loadView('admin.admissions.offer_letter', compact('admission', 'school'));
         return $pdf->download("OfferLetter_{$admission->app_number}.pdf");
     }
 
@@ -425,6 +427,10 @@ class AdmissionsController extends Controller
                 'account_status'         => 'active',
                 'status'                 => 1,
                 'force_password_change'  => true,
+                'user_information'       => json_encode([
+                    'phone'   => $admission->phone,
+                    'address' => $admission->physical_address,
+                ]),
             ]);
 
             AuditLog::record('create', 'Admissions', "Student portal account created for {$student->name} (#{$student->id}) from application {$admission->app_number}.");

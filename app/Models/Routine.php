@@ -15,6 +15,7 @@ class Routine extends Model
      * @var array
      */
     protected $fillable = [
-        'class_id', 'section_id', 'subject_id', 'starting_hour', 'ending_hour', 'starting_minute', 'ending_minute','day', 'teacher_id', 'room_id','school_id', 'session_id'
+        'class_id', 'section_id', 'subject_id', 'starting_hour', 'ending_hour', 'starting_minute', 'ending_minute','day', 'teacher_id', 'room_id','school_id', 'session_id',
+        'programme_id',
     ];
 }

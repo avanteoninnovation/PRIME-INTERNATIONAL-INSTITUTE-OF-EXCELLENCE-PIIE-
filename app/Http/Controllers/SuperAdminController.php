@@ -141,6 +141,8 @@ class SuperAdminController extends Controller
             'address' => $data['school_address'],
             'school_info' => $data['school_info'],
             'status' => '2',
+            'education_level' => $data['education_level'] ?? null,
+            'school_type' => $data['school_type'] ?? 'k12',
         ]);
         
         if($request->school_logo){
@@ -273,6 +275,7 @@ class SuperAdminController extends Controller
         $data = $request->all();
 
         $data['features'] = json_encode(array_filter($request->features));
+        $data['days'] = $data['days'] ?? 0;
 
         $interval = Package::where('interval', 'life_time')->first();
         
@@ -297,6 +300,7 @@ class SuperAdminController extends Controller
         $data = $request->all();
 
         unset($data['_token']);
+        $data['days'] = $data['days'] ?? 0;
         $package = Package::find($id);
 
         $interval = $package->interval;

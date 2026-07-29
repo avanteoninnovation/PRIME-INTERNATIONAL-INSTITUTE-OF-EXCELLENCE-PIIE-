@@ -17,7 +17,7 @@
                     <select class="form-control eForm-control" name="type">
                         <option value="mcq">MCQ</option>
                         <option value="true_false">True / False</option>
-                        <option value="short_answer">Short Answer</option>
+                        <option value="short">Short Answer</option>
                     </select></div>
                 <div class="col-6 fpb-7"><label class="eForm-label">{{ get_phrase('Difficulty') }}</label>
                     <select class="form-control eForm-control" name="difficulty">

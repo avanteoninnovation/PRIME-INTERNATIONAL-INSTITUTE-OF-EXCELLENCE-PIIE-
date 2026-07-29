@@ -1,1 +1,1 @@
-{"MAIL_MAILER":"smtp","MAIL_HOST":"smtp.gmail.com","MAIL_PORT":"587","MAIL_USERNAME":"your-email","MAIL_PASSWORD":"email-password","MAIL_ENCRYPTION":"tls","MAIL_FROM_ADDRESS":"admin@example.com","MAIL_FROM_NAME":"Laravel application"}
+{"MAIL_MAILER":"smtp","MAIL_HOST":"smtp.gmail.com","MAIL_PORT":"587","MAIL_USERNAME":"robsseno@gmail.com","MAIL_PASSWORD":"xzdaqabomtllfzem","MAIL_ENCRYPTION":"tls","MAIL_FROM_ADDRESS":"robsseno@gmail.com","MAIL_FROM_NAME":"Laravel application"}

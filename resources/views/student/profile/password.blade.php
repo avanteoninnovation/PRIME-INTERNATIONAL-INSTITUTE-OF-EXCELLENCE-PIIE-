@@ -37,14 +37,15 @@
                 <p class="title">{{ get_phrase('Email') }}</p>
                 <p class="info">{{ auth()->user()->email }}</p>
                 </div>
+                @php $user_information = array_merge(['phone' => null, 'address' => null], (array) (json_decode(auth()->user()->user_information ?? '', true) ?: [])); @endphp
                 <div class="item">
                 <p class="title">{{ get_phrase('Phone Number') }}</p>
-                <p class="info">{{ json_decode(auth()->user()->user_information, true)['phone'] }}</p>
+                <p class="info">{{ $user_information['phone'] }}</p>
                 </div>
                 <div class="item">
                 <p class="title">{{ get_phrase('Address') }}</p>
                 <p class="info">
-                {{ json_decode(auth()->user()->user_information, true)['address'] }}
+                {{ $user_information['address'] }}
                 </p>
                 </div>
             </div>
