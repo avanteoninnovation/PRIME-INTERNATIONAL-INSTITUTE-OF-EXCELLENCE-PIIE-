@@ -8,9 +8,25 @@ use App\Support\Permissions\OnlineExamAuthorizer;
 
 class OnlineExamPolicy
 {
+    /**
+     * Gates student.online_exam.list — the exam listing page students land
+     * on first. This used to check 'view_online_exams' unconditionally, a
+     * staff-only permission never granted to the student role (see
+     * OnlineExamPermissionSeeder, which only ever gives students
+     * 'sit_online_exams'). Under the seeded defaults, every student calling
+     * this got a 403 the moment they tried to see their own exam list —
+     * view() below already special-cases role_id 7 the same way; viewAny()
+     * had just never been given the same treatment.
+     */
     public function viewAny(User $user): bool
     {
-        return app(OnlineExamAuthorizer::class)->can($user, 'view_online_exams');
+        $authorizer = app(OnlineExamAuthorizer::class);
+
+        if ((int) $user->role_id === 7) {
+            return $authorizer->can($user, 'sit_online_exams');
+        }
+
+        return $authorizer->can($user, 'view_online_exams');
     }
 
     public function view(User $user, OnlineExam $exam): bool

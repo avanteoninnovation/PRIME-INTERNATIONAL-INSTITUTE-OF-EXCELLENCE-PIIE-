@@ -67,6 +67,13 @@ coverage
 /public/uploads
 /public/upload
 
+# Applicant-portal uploads: admissions documents (ID scans, certificates)
+# and application-fee payment proofs. More sensitive than the logo/profile
+# uploads already tracked elsewhere under public/assets/uploads/, so these
+# stay local/on-server only rather than going into git history.
+/public/assets/uploads/admissions
+/public/assets/uploads/application_payments
+
 
 
 #More

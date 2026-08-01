@@ -1144,30 +1144,65 @@ class OnlineExamController extends Controller
         $exams = OnlineExam::visibleToStudent($school_id, $class_id)
             ->get()
             ->map(function ($exam) use ($student_id) {
+                // The latest attempt is also the only one that can ever be
+                // in_progress: start() refuses a new attempt while one is
+                // already active, so an older attempt being in_progress
+                // while a newer one exists can never happen. That makes the
+                // latest row alone enough to answer both "is there an active
+                // attempt to resume" and "what's the most recent result" —
+                // no need to load every attempt just to find those two facts.
                 $exam->submission = OnlineExamSubmission::where('online_exam_id', $exam->id)
                     ->where('student_id', $student_id)
                     ->orderByDesc('attempt_no')
                     ->first();
+
+                $exam->attempts_used = OnlineExamSubmission::where('online_exam_id', $exam->id)
+                    ->where('student_id', $student_id)
+                    ->count();
+
                 return $exam;
             });
 
         return view('student.online_exam.list', compact('exams'));
     }
 
+    /**
+     * The pre-exam screen: rules, attempt count, and (when the exam
+     * requires it) the fullscreen/webcam readiness steps that
+     * StartOnlineExamRequest will insist on before start() succeeds.
+     *
+     * Used to be a bare JSON endpoint with no page consuming it — a student
+     * clicking "Start Exam" from the list would end up here via a normal
+     * browser redirect (see takeExam()) and land on raw JSON with no way
+     * to actually proceed. Nothing else in the app called this endpoint
+     * expecting JSON (grepped for it before changing), so switching it to
+     * a real page is safe.
+     */
     public function instructions($id)
     {
         $exam = $this->findStudentExamOrFail((int) $id);
         $this->authorize('sit', $exam);
 
-        return response()->json([
-            'exam_id' => $exam->id,
-            'title' => $exam->title,
-            'instructions' => $exam->instructions,
-            'duration_mins' => (int) $exam->duration_mins,
-            'start_datetime' => optional($exam->start_datetime)->toDateTimeString(),
-            'end_datetime' => optional($exam->end_datetime)->toDateTimeString(),
-            'webcam_required' => (bool) $exam->webcam_required,
-            'fullscreen_required' => (bool) $exam->fullscreen_required,
+        $activeSubmission = OnlineExamSubmission::where('online_exam_id', $exam->id)
+            ->where('student_id', Auth::id())
+            ->where('school_id', $this->school_id)
+            ->where('status', OnlineExamSubmission::STATUS_IN_PROGRESS)
+            ->first();
+
+        // Already mid-attempt (e.g. came back after a disconnect) — no need
+        // to see the rules again, resume straight into the exam.
+        if ($activeSubmission) {
+            return redirect()->route('student.online_exam.take', $exam->id);
+        }
+
+        $attemptsUsed = OnlineExamSubmission::where('online_exam_id', $exam->id)
+            ->where('student_id', Auth::id())
+            ->count();
+
+        return view('student.online_exam.instructions', [
+            'exam' => $exam,
+            'attemptsUsed' => $attemptsUsed,
+            'questionCount' => OnlineExamQuestion::forExam($exam->id)->count(),
         ]);
     }
 
@@ -1295,7 +1330,13 @@ class OnlineExamController extends Controller
         }
 
         if ($submission->isExpired()) {
-            return redirect()->route('student.online_exam.timeout_submit', $submission->id);
+            // timeout-submit is a POST-only route; redirect() always issues a
+            // GET, so redirecting a browser at it (the previous behaviour)
+            // produced a 405 instead of actually finalising the attempt.
+            // Calling the same finalisation logic directly does what the
+            // redirect was trying to and returns its result (a redirect to
+            // the results page) straight through.
+            return $this->timeoutSubmit($submission->id);
         }
 
         $questions = OnlineExamQuestion::forExam($exam->id)
@@ -1306,11 +1347,76 @@ class OnlineExamController extends Controller
                 return $q;
             });
 
+        $questions = $this->orderQuestionsForAttempt($questions, $exam, $submission);
+
+        $existingAnswers = OnlineExamAnswer::where('submission_id', $submission->id)
+            ->get()
+            ->keyBy('question_id');
+
+        $optionOrders = $questions->mapWithKeys(function (OnlineExamQuestion $q) use ($exam, $submission) {
+            return [$q->id => $this->orderOptionsForAttempt($q, $exam, $submission)];
+        });
+
         return view('student.online_exam.take', [
             'exam' => $exam,
+            'submission' => $submission,
             'questions' => $questions,
-            'existing' => $submission,
+            'existingAnswers' => $existingAnswers,
+            'optionOrders' => $optionOrders,
+            'remainingSeconds' => $submission->remainingSeconds(),
+            'expiresAt' => optional($submission->expires_at)->toIso8601String(),
+            'serverTime' => now()->toIso8601String(),
         ]);
+    }
+
+    /**
+     * Question order for one attempt. Deliberately not a random shuffle on
+     * every page load (a student refreshing mid-attempt would see the
+     * questions rearrange, losing their place) — ordering by a hash of
+     * (submission, question) is pseudo-random per attempt but perfectly
+     * stable across reloads and resumes of that same attempt.
+     */
+    private function orderQuestionsForAttempt($questions, OnlineExam $exam, OnlineExamSubmission $submission)
+    {
+        if (!$exam->shuffle_questions) {
+            return $questions;
+        }
+
+        return $questions
+            ->sortBy(fn (OnlineExamQuestion $q) => crc32($submission->id . '-q-' . $q->id))
+            ->values();
+    }
+
+    /**
+     * Display order for one question's options, keyed by the real option
+     * letter (a/b/c/d) so the submitted value is always the true option
+     * regardless of the order it was shown in — shuffling is purely a
+     * display concern, never touches how an answer is stored or graded.
+     * Same stability rationale as orderQuestionsForAttempt().
+     */
+    private function orderOptionsForAttempt(OnlineExamQuestion $question, OnlineExam $exam, OnlineExamSubmission $submission): array
+    {
+        $options = [];
+        foreach (['a', 'b', 'c', 'd'] as $key) {
+            $text = $question->{'option_' . $key};
+            if ($text !== null && $text !== '') {
+                $options[$key] = $text;
+            }
+        }
+
+        if (!$exam->shuffle_options || count($options) < 2) {
+            return $options;
+        }
+
+        $keys = array_keys($options);
+        usort($keys, fn ($a, $b) => crc32($submission->id . '-o-' . $question->id . '-' . $a) <=> crc32($submission->id . '-o-' . $question->id . '-' . $b));
+
+        $ordered = [];
+        foreach ($keys as $key) {
+            $ordered[$key] = $options[$key];
+        }
+
+        return $ordered;
     }
 
     public function saveAnswer(SaveOnlineExamAnswerRequest $request, $submissionId)

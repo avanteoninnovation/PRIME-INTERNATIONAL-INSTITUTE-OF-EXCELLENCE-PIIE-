@@ -8,6 +8,7 @@ use App\Models\Programme;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\Rule;
 
 class ProgrammeController extends Controller
 {
@@ -21,15 +22,61 @@ class ProgrammeController extends Controller
         });
     }
 
+    /**
+     * Grouped by faculty (Department) rather than paginated — the same
+     * layout the admission portal's programme step and the review screen
+     * both need to make sense of "what do we offer, and under which
+     * faculty". An institution's programme catalogue is a few dozen to a
+     * few hundred rows at most (nothing like the students/admissions
+     * lists), so fetching the lot and grouping in memory is simpler and
+     * more useful here than page-by-page pagination, which would risk
+     * splitting one faculty's programmes across two pages.
+     */
     public function index(Request $request)
     {
-        $search      = $request->search ?? '';
-        $programmes  = Programme::where('school_id', $this->school_id)
-            ->when($search, fn($q) => $q->where('name', 'like', "%$search%")->orWhere('code', 'like', "%$search%"))
+        $search       = $request->search ?? '';
+        $departmentId = $request->department_id ?? '';
+
+        $programmes = Programme::where('school_id', $this->school_id)
+            ->when($search, fn($q) => $q->where(function ($sub) use ($search) {
+                $sub->where('name', 'like', "%$search%")->orWhere('code', 'like', "%$search%");
+            }))
+            ->when($departmentId === 'none', fn($q) => $q->whereNull('department_id'))
+            ->when($departmentId !== '' && $departmentId !== 'none', fn($q) => $q->where('department_id', $departmentId))
+            ->with('department')
             ->orderBy('name')
-            ->paginate(20);
+            ->get();
+
         $departments = Department::where('school_id', $this->school_id)->orderBy('name')->get();
-        return view('admin.programme.list', compact('programmes', 'search', 'departments'));
+
+        // Every configured faculty gets a section even when it currently has
+        // no programmes — an empty faculty is exactly when an admin most
+        // wants to be reminded "you haven't added anything here yet", not
+        // something to hide. Unassigned programmes (no faculty set) get
+        // their own group at the end rather than being silently dropped.
+        $groups = $departments->map(function ($department) use ($programmes) {
+            return [
+                'department' => $department,
+                'programmes' => $programmes->where('department_id', $department->id)->values(),
+            ];
+        })->values();
+
+        $unassigned = $programmes->whereNull('department_id')->values();
+        if ($unassigned->isNotEmpty() || $departments->isEmpty()) {
+            $groups->push(['department' => null, 'programmes' => $unassigned]);
+        }
+
+        // A search or department filter narrows the results; drop the
+        // groups it emptied out so a text search doesn't render an empty
+        // accordion section for every faculty that just didn't match.
+        // Browsing with no filter at all is the one case every configured
+        // faculty stays visible, including the ones with nothing in them yet.
+        if ($search !== '' || $departmentId !== '') {
+            $groups = $groups->filter(fn ($group) => $group['programmes']->isNotEmpty())->values();
+        }
+
+        return view('admin.programme.list', compact('groups', 'departments', 'search', 'departmentId'))
+            ->with('totalCount', $programmes->count());
     }
 
     public function openModal(Request $request)
@@ -40,18 +87,32 @@ class ProgrammeController extends Controller
         return view('admin.programme.modal', compact('programme', 'departments'));
     }
 
+    private function validationRules(?Programme $existing = null): array
+    {
+        $allowedLevels = array_merge(Programme::LEVELS, Programme::LEVELS_LEGACY);
+        $allowedModes  = array_merge(Programme::MODES, Programme::MODES_LEGACY);
+
+        return [
+            'code'          => [
+                'required', 'max:20',
+                Rule::unique('programmes', 'code')->where(fn ($q) => $q->where('school_id', $this->school_id))->ignore($existing?->id),
+            ],
+            'name'          => 'required|max:255',
+            'level'         => ['required', Rule::in($allowedLevels)],
+            'duration'      => 'nullable|max:50',
+            'mode'          => ['required', Rule::in($allowedModes)],
+            'tuition_fee'   => 'nullable|numeric|min:0',
+            'department_id' => [
+                'nullable',
+                Rule::exists('departments', 'id')->where(fn ($q) => $q->where('school_id', $this->school_id)),
+            ],
+        ];
+    }
+
     public function store(Request $request)
     {
         Log::info('ProgrammeController@store called', ['payload' => $request->all(), 'user_id' => Auth::id()]);
-        $validated = $request->validate([
-            'code'          => 'required|max:20',
-            'name'          => 'required|max:255',
-            'level'         => 'required',
-            'duration'      => 'nullable|max:50',
-            'mode'          => 'required',
-            'tuition_fee'   => 'nullable|numeric|min:0',
-            'department_id' => 'nullable|exists:departments,id',
-        ]);
+        $validated = $request->validate($this->validationRules());
 
         $validated['school_id']  = $this->school_id;
         $validated['is_active']  = 1;
@@ -69,15 +130,7 @@ class ProgrammeController extends Controller
     public function update(Request $request, $id)
     {
         $programme = Programme::where('school_id', $this->school_id)->findOrFail($id);
-        $validated = $request->validate([
-            'code'          => 'required|max:20',
-            'name'          => 'required|max:255',
-            'level'         => 'required',
-            'duration'      => 'nullable|max:50',
-            'mode'          => 'required',
-            'tuition_fee'   => 'nullable|numeric|min:0',
-            'department_id' => 'nullable|exists:departments,id',
-        ]);
+        $validated = $request->validate($this->validationRules($programme));
 
         $programme->update($validated);
         AuditLog::record('update', 'Programmes', "Updated programme: {$programme->name}");
@@ -92,6 +145,17 @@ class ProgrammeController extends Controller
     public function destroy($id)
     {
         $programme = Programme::where('school_id', $this->school_id)->findOrFail($id);
+
+        // A programme selectable in the admission portal (or already chosen
+        // by a live application) should never disappear out from under an
+        // applicant mid-application — deactivating hides it from new
+        // applicants without corrupting an application that already
+        // references it. Only a programme nobody has ever touched is
+        // actually deletable.
+        if ($programme->admissions()->exists() || $programme->studentProfiles()->exists()) {
+            return redirect()->back()->with('error', get_phrase('This programme has applications or students linked to it and cannot be deleted. Deactivate it instead.'));
+        }
+
         AuditLog::record('delete', 'Programmes', "Deleted programme: {$programme->name}");
         $programme->delete();
         return redirect()->back()->with('success', get_phrase('Programme deleted'));
@@ -106,21 +170,28 @@ class ProgrammeController extends Controller
 
     public function exportCsv(Request $request)
     {
-        $search = $request->search ?? '';
+        $search       = $request->search ?? '';
+        $departmentId = $request->department_id ?? '';
+
         $headers = [
             'Content-Type'        => 'text/csv',
             'Content-Disposition' => 'attachment; filename="programmes_' . date('Y-m-d') . '.csv"',
         ];
 
-        $callback = function () use ($search) {
+        $callback = function () use ($search, $departmentId) {
             $out = fopen('php://output', 'w');
-            fputcsv($out, ['#', 'Code', 'Name', 'Level', 'Mode', 'Duration', 'Tuition Fee', 'Status']);
+            fputcsv($out, ['#', 'Faculty/Department', 'Code', 'Name', 'Level', 'Mode', 'Duration', 'Tuition Fee', 'Status']);
             Programme::where('school_id', $this->school_id)
-                ->when($search, fn($q) => $q->where('name', 'like', "%$search%")->orWhere('code', 'like', "%$search%"))
+                ->when($search, fn($q) => $q->where(function ($sub) use ($search) {
+                    $sub->where('name', 'like', "%$search%")->orWhere('code', 'like', "%$search%");
+                }))
+                ->when($departmentId === 'none', fn($q) => $q->whereNull('department_id'))
+                ->when($departmentId !== '' && $departmentId !== 'none', fn($q) => $q->where('department_id', $departmentId))
+                ->with('department')
                 ->orderBy('name')
                 ->get()
                 ->each(function ($p, $i) use ($out) {
-                    fputcsv($out, [$i+1, $p->code, $p->name, $p->level, ucfirst($p->mode), $p->duration, $p->tuition_fee, $p->is_active ? 'Active' : 'Inactive']);
+                    fputcsv($out, [$i+1, optional($p->department)->name ?: 'Unassigned', $p->code, $p->name, $p->level, ucfirst($p->mode), $p->duration, $p->tuition_fee, $p->is_active ? 'Active' : 'Inactive']);
                 });
             fclose($out);
         };

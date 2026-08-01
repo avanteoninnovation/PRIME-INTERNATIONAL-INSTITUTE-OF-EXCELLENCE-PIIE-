@@ -36,7 +36,7 @@
 
 @if($liveClass->platform !== 'jitsi')
     <div class="alert alert-warning">
-        {{ get_phrase('This class runs on an external platform (:platform). Join time is recorded when a student clicks Join in the portal; leave time cannot be observed once they move to the external meeting.', ['platform' => ucwords(str_replace('_', ' ', $liveClass->platform))]) }}
+        {{ str_replace(':platform', ucwords(str_replace('_', ' ', $liveClass->platform)), get_phrase('This class runs on an external platform (:platform). Join time is recorded when a student clicks Join in the portal; leave time cannot be observed once they move to the external meeting.')) }}
     </div>
 @endif
 

@@ -5,17 +5,61 @@
 
 @section('content')
 
-@if($admission->status === \App\Models\Admission::STATUS_NEEDS_CORRECTION)
-    <div class="alert alert-warning d-flex align-items-start gap-3">
-        <i class="bi bi-pencil-square fs-4"></i>
+{{--
+    The one place the applicant is told "the admissions office just did
+    something" — reusing ApplicationWorkflow::titleFor() so this headline can
+    never say something different from what the same status shows in the
+    Track My Application timeline. Always reflects the current status rather
+    than a dismissible/stored notification (there's no read/unread state to
+    track), so it simply disappears once the applicant moves past that status.
+--}}
+@php
+    $statusBannerStyle = [
+        \App\Models\Admission::STATUS_NEEDS_CORRECTION => ['warning', 'bi-pencil-square', '#b54708'],
+        \App\Models\Admission::STATUS_ACCEPTED         => ['success', 'bi-check-circle-fill', '#0f6e3d'],
+        \App\Models\Admission::STATUS_REJECTED         => ['secondary', 'bi-info-circle-fill', '#344054'],
+        \App\Models\Admission::STATUS_ENROLLED         => ['success', 'bi-mortarboard-fill', '#0f6e3d'],
+        \App\Models\Admission::STATUS_UNDER_REVIEW     => ['info', 'bi-hourglass-split', '#0c5c8a'],
+    ][$admission->status] ?? null;
+@endphp
+
+@if($statusBannerStyle)
+    @php
+        $bannerVariant = $statusBannerStyle[0];
+        $bannerIcon    = $statusBannerStyle[1];
+        $bannerColor   = $statusBannerStyle[2];
+    @endphp
+    <div class="alert alert-{{ $bannerVariant }} d-flex align-items-start gap-3">
+        <i class="bi {{ $bannerIcon }} fs-4"></i>
         <div>
-            <strong>{{ get_phrase('The admissions office has asked for some changes.') }}</strong>
-            @if($admission->correction_note)
-                <p class="mb-2 mt-1">{{ $admission->correction_note }}</p>
+            <strong>{{ \App\Support\Admissions\ApplicationWorkflow::titleFor($admission->status) }}</strong>
+
+            @if($admission->status === \App\Models\Admission::STATUS_NEEDS_CORRECTION)
+                @if($admission->correction_note)
+                    <p class="mb-2 mt-1">{{ $admission->correction_note }}</p>
+                @endif
+                <a href="{{ route('applicant.application') }}" class="fw-bold" style="color: {{ $bannerColor }};">
+                    {{ get_phrase('Make the changes and resubmit') }} <i class="bi bi-arrow-right"></i>
+                </a>
+            @else
+                @if($admission->decision_note)
+                    <p class="mb-2 mt-1">{{ $admission->decision_note }}</p>
+                @endif
+
+                @if($admission->status === \App\Models\Admission::STATUS_ACCEPTED)
+                    <a href="{{ route('applicant.offer_letter') }}" class="fw-bold" style="color: {{ $bannerColor }};">
+                        {{ get_phrase('Download Offer Letter') }} <i class="bi bi-download"></i>
+                    </a>
+                @elseif($admission->status === \App\Models\Admission::STATUS_ENROLLED)
+                    <p class="mb-0" style="font-size:14px; color:var(--ap-muted);">
+                        {{ get_phrase('Check your email for your student portal login details.') }}
+                    </p>
+                @else
+                    <a href="{{ route('applicant.track') }}" class="fw-bold" style="color: {{ $bannerColor }};">
+                        {{ get_phrase('Track My Application') }} <i class="bi bi-arrow-right"></i>
+                    </a>
+                @endif
             @endif
-            <a href="{{ route('applicant.application') }}" class="fw-bold" style="color:#b54708;">
-                {{ get_phrase('Make the changes and resubmit') }} <i class="bi bi-arrow-right"></i>
-            </a>
         </div>
     </div>
 @endif

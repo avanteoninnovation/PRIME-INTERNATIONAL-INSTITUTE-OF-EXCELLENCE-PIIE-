@@ -458,4 +458,81 @@ class ApplicantPortalTest extends TestCase
 
         $this->assertStringStartsWith('IUEA-', ApplicationReference::generate($this->schoolId, 'public'));
     }
+
+    // ── Dashboard status banner ──────────────────────────────────────────
+
+    public function test_dashboard_shows_an_acceptance_banner_and_offer_letter_link(): void
+    {
+        $this->signIn();
+        $this->get(route('applicant.dashboard'));
+
+        Admission::first()->update([
+            'status' => Admission::STATUS_ACCEPTED,
+            'decision_note' => 'Congratulations on your strong application.',
+        ]);
+
+        $response = $this->get(route('applicant.dashboard'));
+
+        $response->assertStatus(200);
+        $response->assertSee('Offer of admission made');
+        $response->assertSee('Congratulations on your strong application.');
+        $response->assertSee(route('applicant.offer_letter'), false);
+    }
+
+    public function test_dashboard_shows_a_rejection_banner_with_the_decision_note(): void
+    {
+        $this->signIn();
+        $this->get(route('applicant.dashboard'));
+
+        Admission::first()->update([
+            'status' => Admission::STATUS_REJECTED,
+            'decision_note' => 'The intake was highly competitive this round.',
+        ]);
+
+        $response = $this->get(route('applicant.dashboard'));
+
+        $response->assertStatus(200);
+        $response->assertSee('Application unsuccessful');
+        $response->assertSee('The intake was highly competitive this round.');
+    }
+
+    public function test_dashboard_shows_an_enrolled_banner_pointing_at_email(): void
+    {
+        $this->signIn();
+        $this->get(route('applicant.dashboard'));
+
+        Admission::first()->update(['status' => Admission::STATUS_ENROLLED]);
+
+        $response = $this->get(route('applicant.dashboard'));
+
+        $response->assertStatus(200);
+        $response->assertSee('Enrolment completed');
+        $response->assertSee('Check your email for your student portal login details.');
+    }
+
+    public function test_dashboard_shows_an_under_review_banner(): void
+    {
+        $this->signIn();
+        $this->get(route('applicant.dashboard'));
+
+        Admission::first()->update(['status' => Admission::STATUS_UNDER_REVIEW]);
+
+        $response = $this->get(route('applicant.dashboard'));
+
+        $response->assertStatus(200);
+        $response->assertSee('Under review by the admissions committee');
+    }
+
+    public function test_dashboard_shows_no_status_banner_while_still_a_draft(): void
+    {
+        $this->signIn();
+
+        $response = $this->get(route('applicant.dashboard'));
+
+        $response->assertStatus(200);
+        $response->assertDontSee('Offer of admission made');
+        $response->assertDontSee('Application unsuccessful');
+        $response->assertDontSee('Enrolment completed');
+        $response->assertDontSee('Under review by the admissions committee');
+    }
 }

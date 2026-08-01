@@ -52,7 +52,7 @@
         @if($liveClass->exceedsGoogleMeetFreeTierLimit())
             <div class="alert alert-warning">
                 <i class="bi bi-exclamation-triangle-fill"></i>
-                {{ get_phrase('This class is scheduled for :minutes minutes on Google Meet — longer than the 60-minute free-tier limit for group calls. It may be cut off automatically unless the host is on a paid Google Workspace plan.', ['minutes' => $liveClass->duration_minutes]) }}
+                {{ str_replace(':minutes', $liveClass->duration_minutes, get_phrase('This class runs :minutes minutes on Google Meet — over the 60-minute free-tier limit. It may be cut off unless the host has a paid Google Workspace plan.')) }}
             </div>
         @endif
         <div class="eSection-wrap">

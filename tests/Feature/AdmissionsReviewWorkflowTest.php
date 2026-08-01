@@ -155,6 +155,36 @@ class AdmissionsReviewWorkflowTest extends TestCase
         $this->assertNull($admission->correction_note);
     }
 
+    public function test_index_can_be_filtered_to_applications_with_a_pending_document(): void
+    {
+        $withPendingDoc = $this->makeSubmittedAdmission(['app_number' => 'PIIE-2526-S-P1001', 'first_name' => 'HasPending']);
+        $withoutPendingDoc = $this->makeSubmittedAdmission(['app_number' => 'PIIE-2526-S-P1002', 'first_name' => 'NoPending']);
+
+        AdmissionDocument::create([
+            'school_id'    => $this->schoolId,
+            'admission_id' => $withPendingDoc->id,
+            'original_name' => 'a.pdf',
+            'stored_name'  => 'stored-a.pdf',
+            'status'       => AdmissionDocument::STATUS_PENDING,
+        ]);
+
+        AdmissionDocument::create([
+            'school_id'    => $this->schoolId,
+            'admission_id' => $withoutPendingDoc->id,
+            'original_name' => 'b.pdf',
+            'stored_name'  => 'stored-b.pdf',
+            'status'       => AdmissionDocument::STATUS_VERIFIED,
+        ]);
+
+        $admin = $this->makeAdminUser($this->schoolId);
+
+        $response = $this->actingAs($admin)->get(route('admin.hei_admissions.index', ['has_pending_documents' => 1]));
+
+        $response->assertStatus(200);
+        $response->assertSee('HasPending');
+        $response->assertDontSee('NoPending');
+    }
+
     public function test_rejecting_a_document_requires_a_reason(): void
     {
         $admission = $this->makeSubmittedAdmission();

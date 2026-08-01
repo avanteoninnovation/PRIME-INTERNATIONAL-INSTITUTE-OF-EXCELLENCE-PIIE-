@@ -377,6 +377,32 @@
         </div>
     </div>
 
+    @if(!empty($admissionsAvailable) && !empty($admissionsActionItems))
+    <!-- ============================================ -->
+    <!-- NEEDS YOUR ACTION                            -->
+    <!-- Computed live from current Admissions data — -->
+    <!-- nothing here is a stored/dismissible          -->
+    <!-- notification, so it never goes stale and      -->
+    <!-- never needs a "mark as read".                 -->
+    <!-- ============================================ -->
+    <div class="mb-4" style="background:#fff7e6; border:1px solid #ffe0a3; border-radius:12px; padding:18px 22px;">
+        <div class="d-flex align-items-center gap-2 mb-2">
+            <i class="bi bi-bell-fill" style="color:#b54708;"></i>
+            <strong style="color:#b54708; font-size:15px;">{{ get_phrase('Needs Your Action') }}</strong>
+        </div>
+        <div class="d-flex flex-wrap gap-3">
+            @foreach($admissionsActionItems as $item)
+                <a href="{{ $item['url'] }}" class="d-flex align-items-center gap-2"
+                   style="background:#fff; border:1px solid #ffe0a3; border-radius:8px; padding:10px 16px; color:#0C141D; text-decoration:none; font-size:14px;">
+                    <i class="bi {{ $item['icon'] }}" style="color:#b54708;"></i>
+                    <span class="badge bg-warning text-dark">{{ $item['count'] }}</span>
+                    {{ $item['label'] }}
+                </a>
+            @endforeach
+        </div>
+    </div>
+    @endif
+
     <!-- ============================================ -->
     <!-- STATS CARDS (this school only)               -->
     <!-- ============================================ -->

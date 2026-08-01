@@ -43,7 +43,12 @@
             <div class="form-check mb-4">
                 <input class="form-check-input" type="checkbox" name="declaration" id="declaration" value="1" {{ $canSubmit ? '' : 'disabled' }}>
                 <label class="form-check-label" for="declaration" style="font-size:14.5px;">
-                    {{ get_phrase('I declare that the information given in this application is true and complete to the best of my knowledge. I understand that giving false information may lead to my application being rejected or my admission being cancelled.') }}
+                    {{-- Declaration text is deliberately not run through get_phrase(): that
+                         helper auto-inserts any string it's given into language.phrase, a
+                         column capped at varchar(191) — this sentence is longer than that
+                         and is legal/declaration wording we don't want to paraphrase-shorten
+                         just to fit a translation-lookup table. --}}
+                    I declare that the information given in this application is true and complete to the best of my knowledge. I understand that giving false information may lead to my application being rejected or my admission being cancelled.
                 </label>
             </div>
 

@@ -2,7 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Models\Admission;
+use App\Models\AdmissionDocument;
+use App\Models\ApplicationPayment;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 use Tests\Feature\Support\AdmissionsTestHelper;
 use Tests\TestCase;
 
@@ -63,5 +67,78 @@ class AdminDashboardScopeTest extends TestCase
         // School A's admin must see 3 (their own), never 8 (the platform total).
         $response->assertSee('>3<', false);
         $response->assertDontSee('>8<', false);
+    }
+
+    private function configurePrimarySchool(int $schoolId): void
+    {
+        DB::table('global_settings')->updateOrInsert(
+            ['key' => 'primary_school_id'],
+            ['value' => (string) $schoolId, 'updated_at' => now(), 'created_at' => now()]
+        );
+    }
+
+    public function test_needs_your_action_panel_lists_pending_items_with_links(): void
+    {
+        $schoolId = $this->makeSchool();
+        $this->configurePrimarySchool($schoolId);
+        $admin = $this->makeAdminUser($schoolId);
+
+        $submittedId = $this->makeAdmission($schoolId, ['status' => Admission::STATUS_SUBMITTED]);
+
+        ApplicationPayment::create([
+            'school_id' => $schoolId,
+            'admission_id' => $submittedId,
+            'amount' => 100,
+            'method' => 'offline',
+            'status' => ApplicationPayment::STATUS_PENDING,
+        ]);
+
+        AdmissionDocument::create([
+            'school_id' => $schoolId,
+            'admission_id' => $submittedId,
+            'original_name' => 'id.pdf',
+            'stored_name' => 'stored.pdf',
+            'status' => AdmissionDocument::STATUS_PENDING,
+        ]);
+
+        $response = $this->actingAs($admin)->get(route('admin.dashboard'));
+
+        $response->assertStatus(200);
+        $response->assertSee('Needs Your Action');
+        $response->assertSee('New application(s) awaiting first review');
+        $response->assertSee('Application fee payment(s) awaiting confirmation');
+        $response->assertSee('Uploaded document(s) awaiting verification');
+        $response->assertSee(route('admin.hei_admissions.index', ['status' => Admission::STATUS_SUBMITTED]), false);
+    }
+
+    public function test_needs_your_action_panel_is_absent_when_nothing_is_pending(): void
+    {
+        $schoolId = $this->makeSchool();
+        $this->configurePrimarySchool($schoolId);
+        $admin = $this->makeAdminUser($schoolId);
+
+        // An already-enrolled application with everything settled should
+        // never show up as something needing attention.
+        $this->makeAdmission($schoolId, ['status' => Admission::STATUS_ENROLLED, 'fee_status' => Admission::FEE_PAID]);
+
+        $response = $this->actingAs($admin)->get(route('admin.dashboard'));
+
+        $response->assertStatus(200);
+        $response->assertDontSee('Needs Your Action');
+    }
+
+    public function test_needs_your_action_panel_is_absent_for_a_non_primary_school(): void
+    {
+        $primarySchoolId = $this->makeSchool();
+        $otherSchoolId = $this->makeSchool();
+        $this->configurePrimarySchool($primarySchoolId);
+
+        $admin = $this->makeAdminUser($otherSchoolId);
+        $this->makeAdmission($otherSchoolId, ['status' => Admission::STATUS_SUBMITTED]);
+
+        $response = $this->actingAs($admin)->get(route('admin.dashboard'));
+
+        $response->assertStatus(200);
+        $response->assertDontSee('Needs Your Action');
     }
 }

@@ -8,6 +8,8 @@ use App\Mail\NewUserEmail;
 use App\Mail\StudentsEmail;
 use App\Models\Admin;
 use App\Models\Admission;
+use App\Models\AdmissionDocument;
+use App\Models\ApplicationPayment;
 use App\Models\AdmitCard;
 use App\Models\AcademicCalendar;
 use App\Models\Appraisal;
@@ -219,6 +221,10 @@ class AdminController extends Controller
     private function schoolDashboardData(): array
     {
         $schoolId = auth()->user()->school_id;
+        // The Admissions module (and therefore this panel) only applies to
+        // the one school the public Apply Now portal belongs to — same gate
+        // AdmissionsController's middleware and the nav item already use.
+        $admissionsAvailable = is_primary_school($schoolId);
 
         $todayStart = strtotime(date('d M Y'));
         $todayEnd   = $todayStart + 86400;
@@ -245,7 +251,64 @@ class AdminController extends Controller
             'recentAnnouncements' => Noticeboard::where('school_id', $schoolId)->latest()->limit(5)->get(),
             'upcomingEvents'      => FrontendEvent::where('school_id', $schoolId)->where('timestamp', '>', time())->orderBy('timestamp')->limit(5)->get(),
             'upcomingCalendar'    => AcademicCalendar::where('school_id', $schoolId)->whereDate('event_date', '>=', now()->toDateString())->orderBy('event_date')->limit(5)->get(),
+            'admissionsAvailable' => $admissionsAvailable,
+            'admissionsActionItems' => $admissionsAvailable ? $this->admissionsActionItems($schoolId) : [],
         ];
+    }
+
+    /**
+     * The "Needs Your Action" panel on the school Admin dashboard —
+     * everything in the Admissions module currently waiting on a human
+     * decision, computed live from existing rows rather than a separate
+     * notifications table. Each entry links straight to the filtered queue
+     * (or review screen) that resolves it, so the count is never stale and
+     * there's nothing to mark read/unread.
+     */
+    private function admissionsActionItems(int $schoolId): array
+    {
+        $newApplications = Admission::where('school_id', $schoolId)
+            ->where('status', Admission::STATUS_SUBMITTED)
+            ->count();
+
+        $pendingPayments = ApplicationPayment::where('school_id', $schoolId)
+            ->where('status', ApplicationPayment::STATUS_PENDING)
+            ->count();
+
+        $pendingDocuments = AdmissionDocument::where('school_id', $schoolId)
+            ->where('status', AdmissionDocument::STATUS_PENDING)
+            ->whereHas('admission', fn ($q) => $q->submittedOnly())
+            ->count();
+
+        $items = [];
+
+        if ($newApplications > 0) {
+            $items[] = [
+                'count' => $newApplications,
+                'label' => get_phrase('New application(s) awaiting first review'),
+                'url'   => route('admin.hei_admissions.index', ['status' => Admission::STATUS_SUBMITTED]),
+                'icon'  => 'bi-file-earmark-person',
+            ];
+        }
+
+        if ($pendingPayments > 0) {
+            $items[] = [
+                'count' => $pendingPayments,
+                'label' => get_phrase('Application fee payment(s) awaiting confirmation'),
+                'url'   => route('admin.hei_admissions.index', ['fee_status' => 'pending']),
+                'icon'  => 'bi-credit-card',
+            ];
+        }
+
+        if ($pendingDocuments > 0) {
+            $items[] = [
+                'count' => $pendingDocuments,
+                'label' => get_phrase('Uploaded document(s) awaiting verification'),
+                'url'   => route('admin.hei_admissions.index', ['has_pending_documents' => 1]),
+                'icon'  => 'bi-folder2-open',
+            ];
+        }
+
+        return $items;
     }
 
     /**

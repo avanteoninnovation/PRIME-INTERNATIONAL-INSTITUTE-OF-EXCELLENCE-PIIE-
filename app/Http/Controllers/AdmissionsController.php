@@ -54,11 +54,12 @@ class AdmissionsController extends Controller
 
     public function index(Request $request)
     {
-        $search     = $request->search ?? '';
-        $status     = $request->status ?? '';
-        $session_id = $request->session_id ?? '';
-        $source     = $request->source ?? '';
-        $fee_status = $request->fee_status ?? '';
+        $search               = $request->search ?? '';
+        $status               = $request->status ?? '';
+        $session_id           = $request->session_id ?? '';
+        $source               = $request->source ?? '';
+        $fee_status           = $request->fee_status ?? '';
+        $has_pending_documents = $request->boolean('has_pending_documents');
 
         $admissions = Admission::where('school_id', $this->school_id)
             // Drafts are applications nobody has submitted yet. They are
@@ -75,6 +76,7 @@ class AdmissionsController extends Controller
             ->when($session_id, fn($q) => $q->where('intake_session_id', $session_id))
             ->when($source, fn($q) => $q->where('source', $source))
             ->when($fee_status, fn($q) => $q->where('fee_status', $fee_status))
+            ->when($has_pending_documents, fn($q) => $q->whereHas('uploadedDocuments', fn($d) => $d->where('status', AdmissionDocument::STATUS_PENDING)))
             ->with(['programme', 'intakeSession'])
             ->latest()
             ->paginate(20);

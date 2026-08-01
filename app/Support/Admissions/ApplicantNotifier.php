@@ -160,7 +160,7 @@ class ApplicantNotifier
             'heading'  => get_phrase('We need something from you'),
             'greeting' => get_phrase('Dear') . ' ' . $admission->full_name . ',',
             'paragraphs' => array_filter([
-                get_phrase('Your application has been returned to you so that you can make some corrections. It has not been rejected — once you have made the changes, resubmit it and it will go straight back into the review queue.'),
+                get_phrase('Your application has been returned for corrections. It is not rejected — make the changes and resubmit to go straight back into the review queue.'),
                 blank($note) ? null : '<strong>' . get_phrase('What needs to change') . ':</strong><br>' . nl2br(e($note)),
             ]),
             'details' => array_filter([
