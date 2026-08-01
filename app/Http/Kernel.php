@@ -86,5 +86,7 @@ class Kernel extends HttpKernel
         'receptionist'     => \App\Http\Middleware\ReceptionistMiddleware::class,
         'examinations'     => \App\Http\Middleware\ExaminationsMiddleware::class,
         'staff'            => \App\Http\Middleware\MultiStaffMiddleware::class,
+        'applicant'        => \App\Http\Middleware\ApplicantMiddleware::class,
+        'applicant.guest'  => \App\Http\Middleware\RedirectIfApplicant::class,
     ];
 }

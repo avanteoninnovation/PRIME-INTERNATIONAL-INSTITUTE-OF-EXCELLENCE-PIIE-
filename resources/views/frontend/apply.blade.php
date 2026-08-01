@@ -1,103 +1,110 @@
 @extends('frontend.index')
+
+@php
+    $openIntake = $intakeSessions->first();
+@endphp
+
 @section('content')
 
-<div class="container" style="max-width:900px; margin-top:60px; margin-bottom:80px;">
-    <div class="text-center mb-4">
-        <h2>{{ get_phrase('Apply Now') }}</h2>
-        <p class="text-muted">{{ get_phrase('Submit your application below. Our admissions team will review it and get back to you.') }}</p>
+<div class="container" style="max-width:1080px; margin-top:60px; margin-bottom:80px;">
+
+    <div class="text-center mb-5">
+        <h2 style="font-weight:700;">{{ get_phrase('Apply Now') }}</h2>
+        <p class="text-muted" style="max-width:640px; margin:12px auto 0;">
+            {{ get_phrase('Create an applicant account to start your application. Your progress is saved as you go, so you can complete it over several visits and track the outcome in one place.') }}
+        </p>
     </div>
 
     @if(session('success'))
         <div class="alert alert-success">{{ session('success') }}</div>
     @endif
 
-    @if($errors->any())
-        <div class="alert alert-danger">
-            <ul class="mb-0">
-                @foreach($errors->all() as $error)
-                    <li>{{ $error }}</li>
-                @endforeach
-            </ul>
-        </div>
-    @endif
+    <div class="row g-4 align-items-stretch">
+        {{-- Start / continue --}}
+        <div class="col-lg-5">
+            <div style="background:#fff; border:1px solid #e7e9ee; border-radius:14px; padding:32px; height:100%; box-shadow:0 6px 24px rgba(16,24,40,.06);">
+                <h4 style="font-weight:700; margin-bottom:8px;">{{ get_phrase('Ready to apply?') }}</h4>
+                <p class="text-muted" style="font-size:15px;">
+                    {{ get_phrase('It takes a few minutes to get started. You will need your identification, academic certificates and the contact details of a next of kin.') }}
+                </p>
 
-    <div class="contact-form-card" style="padding:30px; border-radius:10px; box-shadow: 0 2px 12px rgba(0,0,0,0.08);">
-        <form action="{{ route('apply.submit') }}" method="POST" enctype="multipart/form-data">
-            @csrf
+                <a href="{{ route('applicant.register') }}" class="btn w-100 mb-2"
+                   style="background:#8a1538; color:#fff; padding:13px; border-radius:9px; font-weight:600;">
+                    {{ get_phrase('Start a New Application') }}
+                </a>
 
-            {{-- Honeypot: hidden from real visitors via CSS, left blank by humans --}}
-            <div style="position:absolute; left:-9999px;" aria-hidden="true">
-                <label>{{ get_phrase('Leave this field blank') }}</label>
-                <input type="text" name="website" tabindex="-1" autocomplete="off">
+                <a href="{{ route('applicant.login') }}" class="btn w-100"
+                   style="background:#fff; color:#344054; border:1px solid #d0d5dd; padding:13px; border-radius:9px; font-weight:600;">
+                    {{ get_phrase('Continue an Existing Application') }}
+                </a>
+
+                @if($openIntake)
+                    <div style="margin-top:26px; padding-top:20px; border-top:1px dashed #e7e9ee; font-size:14.5px;">
+                        <div style="font-weight:700; margin-bottom:6px;">{{ get_phrase('Current Intake') }}</div>
+                        <div class="text-muted">{{ $openIntake->name }}</div>
+                        @if($openIntake->close_date)
+                            <div class="text-muted">
+                                {{ get_phrase('Applications close') }}: {{ \Carbon\Carbon::parse($openIntake->close_date)->format('d M Y') }}
+                            </div>
+                        @endif
+                        @if($openIntake->application_fee > 0)
+                            <div class="text-muted">
+                                {{ get_phrase('Application fee') }}: {{ \App\Support\Admissions\ApplicationFee::format((float) $openIntake->application_fee) }}
+                            </div>
+                        @endif
+                    </div>
+                @endif
             </div>
+        </div>
+
+        {{-- How it works --}}
+        <div class="col-lg-7">
+            <div style="background:#fff; border:1px solid #e7e9ee; border-radius:14px; padding:32px; height:100%;">
+                <h4 style="font-weight:700; margin-bottom:20px;">{{ get_phrase('How it works') }}</h4>
+
+                @foreach([
+                    ['1', get_phrase('Create your account'), get_phrase('Sign up with your email — this is how you sign back in and how we contact you.')],
+                    ['2', get_phrase('Complete your application'), get_phrase('Personal details, programme choice, education history and supporting documents. Save and return whenever you like.')],
+                    ['3', get_phrase('Pay the application fee'), get_phrase('Pay online or upload proof of a bank deposit, where a fee applies to your intake.')],
+                    ['4', get_phrase('Submit and track'), get_phrase('Follow every update from your dashboard, and download your offer letter as soon as a decision is made.')],
+                ] as $stepRow)
+                    <div class="d-flex gap-3 mb-4">
+                        <div style="flex:0 0 34px; height:34px; border-radius:50%; background:#fdf2f5; color:#8a1538; display:flex; align-items:center; justify-content:center; font-weight:700;">
+                            {{ $stepRow[0] }}
+                        </div>
+                        <div>
+                            <div style="font-weight:700; font-size:15.5px;">{{ $stepRow[1] }}</div>
+                            <div class="text-muted" style="font-size:14.5px;">{{ $stepRow[2] }}</div>
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+        </div>
+    </div>
+
+    {{-- What's on offer --}}
+    @if($programmes->isNotEmpty())
+        <div style="background:#fff; border:1px solid #e7e9ee; border-radius:14px; padding:32px; margin-top:26px;">
+            <h4 style="font-weight:700; margin-bottom:20px;">{{ get_phrase('Programmes Open for Application') }}</h4>
 
             <div class="row g-3">
-                <div class="col-md-6">
-                    <label class="form-label">{{ get_phrase('First Name') }} *</label>
-                    <input type="text" name="first_name" class="form-control" value="{{ old('first_name') }}" required>
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label">{{ get_phrase('Last Name') }} *</label>
-                    <input type="text" name="last_name" class="form-control" value="{{ old('last_name') }}" required>
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label">{{ get_phrase('Email Address') }} *</label>
-                    <input type="email" name="email" class="form-control" value="{{ old('email') }}" required>
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label">{{ get_phrase('Phone Contact') }} *</label>
-                    <input type="text" name="phone" class="form-control" value="{{ old('phone') }}" required>
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label">{{ get_phrase('Date of Birth') }}</label>
-                    <input type="date" name="dob" class="form-control" value="{{ old('dob') }}">
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label">{{ get_phrase('Gender') }}</label>
-                    <select name="gender" class="form-control">
-                        <option value="">{{ get_phrase('Select gender') }}</option>
-                        <option value="Male" {{ old('gender') == 'Male' ? 'selected' : '' }}>{{ get_phrase('Male') }}</option>
-                        <option value="Female" {{ old('gender') == 'Female' ? 'selected' : '' }}>{{ get_phrase('Female') }}</option>
-                        <option value="Others" {{ old('gender') == 'Others' ? 'selected' : '' }}>{{ get_phrase('Others') }}</option>
-                    </select>
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label">{{ get_phrase('Nationality') }}</label>
-                    <input type="text" name="nationality" class="form-control" value="{{ old('nationality') }}">
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label">{{ get_phrase('Programme') }} *</label>
-                    <select name="programme_id" class="form-control" required>
-                        <option value="">{{ get_phrase('Select a programme') }}</option>
-                        @foreach($programmes as $programme)
-                            <option value="{{ $programme->id }}" {{ old('programme_id') == $programme->id ? 'selected' : '' }}>{{ $programme->name }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label">{{ get_phrase('Intake') }}</label>
-                    <select name="intake_session_id" class="form-control">
-                        <option value="">{{ get_phrase('Select an intake') }}</option>
-                        @foreach($intakeSessions as $session)
-                            <option value="{{ $session->id }}" {{ old('intake_session_id') == $session->id ? 'selected' : '' }}>{{ $session->name }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div class="col-12">
-                    <label class="form-label">{{ get_phrase('Qualifications') }}</label>
-                    <textarea name="qualifications" class="form-control" rows="4" placeholder="{{ get_phrase('Summarize your academic qualifications') }}">{{ old('qualifications') }}</textarea>
-                </div>
-                <div class="col-12">
-                    <label class="form-label">{{ get_phrase('Supporting Documents') }}</label>
-                    <input type="file" name="documents[]" class="form-control" multiple accept=".pdf,.jpg,.jpeg,.png">
-                    <small class="text-muted">{{ get_phrase('PDF, JPG or PNG, max 5MB each, up to 5 files.') }}</small>
-                </div>
-                <div class="col-12 text-center mt-3">
-                    <button type="submit" class="eBtn" style="padding:12px 40px;">{{ get_phrase('Submit Application') }}</button>
-                </div>
+                @foreach($programmes->groupBy('level') as $level => $group)
+                    <div class="col-md-6 col-lg-4">
+                        <div style="border:1px solid #e7e9ee; border-radius:10px; padding:18px; height:100%;">
+                            <div style="font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:#8a1538; font-weight:700; margin-bottom:10px;">
+                                {{ $level ?: get_phrase('Other') }}
+                            </div>
+                            <ul style="padding-left:18px; margin:0; font-size:14.5px; color:#475467;">
+                                @foreach($group as $programme)
+                                    <li style="margin-bottom:6px;">{{ $programme->name }}</li>
+                                @endforeach
+                            </ul>
+                        </div>
+                    </div>
+                @endforeach
             </div>
-        </form>
-    </div>
+        </div>
+    @endif
 </div>
 
 @endsection

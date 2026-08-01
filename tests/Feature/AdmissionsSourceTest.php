@@ -27,19 +27,25 @@ class AdmissionsSourceTest extends TestCase
         ]);
     }
 
-    public function test_public_apply_form_submission_is_always_tagged_source_public(): void
+    public function test_application_started_in_the_applicant_portal_is_always_tagged_source_public(): void
     {
         $schoolId = $this->makeSchool();
         $this->configurePrimarySchool($schoolId);
-        $programmeId = $this->makeProgramme($schoolId);
+        $this->makeProgramme($schoolId);
 
-        $this->post(route('apply.submit'), [
+        // Registering and opening the portal is what creates the application
+        // now; there is no anonymous submit endpoint to post to.
+        $this->post(route('applicant.register.submit'), [
             'first_name' => 'Alice',
             'last_name' => 'Applicant',
             'email' => 'alice@example.com',
             'phone' => '0700111222',
-            'programme_id' => $programmeId,
+            'password' => 'secret-password',
+            'password_confirmation' => 'secret-password',
+            'terms' => '1',
         ]);
+
+        $this->get(route('applicant.dashboard'));
 
         $admission = Admission::first();
         $this->assertNotNull($admission);

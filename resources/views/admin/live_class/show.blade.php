@@ -3,6 +3,19 @@
 @php
     $routePrefix = request()->routeIs('teacher.*') ? 'teacher' : 'admin';
 @endphp
+<style>
+    .live-pulse-dot {
+        display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+        background: #fff; margin-right: 5px; animation: liveClassPulse 1.4s infinite;
+    }
+    @keyframes liveClassPulse {
+        0% { box-shadow: 0 0 0 0 rgba(255,255,255,.7); }
+        70% { box-shadow: 0 0 0 6px rgba(255,255,255,0); }
+        100% { box-shadow: 0 0 0 0 rgba(255,255,255,0); }
+    }
+    .join-now-btn { background: #16a34a !important; border-color: #16a34a !important; color: #fff !important; font-weight: 600; }
+    .join-now-btn:hover { background: #15803d !important; color: #fff !important; }
+</style>
 <div class="mainSection-title">
     <div class="row">
         <div class="col-12">
@@ -16,9 +29,17 @@
                     </ul>
                 </div>
                 <div class="d-flex gap-2">
+                    <a href="javascript:;" class="eBtn eBtn-dark" onclick="rightModal('{{ route($routePrefix . '.live_classes.materials', $liveClass->id) }}', '{{ get_phrase('Class Materials') }}')">
+                        <i class="bi bi-paperclip"></i> {{ get_phrase('Materials') }}
+                    </a>
+                    <a href="{{ route($routePrefix . '.live_classes.attendance', $liveClass->id) }}" class="eBtn eBtn-dark">
+                        <i class="bi bi-people"></i> {{ get_phrase('Attendance') }}
+                    </a>
                     <a href="{{ route($routePrefix . '.live_classes.edit', $liveClass->id) }}" class="eBtn eBtn-warning">{{ get_phrase('Edit') }}</a>
                     @if($liveClass->can_join)
-                        <a href="{{ route($routePrefix . '.live_classes.join', $liveClass->id) }}" target="_blank" class="eBtn eBtn-primary">{{ get_phrase('Join') }}</a>
+                        <a href="{{ route($routePrefix . '.live_classes.join', $liveClass->id) }}" target="_blank" class="eBtn join-now-btn">
+                            <i class="bi bi-camera-video-fill"></i> {{ $liveClass->computed_status === 'live' ? get_phrase('Join Now') : get_phrase('Join') }}
+                        </a>
                     @endif
                 </div>
             </div>
@@ -28,6 +49,12 @@
 
 <div class="row">
     <div class="col-lg-8">
+        @if($liveClass->exceedsGoogleMeetFreeTierLimit())
+            <div class="alert alert-warning">
+                <i class="bi bi-exclamation-triangle-fill"></i>
+                {{ get_phrase('This class is scheduled for :minutes minutes on Google Meet — longer than the 60-minute free-tier limit for group calls. It may be cut off automatically unless the host is on a paid Google Workspace plan.', ['minutes' => $liveClass->duration_minutes]) }}
+            </div>
+        @endif
         <div class="eSection-wrap">
             <div class="row g-3">
                 <div class="col-md-6"><strong>{{ get_phrase('Title') }}:</strong> {{ $liveClass->title }}</div>
@@ -35,9 +62,15 @@
                 <div class="col-md-6"><strong>{{ get_phrase('Lecturer') }}:</strong> {{ optional($liveClass->teacher)->name ?: '—' }}</div>
                 <div class="col-md-6"><strong>{{ get_phrase('Programme') }}:</strong> {{ optional($liveClass->programme)->name ?: '—' }}</div>
                 <div class="col-md-6"><strong>{{ get_phrase('Platform') }}:</strong> {{ ucwords(str_replace('_', ' ', $liveClass->platform)) }}</div>
-                <div class="col-md-6"><strong>{{ get_phrase('Status') }}:</strong> {{ ucfirst($liveClass->computed_status) }}</div>
+                <div class="col-md-6">
+                    <strong>{{ get_phrase('Status') }}:</strong>
+                    <span class="badge bg-{{ $liveClass->computed_status === 'live' ? 'danger' : ($liveClass->computed_status === 'scheduled' ? 'warning' : ($liveClass->computed_status === 'cancelled' ? 'secondary' : ($liveClass->computed_status === 'draft' ? 'dark' : 'success'))) }}">
+                        @if($liveClass->computed_status === 'live')<span class="live-pulse-dot"></span>@endif
+                        {{ ucfirst($liveClass->computed_status) }}
+                    </span>
+                </div>
                 <div class="col-md-6"><strong>{{ get_phrase('Date') }}:</strong> {{ optional($liveClass->start_date)->format('d M Y') }}</div>
-                <div class="col-md-6"><strong>{{ get_phrase('Time') }}:</strong> {{ $liveClass->start_time ? \Illuminate\Support\Carbon::parse($liveClass->start_time)->format('H:i') : '—' }} - {{ $liveClass->end_time ? \Illuminate\Support\Carbon::parse($liveClass->end_time)->format('H:i') : '—' }}</div>
+                <div class="col-md-6"><strong>{{ get_phrase('Time') }}:</strong> {{ $liveClass->start_time ? \Illuminate\Support\Carbon::parse($liveClass->start_time)->format('H:i') : '—' }} - {{ $liveClass->end_time ? \Illuminate\Support\Carbon::parse($liveClass->end_time)->format('H:i') : '—' }} @if($liveClass->duration_minutes !== null)<span class="text-muted">({{ $liveClass->duration_minutes }} {{ get_phrase('min') }})</span>@endif</div>
                 <div class="col-md-6"><strong>{{ get_phrase('Published') }}:</strong> {{ $liveClass->is_published ? get_phrase('Yes') : get_phrase('No') }}</div>
                 <div class="col-md-6"><strong>{{ get_phrase('Attendance enabled') }}:</strong> {{ $liveClass->attendance_enabled ? get_phrase('Yes') : get_phrase('No') }}</div>
                 <div class="col-12"><strong>{{ get_phrase('Description') }}:</strong><br>{{ $liveClass->description ?: '—' }}</div>

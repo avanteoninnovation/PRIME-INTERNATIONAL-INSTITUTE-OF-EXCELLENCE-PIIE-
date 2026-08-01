@@ -15,7 +15,12 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule)
     {
-        // $schedule->command('inspire')->hourly();
+        // Requires something on the server to actually call
+        // `php artisan schedule:run` once a minute (cron on Linux, Task
+        // Scheduler on Windows) — see App\Console\Commands\SendLiveClassReminders
+        // for what breaks silently if that isn't set up, and how to test the
+        // command directly without it.
+        $schedule->command('live-classes:send-reminders')->everyFiveMinutes();
     }
 
     /**

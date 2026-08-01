@@ -7,6 +7,8 @@ use App\Http\Requests\UpdateLiveClassRequest;
 use App\Models\AuditLog;
 use App\Models\Classes;
 use App\Models\LiveClass;
+use App\Models\LiveClassAttendance;
+use App\Models\LiveClassMaterial;
 use App\Models\Noticeboard;
 use App\Models\Programme;
 use App\Models\Session;
@@ -42,6 +44,12 @@ class LiveClassController extends Controller
         $platform = $request->input('platform');
         $status = $request->input('status');
         $date = $request->input('date');
+        // Quick-filter tab: without one, the queue would otherwise grow to
+        // every class ever scheduled, most of it long finished and no
+        // longer actionable. "upcoming" (drafts/scheduled/live, i.e. not yet
+        // ended) is the default; staff explicitly asks for "completed",
+        // "cancelled" or "all" to see the rest.
+        $view = $request->input('view', $status ? 'all' : 'upcoming');
 
         $classes = LiveClass::query()
             ->where('school_id', $this->school_id)
@@ -56,6 +64,10 @@ class LiveClassController extends Controller
             ->when($platform, fn($q) => $q->where('platform', $platform))
             ->when($status, fn($q) => $q->where('status', $status))
             ->when($date, fn($q) => $q->whereDate('start_date', $date))
+            // The explicit status dropdown is the more precise instrument;
+            // the view tab's coarse date-window logic only applies when the
+            // caller hasn't already pinned an exact status.
+            ->when(!$status, fn($q) => $this->applyQuickView($q, $view))
             ->with(['subject', 'teacher', 'programme', 'academicSession'])
             ->orderByDesc('start_date')
             ->orderByDesc('start_time')
@@ -65,6 +77,8 @@ class LiveClassController extends Controller
         $classList = Classes::where('school_id', $this->school_id)->orderBy('name')->get();
         $programmes = Programme::where('school_id', $this->school_id)->where('is_active', 1)->orderBy('name')->get();
         $sessions = Session::where('school_id', $this->school_id)->orderByDesc('id')->get();
+        $platformStatus = $this->platformConfigurationStatus();
+        $defaultPlatform = $this->defaultPlatform();
 
         return view('admin.live_class.index', compact(
             'classes',
@@ -76,8 +90,38 @@ class LiveClassController extends Controller
             'subjectId',
             'platform',
             'status',
-            'date'
+            'date',
+            'platformStatus',
+            'defaultPlatform',
+            'view'
         ));
+    }
+
+    /**
+     * The four quick-filter tabs shown above the table/cards. Kept as one
+     * method so the admin/teacher queue and the student listing can never
+     * define "upcoming" or "completed" differently.
+     */
+    private function applyQuickView($query, string $view)
+    {
+        return match ($view) {
+            'live' => $query->active(),
+            'completed' => $query->where('status', '!=', LiveClass::STATUS_CANCELLED)
+                ->where(function ($q) {
+                    $q->where('status', LiveClass::STATUS_ENDED)
+                        ->orWhere(function ($sub) {
+                            $sub->whereNotNull('ends_at')->where('ends_at', '<', now());
+                        });
+                }),
+            'cancelled' => $query->where('status', LiveClass::STATUS_CANCELLED),
+            'all' => $query,
+            // 'upcoming' and anything unrecognised: not yet finished and not
+            // cancelled — drafts, scheduled and currently-live classes.
+            default => $query->where('status', '!=', LiveClass::STATUS_CANCELLED)
+                ->where(function ($q) {
+                    $q->whereNull('ends_at')->orWhere('ends_at', '>=', now());
+                }),
+        };
     }
 
     public function create()
@@ -85,7 +129,7 @@ class LiveClassController extends Controller
         $this->authorize('create', LiveClass::class);
 
         $liveClass = new LiveClass([
-            'platform' => 'jitsi',
+            'platform' => $this->defaultPlatform(),
             'status' => LiveClass::STATUS_DRAFT,
             'timezone' => config('app.timezone', 'UTC'),
             'is_published' => false,
@@ -95,8 +139,9 @@ class LiveClassController extends Controller
         $classList = Classes::where('school_id', $this->school_id)->orderBy('name')->get();
         $programmes = Programme::where('school_id', $this->school_id)->where('is_active', 1)->orderBy('name')->get();
         $sessions = Session::where('school_id', $this->school_id)->orderByDesc('id')->get();
+        $platformStatus = $this->platformConfigurationStatus();
 
-        return view('admin.live_class.create', compact('liveClass', 'subjects', 'classList', 'programmes', 'sessions'));
+        return view('admin.live_class.create', compact('liveClass', 'subjects', 'classList', 'programmes', 'sessions', 'platformStatus'));
     }
 
     public function openModal(Request $request)
@@ -108,7 +153,7 @@ class LiveClassController extends Controller
         } else {
             $this->authorize('create', LiveClass::class);
             $liveClass = new LiveClass([
-                'platform' => 'jitsi',
+                'platform' => $this->defaultPlatform(),
                 'status' => LiveClass::STATUS_DRAFT,
                 'timezone' => config('app.timezone', 'UTC'),
                 'is_published' => false,
@@ -119,8 +164,9 @@ class LiveClassController extends Controller
         $classList = Classes::where('school_id', $this->school_id)->orderBy('name')->get();
         $programmes = Programme::where('school_id', $this->school_id)->where('is_active', 1)->orderBy('name')->get();
         $sessions = Session::where('school_id', $this->school_id)->orderByDesc('id')->get();
+        $platformStatus = $this->platformConfigurationStatus();
 
-        return view('admin.live_class.modal', compact('liveClass', 'subjects', 'classList', 'programmes', 'sessions'));
+        return view('admin.live_class.modal', compact('liveClass', 'subjects', 'classList', 'programmes', 'sessions', 'platformStatus'));
     }
 
     public function store(StoreLiveClassRequest $request)
@@ -164,7 +210,7 @@ class LiveClassController extends Controller
             'platform' => ['nullable', 'in:jitsi,google_meet,zoom'],
         ]);
 
-        $platform = $validated['platform'] ?? 'jitsi';
+        $platform = $validated['platform'] ?? $this->defaultPlatform();
         if (!in_array($platform, $this->getEnabledPlatforms(), true)) {
             throw ValidationException::withMessages([
                 'platform' => get_phrase('Selected platform is disabled by administrator settings.'),
@@ -300,8 +346,9 @@ class LiveClassController extends Controller
         $classList = Classes::where('school_id', $this->school_id)->orderBy('name')->get();
         $programmes = Programme::where('school_id', $this->school_id)->where('is_active', 1)->orderBy('name')->get();
         $sessions = Session::where('school_id', $this->school_id)->orderByDesc('id')->get();
+        $platformStatus = $this->platformConfigurationStatus();
 
-        return view('admin.live_class.edit', compact('liveClass', 'subjects', 'classList', 'programmes', 'sessions'));
+        return view('admin.live_class.edit', compact('liveClass', 'subjects', 'classList', 'programmes', 'sessions', 'platformStatus'));
     }
 
     public function update(UpdateLiveClassRequest $request, LiveClass $liveClass)
@@ -388,10 +435,13 @@ class LiveClassController extends Controller
         }
 
         if ($liveClass->shouldAllowJoin()) {
+            $attendance = $this->recordJoin($liveClass);
+
             if ($this->shouldRenderEmbeddedMeeting($liveClass)) {
                 return view('admin.live_class.meeting_room', [
                     'liveClass' => $liveClass,
                     'meetingUrl' => $liveClass->safe_meeting_url,
+                    'attendanceId' => $attendance?->id,
                 ]);
             }
 
@@ -403,6 +453,198 @@ class LiveClassController extends Controller
         }
 
         return redirect()->back()->with('error', get_phrase('Joining is not available for this class right now'));
+    }
+
+    /**
+     * One attendance row per click of Join, for students only — a lecturer
+     * opening their own class isn't "attending" it. Only recorded when the
+     * class has attendance tracking switched on (attendance_enabled), so
+     * classes nobody asked to track don't accumulate rows regardless.
+     */
+    private function recordJoin(LiveClass $liveClass): ?LiveClassAttendance
+    {
+        if (!$liveClass->attendance_enabled || (int) Auth::user()->role_id !== 7) {
+            return null;
+        }
+
+        return LiveClassAttendance::create([
+            'school_id' => $liveClass->school_id,
+            'live_class_id' => $liveClass->id,
+            'user_id' => Auth::id(),
+            'role_id' => Auth::user()->role_id,
+            'joined_at' => now(),
+        ]);
+    }
+
+    /**
+     * Beacon fired by the embedded Jitsi room on page unload/close (see
+     * meeting_room.blade.php). This is the only platform where "left" is
+     * knowable at all — Zoom/Google Meet/BigBlueButton open away from this
+     * app, so there is nothing here to hear a departure from.
+     */
+    public function attendanceLeave(Request $request, LiveClass $liveClass)
+    {
+        abort_unless((int) $liveClass->school_id === (int) $this->school_id, 404);
+
+        $attendanceId = $request->input('attendance_id');
+
+        $attendance = LiveClassAttendance::where('live_class_id', $liveClass->id)
+            ->where('user_id', Auth::id())
+            ->when($attendanceId, fn ($q) => $q->where('id', $attendanceId))
+            ->whereNull('left_at')
+            ->latest('id')
+            ->first();
+
+        if ($attendance) {
+            $leftAt = now();
+            $attendance->update([
+                'left_at' => $leftAt,
+                'duration_seconds' => max(0, $attendance->joined_at->diffInSeconds($leftAt)),
+            ]);
+        }
+
+        // sendBeacon expects a fast, body-less response; nothing downstream
+        // reads this.
+        return response()->noContent();
+    }
+
+    /**
+     * Who joined, when, and — where knowable — for how long. Reachable only
+     * by staff who could otherwise manage the class (reuses the 'update'
+     * ability rather than adding a new one purely for viewing this report).
+     */
+    public function attendance(LiveClass $liveClass)
+    {
+        abort_unless((int) $liveClass->school_id === (int) $this->school_id, 404);
+        $this->authorize('update', $liveClass);
+
+        $records = $liveClass->attendances()->with('user')->orderBy('joined_at')->get();
+
+        return view('admin.live_class.attendance', [
+            'liveClass' => $liveClass,
+            'records' => $records,
+        ]);
+    }
+
+    public function attendanceExport(LiveClass $liveClass)
+    {
+        abort_unless((int) $liveClass->school_id === (int) $this->school_id, 404);
+        $this->authorize('update', $liveClass);
+
+        $records = $liveClass->attendances()->with('user')->orderBy('joined_at')->get();
+
+        $headers = [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="attendance_' . $liveClass->id . '_' . date('Y-m-d') . '.csv"',
+        ];
+
+        $callback = function () use ($records) {
+            $out = fopen('php://output', 'w');
+            fputcsv($out, ['#', 'Name', 'Email', 'Joined At', 'Left At', 'Duration (minutes)']);
+            $records->each(function ($record, $i) use ($out) {
+                fputcsv($out, [
+                    $i + 1,
+                    optional($record->user)->name,
+                    optional($record->user)->email,
+                    $record->joined_at?->format('Y-m-d H:i:s'),
+                    $record->left_at?->format('Y-m-d H:i:s') ?: 'Unknown',
+                    $record->duration_seconds !== null ? round($record->duration_seconds / 60, 1) : 'Unknown',
+                ]);
+            });
+            fclose($out);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
+
+    // ── Class materials ──────────────────────────────────────────────────
+
+    /**
+     * Materials list, rendered as a modal partial — reachable by staff who
+     * can manage the class (upload form included) and by anyone who can
+     * view it (see LiveClassPolicy::view, which already lets a student see
+     * a published class and blocks an unpublished one). Deliberately not
+     * time-gated to the class window: reviewing slides after the session is
+     * exactly when students want them.
+     */
+    public function materials(LiveClass $liveClass)
+    {
+        abort_unless((int) $liveClass->school_id === (int) $this->school_id, 404);
+        $this->authorize('view', $liveClass);
+
+        $materials = $liveClass->materials()->orderByDesc('id')->get();
+        $canManage = Auth::user()->can('update', $liveClass);
+
+        return view('admin.live_class.materials', compact('liveClass', 'materials', 'canManage'));
+    }
+
+    public function storeMaterial(Request $request, LiveClass $liveClass)
+    {
+        abort_unless((int) $liveClass->school_id === (int) $this->school_id, 404);
+        $this->authorize('update', $liveClass);
+
+        $validated = $request->validate([
+            'type' => ['required', 'in:file,link'],
+            'title' => ['required', 'string', 'max:200'],
+            'file' => [
+                'required_if:type,file', 'nullable', 'file',
+                'mimes:' . implode(',', LiveClassMaterial::ALLOWED_EXTENSIONS),
+                'max:' . (LiveClassMaterial::MAX_FILE_MB * 1024),
+            ],
+            'link_url' => ['required_if:type,link', 'nullable', 'url', 'starts_with:https://', 'max:500'],
+        ]);
+
+        $payload = [
+            'school_id' => $this->school_id,
+            'live_class_id' => $liveClass->id,
+            'type' => $validated['type'],
+            'title' => $validated['title'],
+            'uploaded_by' => Auth::id(),
+        ];
+
+        if ($validated['type'] === 'file') {
+            $file = $request->file('file');
+            $destination = public_path(LiveClassMaterial::UPLOAD_DIR);
+
+            if (!is_dir($destination)) {
+                mkdir($destination, 0755, true);
+            }
+
+            $storedAs = 'lcm' . $liveClass->id . '_' . uniqid() . '.' . strtolower($file->getClientOriginalExtension());
+            $file->move($destination, $storedAs);
+
+            $payload += [
+                'original_name' => mb_substr($file->getClientOriginalName(), 0, 255),
+                'stored_name' => $storedAs,
+                'mime_type' => $file->getMimeType(),
+                'size_bytes' => $file->getSize() ?: 0,
+            ];
+        } else {
+            $payload['link_url'] = $validated['link_url'];
+        }
+
+        LiveClassMaterial::create($payload);
+
+        AuditLog::record('create', 'Live Classes', "Material added to live class: {$liveClass->title}");
+
+        return redirect()->back()->with('success', get_phrase('Material added'));
+    }
+
+    public function destroyMaterial(LiveClassMaterial $material)
+    {
+        $liveClass = $material->liveClass;
+        abort_unless($liveClass && (int) $liveClass->school_id === (int) $this->school_id, 404);
+        $this->authorize('update', $liveClass);
+
+        if ($material->isFile() && $material->absolute_path && is_file($material->absolute_path)) {
+            @unlink($material->absolute_path);
+        }
+
+        $material->delete();
+
+        AuditLog::record('delete', 'Live Classes', "Material removed from live class: {$liveClass->title}");
+
+        return redirect()->back()->with('success', get_phrase('Material removed'));
     }
 
     private function shouldRenderEmbeddedMeeting(LiveClass $liveClass): bool
@@ -450,6 +692,7 @@ class LiveClassController extends Controller
         $platform = $request->input('platform');
         $status = $request->input('status');
         $date = $request->input('date');
+        $view = $request->input('view', $status ? 'all' : 'upcoming');
 
         $classes = LiveClass::where('school_id', $school_id)
             ->published()
@@ -481,6 +724,7 @@ class LiveClassController extends Controller
             ->when($platform, fn($q) => $q->where('platform', $platform))
             ->when($status, fn($q) => $q->where('status', $status))
             ->when($date, fn($q) => $q->whereDate('start_date', $date))
+            ->when(!$status, fn($q) => $this->applyQuickView($q, $view))
             ->with(['subject', 'teacher'])
             ->orderByDesc('start_date')
             ->orderByDesc('start_time')
@@ -488,7 +732,7 @@ class LiveClassController extends Controller
 
         $subjects = Subject::where('school_id', $school_id)->orderBy('name')->get();
 
-        return view('student.live_class.index', compact('classes', 'subjects', 'search', 'subjectId', 'platform', 'status', 'date'));
+        return view('student.live_class.index', compact('classes', 'subjects', 'search', 'subjectId', 'platform', 'status', 'date', 'view'));
     }
 
     private function buildPayload(array $validated, ?LiveClass $existing): array
@@ -863,6 +1107,55 @@ class LiveClassController extends Controller
             'school_id' => $this->school_id,
             'session_id' => $sessionId > 0 ? $sessionId : 0,
         ]);
+    }
+
+    /**
+     * The platform pre-selected for a brand-new class.
+     *
+     * Google Meet is the intended default — but only once it can actually
+     * create a meeting. Defaulting to it before GOOGLE_CLIENT_ID/SECRET/
+     * REFRESH_TOKEN are set in .env would make every new class fail
+     * validation the moment it's saved (see resolveMeetingUrl()), so the
+     * fallback to Jitsi — the one platform that never needs external
+     * credentials — holds until Google Meet is actually configured.
+     */
+    private function defaultPlatform(): string
+    {
+        return $this->platformIsConfigured('google_meet') ? 'google_meet' : 'jitsi';
+    }
+
+    /**
+     * Whether a platform has the credentials it needs to create a real
+     * meeting. Jitsi/BigBlueButton/custom need none of this — only Zoom and
+     * Google Meet call out to an external API (see resolveMeetingUrl()).
+     */
+    private function platformIsConfigured(string $platform): bool
+    {
+        if ($platform === 'google_meet') {
+            return (string) config('services.google_meet.client_id') !== ''
+                && (string) config('services.google_meet.client_secret') !== ''
+                && (string) config('services.google_meet.refresh_token') !== '';
+        }
+
+        if ($platform === 'zoom') {
+            return (string) config('services.zoom.account_id') !== ''
+                && (string) config('services.zoom.client_id') !== ''
+                && (string) config('services.zoom.client_secret') !== '';
+        }
+
+        return true;
+    }
+
+    /** Configured-state per platform, for labelling <select> options in the views. */
+    private function platformConfigurationStatus(): array
+    {
+        return [
+            'jitsi' => true,
+            'google_meet' => $this->platformIsConfigured('google_meet'),
+            'zoom' => $this->platformIsConfigured('zoom'),
+            'bigbluebutton' => true,
+            'custom' => true,
+        ];
     }
 
     private function getEnabledPlatforms(): array

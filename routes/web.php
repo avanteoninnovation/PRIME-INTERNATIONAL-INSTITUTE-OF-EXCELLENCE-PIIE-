@@ -77,12 +77,69 @@ Route::controller(HomeController::class)->group(function () {
     Route::get('web_redirect_to_pay_fee', 'webRedirectToPayFee')->name('webRedirectToPayFee');
 });
 
-// Public online application ("Apply Now") — independent of the authenticated
-// HEI Admissions administration area. No school selector: the institution
+// ── Public admissions / Applicant Portal ──────────────────────────────────
+// Independent of the authenticated HEI Admissions administration area, and on
+// its own "applicant" auth guard — none of the role middleware above applies
+// here and applicants are not `users`. No school selector: the institution
 // context is resolved automatically (see App\Support\PublicTenantResolver).
+
+// "Apply Now" landing page — the entry point linked from the public website.
 Route::controller(\App\Http\Controllers\PublicApplicationController::class)->group(function () {
     Route::get('apply', 'showForm')->name('apply.form');
-    Route::post('apply', 'submit')->middleware('throttle:5,1')->name('apply.submit');
+});
+
+// Applicant account: registration, sign-in, password recovery.
+Route::controller(\App\Http\Controllers\Applicant\AuthController::class)->group(function () {
+    Route::middleware('applicant.guest')->group(function () {
+        Route::get('applicant/register', 'showRegister')->name('applicant.register');
+        Route::post('applicant/register', 'register')->middleware('throttle:10,1')->name('applicant.register.submit');
+        Route::get('applicant/login', 'showLogin')->name('applicant.login');
+        Route::post('applicant/login', 'login')->middleware('throttle:10,1')->name('applicant.login.submit');
+        Route::get('applicant/forgot-password', 'showForgotPassword')->name('applicant.password.request');
+        Route::post('applicant/forgot-password', 'sendResetLink')->middleware('throttle:5,1')->name('applicant.password.email');
+        Route::get('applicant/reset-password/{token}', 'showResetPassword')->name('applicant.password.reset');
+        Route::post('applicant/reset-password', 'resetPassword')->middleware('throttle:5,1')->name('applicant.password.update');
+    });
+
+    Route::post('applicant/logout', 'logout')->name('applicant.logout');
+});
+
+// Applicant portal. Every route resolves the application from the signed-in
+// applicant — no application id is ever accepted from the request.
+Route::middleware('applicant')->group(function () {
+    Route::controller(\App\Http\Controllers\Applicant\PortalController::class)->group(function () {
+        Route::get('applicant/dashboard', 'dashboard')->name('applicant.dashboard');
+        Route::get('applicant/track', 'track')->name('applicant.track');
+        Route::get('applicant/summary', 'summary')->name('applicant.summary');
+        Route::get('applicant/offer-letter', 'offerLetter')->name('applicant.offer_letter');
+        Route::get('applicant/document/{id}/view', 'viewDocument')->name('applicant.document.view');
+        Route::get('applicant/profile', 'profile')->name('applicant.profile');
+        Route::post('applicant/profile', 'updateProfile')->name('applicant.profile.update');
+        Route::post('applicant/profile/password', 'updatePassword')->name('applicant.password.change');
+    });
+
+    Route::controller(\App\Http\Controllers\Applicant\ApplicationController::class)->group(function () {
+        Route::get('applicant/application', 'index')->name('applicant.application');
+        Route::get('applicant/application/{step}', 'step')->name('applicant.application.step');
+        Route::post('applicant/application/personal', 'savePersonal')->name('applicant.application.personal');
+        Route::post('applicant/application/programme', 'saveProgramme')->name('applicant.application.programme');
+        Route::post('applicant/application/education', 'saveEducation')->name('applicant.application.education');
+        Route::post('applicant/application/submit', 'submit')->name('applicant.application.submit');
+    });
+
+    Route::controller(\App\Http\Controllers\Applicant\DocumentController::class)->group(function () {
+        Route::get('applicant/documents', 'index')->name('applicant.documents');
+        Route::post('applicant/documents/upload', 'store')->name('applicant.documents.upload');
+        Route::post('applicant/documents/{id}/delete', 'destroy')->name('applicant.documents.delete');
+    });
+
+    Route::controller(\App\Http\Controllers\Applicant\PaymentController::class)->group(function () {
+        Route::get('applicant/payment', 'index')->name('applicant.payment');
+        Route::post('applicant/payment/offline', 'submitOffline')->name('applicant.payment.offline');
+        Route::post('applicant/payment/{gateway}/start', 'startGateway')->name('applicant.payment.gateway.start');
+        Route::get('applicant/payment/{gateway}/return/{payment}', 'gatewayReturn')->name('applicant.payment.gateway.return');
+        Route::get('applicant/payment/{gateway}/cancel/{payment}', 'gatewayCancel')->name('applicant.payment.gateway.cancel');
+    });
 });
 
 // Website management routes for Superadmin
@@ -1194,6 +1251,19 @@ Route::controller(AdmissionsController::class)->middleware('auth', 'admin')->gro
     Route::get('admin/hei-admissions/delete/{id}',             'destroy')->name('admin.hei_admissions.destroy');
     Route::get('admin/hei-admissions/offer-letter/{id}',       'printOfferLetter')->name('admin.hei_admissions.offer_letter');
     Route::get('admin/hei-admissions/export',                  'exportApplicationsCsv')->name('admin.hei_admissions.export');
+    // Review workspace — must stay below /export and /open_modal so those
+    // literal segments are not swallowed by the {id} wildcard.
+    Route::get('admin/hei-admissions/review/{id}',             'review')->name('admin.hei_admissions.review');
+    Route::post('admin/hei-admissions/review/{id}/correction', 'requestCorrection')->name('admin.hei_admissions.correction');
+    Route::post('admin/hei-admissions/review/{id}/notes',      'saveNotes')->name('admin.hei_admissions.notes');
+    Route::post('admin/hei-admissions/document/{id}/review',   'reviewDocument')->name('admin.hei_admissions.document.review');
+    Route::post('admin/hei-admissions/payment/{id}/review',    'reviewPayment')->name('admin.hei_admissions.payment.review');
+    // Document requirements
+    Route::get('admin/admissions-documents',                   'documentRequirements')->name('admin.admissions_documents.index');
+    Route::post('admin/admissions-documents/store',            'storeDocumentRequirement')->name('admin.admissions_documents.store');
+    Route::post('admin/admissions-documents/update/{id}',      'storeDocumentRequirement')->name('admin.admissions_documents.update');
+    Route::get('admin/admissions-documents/delete/{id}',       'destroyDocumentRequirement')->name('admin.admissions_documents.destroy');
+    Route::get('admin/admissions-documents/restore-defaults',  'restoreDefaultDocumentRequirements')->name('admin.admissions_documents.restore');
     // Intake Sessions
     Route::get('admin/intake-sessions',                        'sessions')->name('admin.intake_sessions.index');
     Route::get('admin/intake-sessions/open_modal',             'openSessionModal')->name('admin.intake_sessions.open_modal');
@@ -1353,6 +1423,14 @@ Route::controller(LiveClassController::class)->middleware('auth', 'admin')->grou
     Route::post('admin/live-classes/{liveClass}/cancel',  'cancel')->name('admin.live_classes.cancel');
     Route::post('admin/live-classes/{liveClass}/publish', 'publish')->name('admin.live_classes.publish');
     Route::get('admin/live-classes/{liveClass}/join',     'join')->name('admin.live_classes.join');
+    Route::post('admin/live-classes/{liveClass}/attendance-leave', 'attendanceLeave')->name('admin.live_classes.attendance_leave');
+
+    Route::get('admin/live-classes/{liveClass}/attendance',        'attendance')->name('admin.live_classes.attendance');
+    Route::get('admin/live-classes/{liveClass}/attendance/export', 'attendanceExport')->name('admin.live_classes.attendance_export');
+
+    Route::get('admin/live-classes/{liveClass}/materials',         'materials')->name('admin.live_classes.materials');
+    Route::post('admin/live-classes/{liveClass}/materials',        'storeMaterial')->name('admin.live_classes.materials.store');
+    Route::delete('admin/live-classes/materials/{material}',       'destroyMaterial')->name('admin.live_classes.materials.destroy');
 
     // Backward compatibility with existing modal workflow.
     Route::get('admin/live-classes/open_modal',           'openModal')->name('admin.live_classes.open_modal');
@@ -1364,6 +1442,8 @@ Route::controller(LiveClassController::class)->middleware('auth', 'admin')->grou
 Route::controller(LiveClassController::class)->middleware('auth', 'student')->group(function () {
     Route::get('student/live-classes',                    'studentIndex')->name('student.live_classes.index');
     Route::get('student/live-classes/{liveClass}/join',   'join')->name('student.live_classes.join');
+    Route::post('student/live-classes/{liveClass}/attendance-leave', 'attendanceLeave')->name('student.live_classes.attendance_leave');
+    Route::get('student/live-classes/{liveClass}/materials', 'materials')->name('student.live_classes.materials');
 });
 
 Route::controller(LiveClassController::class)->middleware('auth', 'teacher')->group(function () {
@@ -1379,6 +1459,14 @@ Route::controller(LiveClassController::class)->middleware('auth', 'teacher')->gr
     Route::post('teacher/live-classes/{liveClass}/cancel',  'cancel')->name('teacher.live_classes.cancel');
     Route::post('teacher/live-classes/{liveClass}/publish', 'publish')->name('teacher.live_classes.publish');
     Route::get('teacher/live-classes/{liveClass}/join',     'join')->name('teacher.live_classes.join');
+    Route::post('teacher/live-classes/{liveClass}/attendance-leave', 'attendanceLeave')->name('teacher.live_classes.attendance_leave');
+
+    Route::get('teacher/live-classes/{liveClass}/attendance',        'attendance')->name('teacher.live_classes.attendance');
+    Route::get('teacher/live-classes/{liveClass}/attendance/export', 'attendanceExport')->name('teacher.live_classes.attendance_export');
+
+    Route::get('teacher/live-classes/{liveClass}/materials',         'materials')->name('teacher.live_classes.materials');
+    Route::post('teacher/live-classes/{liveClass}/materials',        'storeMaterial')->name('teacher.live_classes.materials.store');
+    Route::delete('teacher/live-classes/materials/{material}',       'destroyMaterial')->name('teacher.live_classes.materials.destroy');
 
     Route::get('teacher/live-classes/open_modal',           'openModal')->name('teacher.live_classes.open_modal');
     Route::post('teacher/live-classes/store',               'store')->name('teacher.live_classes.store_legacy');

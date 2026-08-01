@@ -105,6 +105,21 @@ class LiveClass extends Model
         return $this->belongsTo(User::class, 'updated_by');
     }
 
+    public function attendances()
+    {
+        return $this->hasMany(LiveClassAttendance::class, 'live_class_id');
+    }
+
+    public function materials()
+    {
+        return $this->hasMany(LiveClassMaterial::class, 'live_class_id');
+    }
+
+    public function notifications()
+    {
+        return $this->hasMany(LiveClassNotification::class, 'live_class_id');
+    }
+
     public function scopePublished($query)
     {
         return $query->where('is_published', 1);
@@ -219,6 +234,36 @@ class LiveClass extends Model
         }
 
         return $url;
+    }
+
+    /**
+     * Scheduled length in minutes, or null when either boundary is missing
+     * (e.g. a draft with no times entered yet).
+     */
+    public function getDurationMinutesAttribute(): ?int
+    {
+        if (!$this->scheduled_at || !$this->ends_at) {
+            return null;
+        }
+
+        return max(0, $this->scheduled_at->diffInMinutes($this->ends_at));
+    }
+
+    /**
+     * Free (non-Workspace) Google accounts cut group Meet calls off at 60
+     * minutes. There is no way to lift that from this app's side — Meet's
+     * API doesn't expose a "this account is on Workspace" flag — so this is
+     * a scheduling-time warning, not an enforced limit: an admin who knows
+     * their account is upgraded can ignore it, and staff who don't yet know
+     * about the cap are warned before they find out mid-class.
+     */
+    public const FREE_TIER_MINUTE_LIMIT = 60;
+
+    public function exceedsGoogleMeetFreeTierLimit(): bool
+    {
+        return $this->platform === 'google_meet'
+            && $this->duration_minutes !== null
+            && $this->duration_minutes > self::FREE_TIER_MINUTE_LIMIT;
     }
 
     public function getSafeRecordingUrlAttribute(): ?string

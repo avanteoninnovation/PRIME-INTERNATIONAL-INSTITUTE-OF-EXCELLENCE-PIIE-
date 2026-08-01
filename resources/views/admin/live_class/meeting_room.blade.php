@@ -50,4 +50,37 @@
         </div>
     </div>
 </div>
+
+@if(!empty($attendanceId))
+<script>
+(function () {
+    // Fires when this attendee actually leaves the embedded room — the only
+    // platform this app can observe a departure from at all (Zoom/Google
+    // Meet/BigBlueButton open in a separate tab this app never hears from
+    // again). Fired on both pagehide and visibility-hidden since browsers
+    // are inconsistent about which one runs on a tab close; the server side
+    // only acts on the first of the two (see LiveClassController::attendanceLeave()).
+    var attendanceId = @json($attendanceId);
+    var leaveUrl = "{{ route($routePrefix . '.live_classes.attendance_leave', $liveClass->id) }}";
+    var csrfToken = "{{ csrf_token() }}";
+
+    function sendLeaveBeacon() {
+        var data = new FormData();
+        data.append('_token', csrfToken);
+        data.append('attendance_id', attendanceId);
+
+        if (navigator.sendBeacon) {
+            navigator.sendBeacon(leaveUrl, data);
+        } else {
+            fetch(leaveUrl, { method: 'POST', body: data, keepalive: true });
+        }
+    }
+
+    window.addEventListener('pagehide', sendLeaveBeacon);
+    document.addEventListener('visibilitychange', function () {
+        if (document.visibilityState === 'hidden') sendLeaveBeacon();
+    });
+})();
+</script>
+@endif
 @endsection

@@ -5,7 +5,13 @@
     $selectedSession = old('academic_session_id', $liveClass->academic_session_id ?? '');
     $selectedPlatform = old('platform', $liveClass->platform ?? 'jitsi');
     $selectedStatus = old('status', $liveClass->status ?? \App\Models\LiveClass::STATUS_DRAFT);
+    $platformStatus = $platformStatus ?? ['jitsi' => true, 'google_meet' => false, 'zoom' => false, 'bigbluebutton' => true, 'custom' => true];
 @endphp
+
+<div id="googleMeetFreeTierWarning" class="alert alert-warning d-none mt-3" role="alert">
+    <i class="bi bi-exclamation-triangle-fill"></i>
+    {{ get_phrase('Google Meet is free to 60 minutes for group calls. This class is scheduled for longer than that — the call may be cut off automatically unless the host is on a paid Google Workspace plan.') }}
+</div>
 
 <div class="row">
     <div class="col-md-6 mt-3">
@@ -15,9 +21,11 @@
 
     <div class="col-md-6 mt-3">
         <label class="eForm-label">{{ get_phrase('Platform') }} *</label>
-        <select class="form-control eForm-control" name="platform" required>
-            @foreach(['jitsi' => 'Jitsi Meet', 'google_meet' => 'Google Meet', 'zoom' => 'Zoom', 'bigbluebutton' => 'BigBlueButton', 'custom' => 'Custom'] as $value => $label)
-                <option value="{{ $value }}" {{ $selectedPlatform === $value ? 'selected' : '' }}>{{ $label }}</option>
+        <select class="form-control eForm-control" name="platform" id="liveClassPlatform" required>
+            @foreach(['jitsi' => 'Jitsi Meet', 'google_meet' => 'Google Meet (Recommended)', 'zoom' => 'Zoom', 'bigbluebutton' => 'BigBlueButton', 'custom' => 'Custom'] as $value => $label)
+                <option value="{{ $value }}" {{ $selectedPlatform === $value ? 'selected' : '' }}>
+                    {{ $label }}{{ empty($platformStatus[$value]) ? ' — ' . get_phrase('not yet configured') : '' }}
+                </option>
             @endforeach
         </select>
         <small class="text-muted d-block mt-1">{{ get_phrase('Jitsi is auto-created by default. Zoom and Google Meet can also be auto-created when API credentials are configured.') }}</small>
@@ -82,12 +90,12 @@
 
     <div class="col-md-4 mt-3">
         <label class="eForm-label">{{ get_phrase('Start time') }} *</label>
-        <input type="time" class="form-control eForm-control" name="start_time" value="{{ old('start_time', $liveClass->start_time ? \Illuminate\Support\Carbon::parse($liveClass->start_time)->format('H:i') : '') }}" required>
+        <input type="time" class="form-control eForm-control" id="liveClassStartTime" name="start_time" value="{{ old('start_time', $liveClass->start_time ? \Illuminate\Support\Carbon::parse($liveClass->start_time)->format('H:i') : '') }}" required>
     </div>
 
     <div class="col-md-4 mt-3">
         <label class="eForm-label">{{ get_phrase('End time') }} *</label>
-        <input type="time" class="form-control eForm-control" name="end_time" value="{{ old('end_time', $liveClass->end_time ? \Illuminate\Support\Carbon::parse($liveClass->end_time)->format('H:i') : '') }}" required>
+        <input type="time" class="form-control eForm-control" id="liveClassEndTime" name="end_time" value="{{ old('end_time', $liveClass->end_time ? \Illuminate\Support\Carbon::parse($liveClass->end_time)->format('H:i') : '') }}" required>
     </div>
 
     <div class="col-md-6 mt-3">
@@ -138,3 +146,37 @@
         </div>
     </div>
 </div>
+
+<script>
+(function () {
+    var FREE_TIER_LIMIT_MINUTES = {{ \App\Models\LiveClass::FREE_TIER_MINUTE_LIMIT }};
+    var platformSelect = document.getElementById('liveClassPlatform');
+    var startInput = document.getElementById('liveClassStartTime');
+    var endInput = document.getElementById('liveClassEndTime');
+    var warning = document.getElementById('googleMeetFreeTierWarning');
+
+    function toMinutes(value) {
+        if (!value) return null;
+        var parts = value.split(':');
+        return (parseInt(parts[0], 10) * 60) + parseInt(parts[1], 10);
+    }
+
+    function refresh() {
+        if (!platformSelect || !startInput || !endInput || !warning) return;
+
+        var start = toMinutes(startInput.value);
+        var end = toMinutes(endInput.value);
+        var isGoogleMeet = platformSelect.value === 'google_meet';
+        var duration = (start !== null && end !== null) ? (end - start) : null;
+
+        var exceedsLimit = isGoogleMeet && duration !== null && duration > FREE_TIER_LIMIT_MINUTES;
+        warning.classList.toggle('d-none', !exceedsLimit);
+    }
+
+    [platformSelect, startInput, endInput].forEach(function (el) {
+        if (el) el.addEventListener('change', refresh);
+    });
+
+    refresh();
+})();
+</script>

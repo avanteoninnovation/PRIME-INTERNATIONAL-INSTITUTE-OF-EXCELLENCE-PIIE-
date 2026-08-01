@@ -4,18 +4,28 @@ namespace App\Http\Controllers;
 
 use App\Models\Admission;
 use App\Models\AdmissionAgent;
+use App\Models\AdmissionDocument;
+use App\Models\AdmissionDocumentRequirement;
+use App\Models\ApplicationPayment;
 use App\Models\AuditLog;
 use App\Models\IntakeSession;
 use App\Models\Programme;
 use App\Models\School;
 use App\Models\StudentProfile;
 use App\Models\User;
+use App\Support\Admissions\ApplicantNotifier;
+use App\Support\Admissions\ApplicationDocuments;
+use App\Support\Admissions\ApplicationFee;
+use App\Support\Admissions\ApplicationProgress;
+use App\Support\Admissions\ApplicationReference;
+use App\Support\Admissions\ApplicationWorkflow;
 use App\Support\StudentFeeInvoiceGenerator;
 use App\Support\StudentPortalActivation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use PDF;
 
 class AdmissionsController extends Controller
@@ -48,8 +58,13 @@ class AdmissionsController extends Controller
         $status     = $request->status ?? '';
         $session_id = $request->session_id ?? '';
         $source     = $request->source ?? '';
+        $fee_status = $request->fee_status ?? '';
 
         $admissions = Admission::where('school_id', $this->school_id)
+            // Drafts are applications nobody has submitted yet. They are
+            // excluded unless explicitly asked for, so the queue reflects
+            // work to be done rather than half-typed forms.
+            ->when($status !== Admission::STATUS_DRAFT, fn($q) => $q->submittedOnly())
             ->when($search, fn($q) => $q->where(function ($q) use ($search) {
                 $q->where('first_name', 'like', "%$search%")
                   ->orWhere('last_name', 'like', "%$search%")
@@ -59,6 +74,7 @@ class AdmissionsController extends Controller
             ->when($status, fn($q) => $q->where('status', $status))
             ->when($session_id, fn($q) => $q->where('intake_session_id', $session_id))
             ->when($source, fn($q) => $q->where('source', $source))
+            ->when($fee_status, fn($q) => $q->where('fee_status', $fee_status))
             ->with(['programme', 'intakeSession'])
             ->latest()
             ->paginate(20);
@@ -75,7 +91,273 @@ class AdmissionsController extends Controller
             ->get(['id', 'email', 'force_password_change'])
             ->keyBy(fn ($u) => strtolower($u->email));
 
-        return view('admin.admissions.index', compact('admissions', 'sessions', 'programmes', 'search', 'status', 'session_id', 'source', 'studentsByEmail'));
+        // Headline counts are for the whole school, not the current page —
+        // "12 under review" must not change when a filter is applied.
+        $counts = Admission::where('school_id', $this->school_id)
+            ->submittedOnly()
+            ->selectRaw('status, COUNT(*) as total')
+            ->groupBy('status')
+            ->pluck('total', 'status');
+
+        $draftCount = Admission::where('school_id', $this->school_id)
+            ->where('status', Admission::STATUS_DRAFT)
+            ->count();
+
+        return view('admin.admissions.index', compact(
+            'admissions', 'sessions', 'programmes', 'search', 'status',
+            'session_id', 'source', 'fee_status', 'studentsByEmail', 'counts', 'draftCount'
+        ));
+    }
+
+    // ── Application review ────────────────────────────────────────────────
+
+    /**
+     * The full review screen: everything the applicant supplied, the document
+     * checklist with per-file verify/reject, the fee, and the decision
+     * controls — on one page, so a reviewer never has to reconstruct an
+     * application from a list row and a modal.
+     */
+    public function review($id)
+    {
+        $admission = Admission::where('school_id', $this->school_id)
+            ->with([
+                'programme', 'secondChoiceProgramme', 'intakeSession', 'applicant',
+                'educationHistory', 'uploadedDocuments', 'payments', 'reviewer',
+            ])
+            ->findOrFail($id);
+
+        return view('admin.admissions.review', [
+            'admission'    => $admission,
+            'docChecklist' => ApplicationDocuments::checklist($admission),
+            'timeline'     => $admission->statusEvents()->orderBy('created_at')->orderBy('id')->get(),
+            'feeAmount'    => ApplicationFee::amountFor($admission),
+            'progress'     => ApplicationProgress::percent($admission),
+            'blockers'     => ApplicationProgress::blockers($admission),
+            'statuses'     => Admission::STAFF_SETTABLE_STATUSES,
+        ]);
+    }
+
+    /**
+     * Verify or reject a single uploaded document.
+     *
+     * Rejection requires a reason: an applicant told only "not accepted" has
+     * no way to fix it, and will simply re-upload the same file.
+     */
+    public function reviewDocument(Request $request, $id)
+    {
+        $document = AdmissionDocument::where('school_id', $this->school_id)->findOrFail($id);
+
+        $validated = $request->validate([
+            'status'      => ['required', Rule::in([AdmissionDocument::STATUS_VERIFIED, AdmissionDocument::STATUS_REJECTED, AdmissionDocument::STATUS_PENDING])],
+            'review_note' => 'nullable|string|max:500',
+        ]);
+
+        if ($validated['status'] === AdmissionDocument::STATUS_REJECTED && blank($validated['review_note'] ?? null)) {
+            return back()->with('error', get_phrase('Please say why the document was not accepted so the applicant knows what to fix.'));
+        }
+
+        $document->update([
+            'status'      => $validated['status'],
+            'review_note' => $validated['review_note'] ?? null,
+            'reviewed_by' => Auth::id(),
+            'reviewed_at' => now(),
+        ]);
+
+        AuditLog::record('update', 'Admissions', "Document '{$document->original_name}' marked {$document->status} on application #{$document->admission_id}.", [
+            'event_type'  => 'DATA',
+            'record_type' => AdmissionDocument::class,
+            'record_id'   => $document->id,
+            'school_id'   => $this->school_id,
+        ]);
+
+        if ($validated['status'] === AdmissionDocument::STATUS_REJECTED) {
+            ApplicantNotifier::documentRejected($document->admission, $document);
+        }
+
+        return back()->with('success', get_phrase('Document updated.'));
+    }
+
+    /** Hands a submitted application back to the applicant for fixes. */
+    public function requestCorrection(Request $request, $id)
+    {
+        $admission = Admission::where('school_id', $this->school_id)->submittedOnly()->findOrFail($id);
+
+        $validated = $request->validate([
+            'correction_note' => 'required|string|max:2000',
+        ], [
+            'correction_note.required' => get_phrase('Explain what the applicant needs to change.'),
+        ]);
+
+        $admission->load(['programme', 'intakeSession']);
+
+        ApplicationWorkflow::requestCorrection($admission, Auth::user(), $validated['correction_note']);
+
+        return redirect()->route('admin.hei_admissions.review', $admission->id)
+            ->with('success', get_phrase('The application has been returned to the applicant.'));
+    }
+
+    /** Internal notes — never shown to the applicant. */
+    public function saveNotes(Request $request, $id)
+    {
+        $admission = Admission::where('school_id', $this->school_id)->findOrFail($id);
+
+        $validated = $request->validate(['notes' => 'nullable|string|max:5000']);
+
+        $admission->update(['notes' => $validated['notes'] ?? null]);
+
+        AuditLog::record('update', 'Admissions', "Internal notes updated on application {$admission->app_number}.", [
+            'record_type' => Admission::class,
+            'record_id'   => $admission->id,
+            'school_id'   => $this->school_id,
+        ]);
+
+        return back()->with('success', get_phrase('Notes saved.'));
+    }
+
+    // ── Application fee ───────────────────────────────────────────────────
+
+    /**
+     * Confirm, reject or waive an application-fee payment.
+     *
+     * The admission's fee_status is never written here directly — it is
+     * recomputed from the payment rows by ApplicationFee::refreshStatus() so
+     * the cached column can't disagree with the ledger it summarises.
+     */
+    public function reviewPayment(Request $request, $id)
+    {
+        $payment = ApplicationPayment::where('school_id', $this->school_id)->findOrFail($id);
+
+        $validated = $request->validate([
+            'status' => ['required', Rule::in([ApplicationPayment::STATUS_PAID, ApplicationPayment::STATUS_REJECTED, ApplicationPayment::STATUS_WAIVED])],
+            'note'   => 'nullable|string|max:500',
+        ]);
+
+        $payment->update([
+            'status'       => $validated['status'],
+            'note'         => $validated['note'] ?? $payment->note,
+            'confirmed_by' => Auth::id(),
+            'paid_at'      => in_array($validated['status'], [ApplicationPayment::STATUS_PAID, ApplicationPayment::STATUS_WAIVED], true) ? now() : null,
+        ]);
+
+        $admission = $payment->admission;
+        ApplicationFee::refreshStatus($admission);
+
+        AuditLog::record('update', 'Admissions', "Application fee payment #{$payment->id} marked {$payment->status} for {$admission->app_number}.", [
+            'event_type'  => 'DATA',
+            'record_type' => ApplicationPayment::class,
+            'record_id'   => $payment->id,
+            'school_id'   => $this->school_id,
+        ]);
+
+        if ($validated['status'] === ApplicationPayment::STATUS_REJECTED) {
+            ApplicantNotifier::paymentRejected($admission, $payment);
+        } else {
+            ApplicantNotifier::paymentReceived($admission, $payment);
+        }
+
+        return back()->with('success', get_phrase('Payment updated.'));
+    }
+
+    // ── Document requirements ─────────────────────────────────────────────
+
+    public function documentRequirements()
+    {
+        $requirements = AdmissionDocumentRequirement::where('school_id', $this->school_id)
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get();
+
+        return view('admin.admissions.document_requirements', [
+            'requirements' => $requirements,
+            'levels'       => array_merge(Programme::LEVELS, Programme::LEVELS_LEGACY),
+            'usingDefaults'=> $requirements->isEmpty(),
+        ]);
+    }
+
+    public function storeDocumentRequirement(Request $request, $id = null)
+    {
+        $requirement = $id
+            ? AdmissionDocumentRequirement::where('school_id', $this->school_id)->findOrFail($id)
+            : null;
+
+        $validated = $request->validate([
+            // The key is what existing uploads are filed under, so it is set
+            // once at creation and never editable afterwards.
+            'key' => [
+                $requirement ? 'nullable' : 'required',
+                'string', 'max:60', 'regex:/^[a-z0-9_]+$/',
+                Rule::unique('admission_document_requirements', 'key')
+                    ->where(fn ($q) => $q->where('school_id', $this->school_id))
+                    ->ignore($requirement?->id),
+            ],
+            'label'              => 'required|string|max:150',
+            'description'        => 'nullable|string|max:500',
+            'applies_to_levels'  => 'nullable|array',
+            'applies_to_levels.*'=> 'string|max:40',
+            'sort_order'         => 'nullable|integer|min:0|max:999',
+        ], [
+            'key.regex' => get_phrase('The key may only contain lowercase letters, numbers and underscores.'),
+        ]);
+
+        $payload = [
+            'school_id'         => $this->school_id,
+            'label'             => $validated['label'],
+            'description'       => $validated['description'] ?? null,
+            'applies_to_levels' => empty($validated['applies_to_levels']) ? null : array_values($validated['applies_to_levels']),
+            'sort_order'        => $validated['sort_order'] ?? 0,
+            'is_required'       => $request->boolean('is_required'),
+            'allow_multiple'    => $request->boolean('allow_multiple'),
+            'is_active'         => $request->boolean('is_active'),
+        ];
+
+        if ($requirement) {
+            $requirement->update($payload);
+        } else {
+            $requirement = AdmissionDocumentRequirement::create($payload + ['key' => $validated['key']]);
+        }
+
+        AuditLog::record($id ? 'update' : 'create', 'Admissions', "Document requirement '{$requirement->label}' saved.", [
+            'record_type' => AdmissionDocumentRequirement::class,
+            'record_id'   => $requirement->id,
+            'school_id'   => $this->school_id,
+        ]);
+
+        return back()->with('success', get_phrase('Document requirement saved.'));
+    }
+
+    public function destroyDocumentRequirement($id)
+    {
+        $requirement = AdmissionDocumentRequirement::where('school_id', $this->school_id)->findOrFail($id);
+
+        // Files already filed under this key are kept and still shown on the
+        // review screen (see ApplicationDocuments::checklist) — deleting the
+        // requirement must not destroy evidence an applicant supplied.
+        $requirement->delete();
+
+        AuditLog::record('delete', 'Admissions', "Document requirement '{$requirement->label}' removed.", [
+            'record_type' => AdmissionDocumentRequirement::class,
+            'record_id'   => $requirement->id,
+            'school_id'   => $this->school_id,
+        ]);
+
+        return back()->with('success', get_phrase('Document requirement removed.'));
+    }
+
+    /** Installs the built-in requirement set for schools that have none. */
+    public function restoreDefaultDocumentRequirements()
+    {
+        foreach (AdmissionDocumentRequirement::DEFAULTS as $index => $definition) {
+            AdmissionDocumentRequirement::updateOrCreate(
+                ['school_id' => $this->school_id, 'key' => $definition['key']],
+                array_merge($definition, ['school_id' => $this->school_id, 'sort_order' => $index, 'is_active' => true])
+            );
+        }
+
+        AuditLog::record('create', 'Admissions', 'Default document requirements restored.', [
+            'school_id' => $this->school_id,
+        ]);
+
+        return back()->with('success', get_phrase('Default document requirements have been installed.'));
     }
 
     public function openModal(Request $request)
@@ -104,10 +386,11 @@ class AdmissionsController extends Controller
             'agent_id'           => 'nullable|exists:admissions_agents,id',
         ]);
 
-        $validated['school_id']  = $this->school_id;
-        $validated['app_number'] = 'APP-' . strtoupper(uniqid());
-        $validated['status']     = 'submitted';
-        $validated['source']     = 'staff_entry';
+        $validated['school_id']    = $this->school_id;
+        $validated['app_number']   = ApplicationReference::generate($this->school_id, 'staff_entry', $validated['intake_session_id'] ?? null);
+        $validated['status']       = Admission::STATUS_SUBMITTED;
+        $validated['source']       = 'staff_entry';
+        $validated['submitted_at'] = now();
 
         $admission = Admission::create($validated);
         AuditLog::record('create', 'Admissions', "New application: {$admission->app_number} — {$admission->first_name} {$admission->last_name}");
@@ -117,30 +400,34 @@ class AdmissionsController extends Controller
     public function updateStatus(Request $request, $id)
     {
         $admission = Admission::where('school_id', $this->school_id)->findOrFail($id);
+
         $request->validate([
-            'status'   => 'required|in:submitted,under_review,accepted,rejected,enrolled,withdrawn',
+            'status' => ['required', Rule::in(Admission::STAFF_SETTABLE_STATUSES)],
+            // Shown to the applicant alongside the new status.
+            'decision_note' => 'nullable|string|max:2000',
             // Optional administrator-chosen portal password when enrolling —
             // if omitted, a password is generated automatically.
             'password' => 'nullable|string|min:6',
         ]);
 
         $oldStatus = $admission->status;
-        $admission->update([
-            'status'      => $request->status,
-            'reviewed_by' => Auth::id(),
-            'offer_date'  => ($request->status === 'accepted') ? now()->toDateString() : $admission->offer_date,
-        ]);
+
+        $admission->load(['programme', 'intakeSession']);
+
+        // The workflow writes the status, the applicant-visible timeline entry
+        // and the audit record together, and sends the notification — see
+        // App\Support\Admissions\ApplicationWorkflow for why that is one step.
+        ApplicationWorkflow::transitionByStaff($admission, $request->status, Auth::user(), $request->decision_note);
 
         // If enrolled, convert the application into a student account.
         // Gated on the status actually transitioning to 'enrolled' so a
         // retried/duplicate request (old status already 'enrolled') never
         // re-runs conversion — createStudentFromAdmission() is additionally
         // idempotent on its own for safety (see its docblock).
-        if ($request->status === 'enrolled' && $oldStatus !== 'enrolled') {
+        if ($request->status === Admission::STATUS_ENROLLED && $oldStatus !== Admission::STATUS_ENROLLED) {
             $this->createStudentFromAdmission($admission, $request->password);
         }
 
-        AuditLog::record('update', 'Admissions', "Updated application {$admission->app_number} status: $oldStatus → {$admission->status}");
         return redirect()->back()->with('success', get_phrase('Status updated'));
     }
 
@@ -449,6 +736,14 @@ class AdmissionsController extends Controller
         );
 
         StudentFeeInvoiceGenerator::generateForStudent($student, $admission->programme_id, $this->school_id);
+
+        // Link the portal account to the student it became, so the applicant
+        // portal can point them at the student login rather than leaving them
+        // on a finished application with nowhere to go.
+        if ($admission->applicant_id) {
+            \App\Models\Applicant::where('id', $admission->applicant_id)
+                ->update(['converted_user_id' => $student->id]);
+        }
 
         if ($plainPassword !== null) {
             $sent = StudentPortalActivation::sendActivationEmail($student, $plainPassword, $admission->programme_id, $admission->intake_session_id);

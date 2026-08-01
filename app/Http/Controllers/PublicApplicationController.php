@@ -2,23 +2,23 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Admission;
-use App\Models\AuditLog;
 use App\Models\IntakeSession;
 use App\Models\Programme;
 use App\Support\PublicTenantResolver;
-use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Auth;
 
 /**
- * Public, unauthenticated "Apply Now" entry point. Deliberately separate
- * from AdmissionsController (which is the authenticated staff-side
- * processing area) — this controller only ever creates a submitted
- * Admission record; it has no access to review/status/export actions.
+ * The public "Apply Now" landing page.
  *
- * The institution/school context is resolved automatically via
- * PublicTenantResolver — there is no school selector on this form and the
- * applicant is never asked to choose one.
+ * This used to be the application itself — a single anonymous form that
+ * created an Admission and then left the applicant with no way to see, finish
+ * or correct anything. It is now the front door to the applicant portal: it
+ * shows what is on offer and hands over to registration or sign-in, and the
+ * application proper lives behind the "applicant" guard in
+ * App\Http\Controllers\Applicant\*.
+ *
+ * The institution context is still resolved automatically — there is no
+ * school selector on any public admissions page.
  */
 class PublicApplicationController extends Controller
 {
@@ -27,84 +27,26 @@ class PublicApplicationController extends Controller
         $schoolId = PublicTenantResolver::resolveSchoolId();
 
         if (! $schoolId) {
-            abort(503, 'Online applications are not currently configured.');
+            abort(503, get_phrase('Online applications are not currently configured.'));
         }
 
-        $programmes = Programme::where('school_id', $schoolId)->where('is_active', 1)->orderBy('name')->get();
-        $intakeSessions = IntakeSession::where('school_id', $schoolId)->where('is_open', 1)->orderBy('name')->get();
+        // Already signed in as an applicant — no reason to show them the
+        // marketing page again.
+        if (Auth::guard('applicant')->check()) {
+            return redirect()->route('applicant.dashboard');
+        }
+
+        $programmes = Programme::where('school_id', $schoolId)
+            ->where('is_active', 1)
+            ->orderBy('level')
+            ->orderBy('name')
+            ->get();
+
+        $intakeSessions = IntakeSession::where('school_id', $schoolId)
+            ->where('is_open', 1)
+            ->orderBy('close_date')
+            ->get();
 
         return view('frontend.apply', compact('programmes', 'intakeSessions'));
-    }
-
-    public function submit(Request $request)
-    {
-        $schoolId = PublicTenantResolver::resolveSchoolId();
-
-        if (! $schoolId) {
-            abort(503, 'Online applications are not currently configured.');
-        }
-
-        // Honeypot: a hidden field real applicants never fill in. Bots that
-        // blindly fill every field trip this silently — no error shown, so
-        // the bot gets no signal that it was rejected.
-        if ($request->filled('website')) {
-            return redirect()->route('apply.form')->with('success', get_phrase('Application submitted successfully.'));
-        }
-
-        $validated = $request->validate([
-            'first_name'        => 'required|string|max:100',
-            'last_name'         => 'required|string|max:100',
-            'email'             => 'required|email|max:150',
-            'phone'             => 'required|string|max:20',
-            'dob'               => 'nullable|date|before:today',
-            'gender'            => 'nullable|in:Male,Female,Others',
-            'nationality'       => 'nullable|string|max:80',
-            'programme_id'      => ['required', Rule::exists('programmes', 'id')->where('school_id', $schoolId)],
-            'intake_session_id' => ['nullable', Rule::exists('intake_sessions', 'id')->where('school_id', $schoolId)],
-            'qualifications'    => 'nullable|string|max:2000',
-            'documents'         => 'nullable|array|max:5',
-            'documents.*'       => 'file|mimes:pdf,jpg,jpeg,png|max:5120',
-        ]);
-
-        $documentPaths = [];
-        if ($request->hasFile('documents')) {
-            $destination = public_path('assets/uploads/admissions');
-            if (! is_dir($destination)) {
-                mkdir($destination, 0755, true);
-            }
-
-            foreach ($request->file('documents') as $file) {
-                $filename = uniqid('doc_') . '.' . $file->getClientOriginalExtension();
-                $file->move($destination, $filename);
-                $documentPaths[] = $filename;
-            }
-        }
-
-        $admission = Admission::create([
-            'school_id'         => $schoolId,
-            'app_number'        => 'APP-' . strtoupper(uniqid()),
-            'intake_session_id' => $validated['intake_session_id'] ?? null,
-            'programme_id'      => $validated['programme_id'],
-            'first_name'        => $validated['first_name'],
-            'last_name'         => $validated['last_name'],
-            'email'             => $validated['email'],
-            'phone'             => $validated['phone'],
-            'dob'               => $validated['dob'] ?? null,
-            'gender'            => $validated['gender'] ?? null,
-            'nationality'       => $validated['nationality'] ?? null,
-            'qualifications'    => $validated['qualifications'] ?? null,
-            'documents'         => $documentPaths,
-            'status'            => 'submitted',
-            'source'            => 'public',
-        ]);
-
-        AuditLog::record('create', 'Admissions', "Public application submitted: {$admission->app_number} — {$admission->first_name} {$admission->last_name}", [
-            'event_type'  => 'DATA',
-            'record_type' => Admission::class,
-            'record_id'   => $admission->id,
-            'school_id'   => $schoolId,
-        ]);
-
-        return redirect()->route('apply.form')->with('success', get_phrase('Application submitted successfully. Our admissions team will review it and contact you.'));
     }
 }

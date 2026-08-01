@@ -3,6 +3,22 @@
 @php
     $routePrefix = request()->routeIs('teacher.*') ? 'teacher' : 'admin';
 @endphp
+<style>
+    .live-pulse-dot {
+        display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+        background: #fff; margin-right: 5px; animation: liveClassPulse 1.4s infinite;
+    }
+    @keyframes liveClassPulse {
+        0% { box-shadow: 0 0 0 0 rgba(255,255,255,.7); }
+        70% { box-shadow: 0 0 0 6px rgba(255,255,255,0); }
+        100% { box-shadow: 0 0 0 0 rgba(255,255,255,0); }
+    }
+    .join-now-btn {
+        background: #16a34a !important; border-color: #16a34a !important; color: #fff !important;
+        font-weight: 600;
+    }
+    .join-now-btn:hover { background: #15803d !important; }
+</style>
 <div class="mainSection-title"><div class="row"><div class="col-12">
     <div class="d-flex justify-content-between align-items-center flex-wrap gr-15">
         <div class="d-flex flex-column">
@@ -32,7 +48,11 @@
                     @endforeach
                 </select>
                 <select name="platform" class="form-control eForm-control" style="min-width: 165px; height: 40px;" aria-label="{{ get_phrase('Meeting platform') }}">
-                    <option value="jitsi" selected>{{ get_phrase('Jitsi (Auto In-System)') }}</option>
+                    @foreach(['jitsi' => 'Jitsi (Auto In-System)', 'google_meet' => 'Google Meet', 'zoom' => 'Zoom'] as $value => $label)
+                        @if($value === 'jitsi' || !empty($platformStatus[$value]))
+                            <option value="{{ $value }}" {{ $defaultPlatform === $value ? 'selected' : '' }}>{{ get_phrase($label) }}</option>
+                        @endif
+                    @endforeach
                 </select>
                 <button type="submit" class="eBtn eBtn-success">{{ get_phrase('Meet Now') }}</button>
             </form>
@@ -47,6 +67,27 @@
 <div class="row">
     <div class="col-12">
         <div class="eSection-wrap">
+            @php
+                $activeView = $status ? null : ($view ?? 'upcoming');
+                $viewTabs = [
+                    'upcoming' => get_phrase('Upcoming'),
+                    'live' => get_phrase('Live Now'),
+                    'completed' => get_phrase('Completed'),
+                    'cancelled' => get_phrase('Cancelled'),
+                    'all' => get_phrase('All'),
+                ];
+            @endphp
+            <ul class="nav nav-pills mb-3 gap-2">
+                @foreach($viewTabs as $tabKey => $tabLabel)
+                    <li class="nav-item">
+                        <a class="nav-link {{ $activeView === $tabKey ? 'active' : '' }}"
+                           href="{{ route($routePrefix . '.live_classes.index', array_filter(['view' => $tabKey, 'search' => $search, 'subject_id' => $subjectId, 'platform' => $platform, 'date' => $date])) }}">
+                            {{ $tabLabel }}
+                        </a>
+                    </li>
+                @endforeach
+            </ul>
+
             <form method="GET" class="row g-2 align-items-end mb-3">
                 <div class="col-md-3"><label class="eForm-label">{{ get_phrase('Search') }}</label><input type="text" name="search" value="{{ $search }}" class="form-control eForm-control" placeholder="{{ get_phrase('Title') }}"></div>
                 <div class="col-md-2"><label class="eForm-label">{{ get_phrase('Course') }}</label><select name="subject_id" class="form-control eForm-control"><option value="">{{ get_phrase('All') }}</option>@foreach($subjects as $subject)<option value="{{ $subject->id }}" {{ (string)$subjectId===(string)$subject->id ? 'selected' : '' }}>{{ $subject->name }}</option>@endforeach</select></div>
@@ -81,19 +122,37 @@
                             <td>{{ $lc->title }}</td>
                             <td>{{ optional($lc->subject)->name ?: '—' }}</td>
                             <td>{{ optional($lc->teacher)->name ?: '—' }}</td>
-                            <td><span class="badge bg-info">{{ ucwords(str_replace('_',' ', $lc->platform)) }}</span></td>
+                            <td>
+                                <span class="badge bg-info">{{ ucwords(str_replace('_',' ', $lc->platform)) }}</span>
+                                @if($lc->exceedsGoogleMeetFreeTierLimit())
+                                    <i class="bi bi-exclamation-triangle-fill text-warning" title="{{ get_phrase('Longer than the 60-minute Google Meet free-tier limit') }}"></i>
+                                @endif
+                            </td>
                             <td>{{ optional($lc->start_date)->format('d M Y') }}</td>
                             <td>{{ $lc->start_time ? \Illuminate\Support\Carbon::parse($lc->start_time)->format('H:i') : '—' }} - {{ $lc->end_time ? \Illuminate\Support\Carbon::parse($lc->end_time)->format('H:i') : '—' }}</td>
-                            <td><span class="badge bg-{{ $statusClass }}">{{ ucfirst($lc->computed_status) }}</span></td>
+                            <td>
+                                <span class="badge bg-{{ $statusClass }}">
+                                    @if($lc->computed_status === 'live')<span class="live-pulse-dot"></span>@endif
+                                    {{ ucfirst($lc->computed_status) }}
+                                </span>
+                            </td>
                             <td class="d-flex flex-wrap gap-1">
                                 <a href="{{ route($routePrefix . '.live_classes.show', $lc->id) }}" class="eBtn eBtn-sm eBtn-dark">{{ get_phrase('View') }}</a>
                                 <a href="{{ route($routePrefix . '.live_classes.edit', $lc->id) }}" class="eBtn eBtn-sm eBtn-warning">{{ get_phrase('Edit') }}</a>
                                 @if($lc->can_join)
-                                    <a href="{{ route($routePrefix . '.live_classes.join', $lc->id) }}" target="_blank" class="eBtn eBtn-sm eBtn-primary">{{ get_phrase('Join') }}</a>
+                                    <a href="{{ route($routePrefix . '.live_classes.join', $lc->id) }}" target="_blank" class="eBtn eBtn-sm join-now-btn">
+                                        <i class="bi bi-camera-video-fill"></i> {{ $lc->computed_status === 'live' ? get_phrase('Join Now') : get_phrase('Join') }}
+                                    </a>
                                 @endif
                                 @if($lc->safe_recording_url)
                                     <a href="{{ $lc->safe_recording_url }}" target="_blank" class="eBtn eBtn-sm eBtn-dark">{{ get_phrase('Recording') }}</a>
                                 @endif
+                                <a href="javascript:;" class="eBtn eBtn-sm eBtn-dark" title="{{ get_phrase('Materials') }}" onclick="rightModal('{{ route($routePrefix . '.live_classes.materials', $lc->id) }}', '{{ get_phrase('Class Materials') }}')">
+                                    <i class="bi bi-paperclip"></i>
+                                </a>
+                                <a href="{{ route($routePrefix . '.live_classes.attendance', $lc->id) }}" class="eBtn eBtn-sm eBtn-dark" title="{{ get_phrase('Attendance') }}">
+                                    <i class="bi bi-people"></i>
+                                </a>
                                 @if($lc->computed_status !== \App\Models\LiveClass::STATUS_CANCELLED)
                                     <form method="POST" action="{{ route($routePrefix . '.live_classes.cancel', $lc->id) }}" onsubmit="return confirm('{{ get_phrase('Cancel this class?') }}')">
                                         @csrf

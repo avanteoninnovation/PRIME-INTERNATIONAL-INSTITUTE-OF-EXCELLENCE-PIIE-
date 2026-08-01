@@ -17,6 +17,7 @@ class DatabaseSeeder extends Seeder
             WebsiteContentSeeder::class,
             LiveClassPermissionSeeder::class,
             OnlineExamPermissionSeeder::class,
+            AdmissionDocumentRequirementSeeder::class,
         ]);
     }
 }

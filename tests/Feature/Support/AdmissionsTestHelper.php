@@ -88,24 +88,164 @@ trait AdmissionsTestHelper
         Schema::create('admissions', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('school_id')->index();
-            $table->string('app_number', 30)->unique();
+            $table->unsignedBigInteger('applicant_id')->nullable()->index();
+            $table->string('app_number', 40)->unique();
             $table->unsignedBigInteger('intake_session_id')->nullable();
             $table->unsignedBigInteger('programme_id')->nullable();
+            $table->unsignedBigInteger('second_choice_programme_id')->nullable();
+            $table->string('study_mode', 30)->nullable();
+            $table->string('how_did_you_hear', 100)->nullable();
+            $table->string('title', 10)->nullable();
             $table->string('first_name', 100);
+            $table->string('middle_name', 100)->nullable();
             $table->string('last_name', 100);
             $table->string('email', 150)->nullable();
             $table->string('phone', 20)->nullable();
             $table->date('dob')->nullable();
             $table->string('gender', 10)->nullable();
+            $table->string('marital_status', 20)->nullable();
+            $table->string('religion', 50)->nullable();
             $table->string('nationality', 80)->nullable();
+            $table->string('country_of_residence', 80)->nullable();
+            $table->string('national_id_no', 50)->nullable();
+            $table->string('passport_no', 50)->nullable();
+            $table->text('physical_address')->nullable();
+            $table->string('city', 80)->nullable();
+            $table->boolean('has_disability')->default(0);
+            $table->text('disability_details')->nullable();
+            $table->string('nok_name', 150)->nullable();
+            $table->string('nok_relationship', 60)->nullable();
+            $table->string('nok_phone', 30)->nullable();
+            $table->string('nok_email', 150)->nullable();
+            $table->text('nok_address')->nullable();
+            $table->string('sponsor_type', 30)->nullable();
+            $table->string('sponsor_name', 150)->nullable();
+            $table->string('sponsor_phone', 30)->nullable();
+            $table->string('sponsor_email', 150)->nullable();
             $table->text('qualifications')->nullable();
             $table->json('documents')->nullable();
             $table->string('status')->default('submitted');
             $table->string('source')->default('staff_entry');
+            $table->string('current_step', 40)->nullable();
+            $table->json('completed_steps')->nullable();
+            $table->timestamp('submitted_at')->nullable();
+            $table->timestamp('declaration_accepted_at')->nullable();
+            $table->string('fee_status', 20)->default('unpaid');
             $table->date('offer_date')->nullable();
             $table->unsignedBigInteger('agent_id')->nullable();
             $table->unsignedBigInteger('reviewed_by')->nullable();
             $table->text('notes')->nullable();
+            $table->text('correction_note')->nullable();
+            $table->text('decision_note')->nullable();
+            $table->timestamp('decided_at')->nullable();
+            $table->timestamps();
+        });
+
+        // ── Applicant portal tables ──────────────────────────────────────
+
+        Schema::create('applicants', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('school_id')->index();
+            $table->string('first_name', 100);
+            $table->string('last_name', 100);
+            $table->string('email', 150);
+            $table->string('phone', 30)->nullable();
+            $table->string('password');
+            $table->timestamp('email_verified_at')->nullable();
+            $table->string('email_verification_token', 64)->nullable();
+            $table->boolean('is_active')->default(1);
+            $table->timestamp('last_login_at')->nullable();
+            $table->unsignedBigInteger('converted_user_id')->nullable();
+            $table->string('remember_token', 100)->nullable();
+            $table->timestamps();
+            $table->unique(['school_id', 'email']);
+        });
+
+        Schema::create('applicant_password_resets', function (Blueprint $table) {
+            $table->string('email')->index();
+            $table->string('token');
+            $table->timestamp('created_at')->nullable();
+        });
+
+        Schema::create('admission_document_requirements', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('school_id')->index();
+            $table->string('key', 60);
+            $table->string('label', 150);
+            $table->string('description', 500)->nullable();
+            $table->boolean('is_required')->default(1);
+            $table->boolean('allow_multiple')->default(0);
+            $table->json('applies_to_levels')->nullable();
+            $table->unsignedInteger('sort_order')->default(0);
+            $table->boolean('is_active')->default(1);
+            $table->timestamps();
+            $table->unique(['school_id', 'key']);
+        });
+
+        Schema::create('admission_documents', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('school_id')->index();
+            $table->unsignedBigInteger('admission_id')->index();
+            $table->string('requirement_key', 60)->nullable();
+            $table->string('label', 150)->nullable();
+            $table->string('original_name', 255);
+            $table->string('stored_name', 255);
+            $table->string('mime_type', 100)->nullable();
+            $table->unsignedBigInteger('size_bytes')->default(0);
+            $table->string('status', 20)->default('pending');
+            $table->text('review_note')->nullable();
+            $table->unsignedBigInteger('reviewed_by')->nullable();
+            $table->timestamp('reviewed_at')->nullable();
+            $table->unsignedBigInteger('uploaded_by_applicant_id')->nullable();
+            $table->unsignedBigInteger('uploaded_by_user_id')->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('admission_qualifications', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('school_id')->index();
+            $table->unsignedBigInteger('admission_id')->index();
+            $table->string('institution', 200);
+            $table->string('award', 150)->nullable();
+            $table->string('subject', 150)->nullable();
+            $table->string('grade', 60)->nullable();
+            $table->unsignedSmallInteger('start_year')->nullable();
+            $table->unsignedSmallInteger('end_year')->nullable();
+            $table->string('country', 80)->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('admission_status_events', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('school_id')->index();
+            $table->unsignedBigInteger('admission_id')->index();
+            $table->string('from_status', 30)->nullable();
+            $table->string('to_status', 30);
+            $table->string('title', 150);
+            $table->text('note')->nullable();
+            $table->string('actor_type', 20)->default('system');
+            $table->unsignedBigInteger('actor_id')->nullable();
+            $table->string('actor_name', 150)->nullable();
+            $table->boolean('is_visible_to_applicant')->default(1);
+            $table->timestamps();
+        });
+
+        Schema::create('application_payments', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('school_id')->index();
+            $table->unsignedBigInteger('admission_id')->index();
+            $table->unsignedBigInteger('applicant_id')->nullable();
+            $table->decimal('amount', 12, 2)->default(0);
+            $table->string('currency', 10)->nullable();
+            $table->string('method', 30)->default('offline');
+            $table->string('status', 20)->default('pending');
+            $table->string('reference', 191)->nullable();
+            $table->string('gateway_txn_id', 191)->nullable();
+            $table->json('gateway_payload')->nullable();
+            $table->string('proof_file', 255)->nullable();
+            $table->text('note')->nullable();
+            $table->unsignedBigInteger('confirmed_by')->nullable();
+            $table->timestamp('paid_at')->nullable();
             $table->timestamps();
         });
 
@@ -148,6 +288,11 @@ trait AdmissionsTestHelper
             $table->decimal('amount', 10, 2)->nullable();
             $table->decimal('discounted_price', 10, 2)->nullable();
             $table->integer('class_id');
+            // Added by 2026_07_29_070000_add_programme_id_to_student_fee_managers_table
+            // and written by StudentFeeInvoiceGenerator; the helper had not
+            // been updated to match, so every test that generated an HEI
+            // invoice failed on a missing column rather than on its subject.
+            $table->unsignedBigInteger('programme_id')->nullable();
             $table->unsignedBigInteger('parent_id')->nullable();
             $table->integer('student_id');
             $table->unsignedBigInteger('fee_structure_id')->nullable()->index();
@@ -475,5 +620,44 @@ trait AdmissionsTestHelper
             'created_at' => now(),
             'updated_at' => now(),
         ], $overrides));
+    }
+
+    /**
+     * An applicant-portal account. Password defaults to something valid under
+     * the portal's 8-character minimum so tests can sign in without restating
+     * it every time.
+     */
+    protected function makeApplicant(int $schoolId, array $overrides = []): \App\Models\Applicant
+    {
+        return \App\Models\Applicant::create(array_merge([
+            'school_id'  => $schoolId,
+            'first_name' => 'Alice',
+            'last_name'  => 'Applicant',
+            'email'      => 'alice.' . uniqid() . '@example.com',
+            'phone'      => '0700111222',
+            'password'   => \Illuminate\Support\Facades\Hash::make('secret-password'),
+            'is_active'  => 1,
+        ], $overrides));
+    }
+
+    /**
+     * Fills in every answer the wizard requires, so a test about submission
+     * doesn't have to restate the whole form. Documents and fee are handled
+     * separately because those are what most of these tests are about.
+     */
+    protected function completeApplicationFields(\App\Models\Admission $admission, array $overrides = []): \App\Models\Admission
+    {
+        $admission->update(array_merge([
+            'dob'              => '2000-01-15',
+            'gender'           => 'Female',
+            'nationality'      => 'Ugandan',
+            'physical_address' => 'Plot 1, Kampala',
+            'nok_name'         => 'Mary Doe',
+            'nok_relationship' => 'Mother',
+            'nok_phone'        => '0700333444',
+            'qualifications'   => 'UACE 2018',
+        ], $overrides));
+
+        return $admission->fresh();
     }
 }
