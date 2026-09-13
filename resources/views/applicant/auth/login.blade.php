@@ -15,7 +15,12 @@
 
     <div class="mb-3">
         <label class="form-label">{{ get_phrase('Password') }} <span class="req">*</span></label>
-        <input type="password" name="password" class="form-control" required>
+        <div class="input-group">
+            <input type="password" name="password" id="password" class="form-control" required>
+            <button type="button" class="btn btn-outline-secondary" onclick="togglePasswordVisibility('password', this)" tabindex="-1" aria-label="{{ get_phrase('Show password') }}">
+                <i class="bi bi-eye"></i>
+            </button>
+        </div>
     </div>
 
     <div class="d-flex align-items-center justify-content-between mb-4">

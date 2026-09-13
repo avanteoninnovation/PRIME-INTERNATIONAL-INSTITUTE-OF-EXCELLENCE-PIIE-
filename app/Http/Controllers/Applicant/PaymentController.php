@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers\Applicant;
 
+use App\Models\Admission;
 use App\Models\ApplicationPayment;
 use App\Models\AuditLog;
 use App\Support\Admissions\ApplicantNotifier;
 use App\Support\Admissions\ApplicationFee;
 use App\Support\Admissions\ApplicationProgress;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 
 /**
@@ -122,14 +124,8 @@ class PaymentController extends BaseApplicantController
             return redirect()->route('applicant.dashboard');
         }
 
-        if ($gateway !== 'stripe' || ! ApplicationFee::gatewayIsConfigured('stripe', $admission->school_id)) {
+        if (! in_array($gateway, ['stripe', 'flutterwave'], true) || ! ApplicationFee::gatewayIsConfigured($gateway, $admission->school_id)) {
             return back()->with('error', get_phrase('That payment method is not available right now. Please use bank deposit.'));
-        }
-
-        $secretKey = get_payment_keys('stripe', 'test_secret_key') ?: get_payment_keys('stripe', 'secret_live_key');
-
-        if (blank($secretKey)) {
-            return back()->with('error', get_phrase('Card payments are not fully configured. Please use bank deposit.'));
         }
 
         $reference = 'APPFEE-' . $admission->id . '-' . strtoupper(Str::random(8));
@@ -140,10 +136,25 @@ class PaymentController extends BaseApplicantController
             'applicant_id' => $this->applicant()->id,
             'amount'       => $amount,
             'currency'     => ApplicationFee::currency(),
-            'method'       => 'stripe',
+            'method'       => $gateway,
             'status'       => ApplicationPayment::STATUS_PENDING,
             'reference'    => $reference,
         ]);
+
+        return $gateway === 'flutterwave'
+            ? $this->startFlutterwave($admission, $payment, $amount)
+            : $this->startStripe($admission, $payment, $amount);
+    }
+
+    private function startStripe(Admission $admission, ApplicationPayment $payment, float $amount)
+    {
+        $secretKey = get_payment_keys('stripe', 'test_secret_key') ?: get_payment_keys('stripe', 'secret_live_key');
+
+        if (blank($secretKey)) {
+            $payment->delete();
+
+            return back()->with('error', get_phrase('Card payments are not fully configured. Please use bank deposit.'));
+        }
 
         try {
             \Stripe\Stripe::setApiKey($secretKey);
@@ -151,7 +162,7 @@ class PaymentController extends BaseApplicantController
             $session = \Stripe\Checkout\Session::create([
                 'payment_method_types' => ['card'],
                 'mode'                 => 'payment',
-                'client_reference_id'  => $reference,
+                'client_reference_id'  => $payment->reference,
                 'customer_email'       => $admission->email,
                 'line_items' => [[
                     'quantity'   => 1,
@@ -183,9 +194,62 @@ class PaymentController extends BaseApplicantController
     }
 
     /**
-     * Gateway return. The session is re-fetched from Stripe and only a
-     * payment_status of 'paid' settles the fee — the applicant landing on
-     * this URL proves nothing on its own.
+     * Starts Flutterwave's hosted Standard Checkout — one page that offers
+     * card and mobile money (MTN, Airtel, etc.) without this app needing to
+     * integrate each payment channel separately.
+     */
+    private function startFlutterwave(Admission $admission, ApplicationPayment $payment, float $amount)
+    {
+        $secretKey = ApplicationFee::flutterwaveSecretKey();
+
+        if (blank($secretKey)) {
+            $payment->delete();
+
+            return back()->with('error', get_phrase('Card/mobile money payment is not fully configured. Please use bank deposit.'));
+        }
+
+        try {
+            $response = Http::withToken($secretKey)
+                ->acceptJson()
+                ->post('https://api.flutterwave.com/v3/payments', [
+                    'tx_ref'       => $payment->reference,
+                    'amount'       => (string) $amount,
+                    'currency'     => ApplicationFee::currency(),
+                    'redirect_url' => route('applicant.payment.gateway.return', ['gateway' => 'flutterwave', 'payment' => $payment->id]),
+                    'customer'     => [
+                        'email'       => $admission->email,
+                        'name'        => trim($admission->first_name . ' ' . $admission->last_name),
+                        'phonenumber' => $admission->phone,
+                    ],
+                    'customizations' => [
+                        'title'       => get_phrase('Application Fee'),
+                        'description' => get_phrase('Application Fee') . ' — ' . $admission->app_number,
+                    ],
+                ]);
+        } catch (\Throwable $e) {
+            report($e);
+            $response = null;
+        }
+
+        $link = $response && $response->successful() ? $response->json('data.link') : null;
+
+        if (blank($link)) {
+            report(new \RuntimeException('Flutterwave payment init failed: ' . ($response?->body() ?? 'no response')));
+
+            $payment->update(['status' => ApplicationPayment::STATUS_FAILED, 'note' => 'Gateway session could not be created.']);
+
+            return back()->with('error', get_phrase('We could not start the payment. Please try again or pay by bank deposit.'));
+        }
+
+        ApplicationFee::refreshStatus($admission);
+
+        return redirect()->away($link);
+    }
+
+    /**
+     * Gateway return. The session/transaction is re-fetched from the
+     * provider and only a confirmed-paid status settles the fee — the
+     * applicant landing on this URL proves nothing on its own.
      */
     public function gatewayReturn(Request $request, string $gateway, int $paymentId)
     {
@@ -193,7 +257,7 @@ class PaymentController extends BaseApplicantController
 
         $payment = ApplicationPayment::where('admission_id', $admission->id)->find($paymentId);
 
-        if (! $payment || $gateway !== 'stripe') {
+        if (! $payment || ! in_array($gateway, ['stripe', 'flutterwave'], true)) {
             return redirect()->route('applicant.payment')->with('error', get_phrase('We could not match that payment.'));
         }
 
@@ -201,22 +265,21 @@ class PaymentController extends BaseApplicantController
             return redirect()->route('applicant.payment')->with('success', get_phrase('Your application fee is already settled.'));
         }
 
-        $secretKey = get_payment_keys('stripe', 'test_secret_key') ?: get_payment_keys('stripe', 'secret_live_key');
+        $result = $gateway === 'flutterwave'
+            ? $this->confirmFlutterwave($request, $payment)
+            : $this->confirmStripe($request, $payment);
 
-        try {
-            \Stripe\Stripe::setApiKey($secretKey);
-            $session = \Stripe\Checkout\Session::retrieve($request->query('session_id') ?: $payment->gateway_txn_id);
-        } catch (\Throwable $e) {
-            report($e);
-
+        if ($result === null) {
             return redirect()->route('applicant.payment')
                 ->with('error', get_phrase('We could not confirm your payment with the provider. If you were charged, contact the finance office with your reference: ') . $payment->reference);
         }
 
-        if (($session->payment_status ?? null) !== 'paid') {
+        [$isPaid, $gatewayTxnId, $gatewayPayload] = $result;
+
+        if (! $isPaid) {
             $payment->update([
                 'status'          => ApplicationPayment::STATUS_FAILED,
-                'gateway_payload' => ['payment_status' => $session->payment_status ?? null],
+                'gateway_payload' => $gatewayPayload,
             ]);
 
             ApplicationFee::refreshStatus($admission);
@@ -227,9 +290,9 @@ class PaymentController extends BaseApplicantController
 
         $payment->update([
             'status'          => ApplicationPayment::STATUS_PAID,
-            'gateway_txn_id'  => $session->id,
+            'gateway_txn_id'  => $gatewayTxnId,
             'paid_at'         => now(),
-            'gateway_payload' => ['payment_intent' => $session->payment_intent ?? null, 'payment_status' => $session->payment_status],
+            'gateway_payload' => $gatewayPayload,
         ]);
 
         ApplicationFee::refreshStatus($admission);
@@ -245,6 +308,69 @@ class PaymentController extends BaseApplicantController
 
         return redirect()->route('applicant.application.step', ApplicationProgress::STEP_REVIEW)
             ->with('success', get_phrase('Payment received. Your application fee is settled.'));
+    }
+
+    /** @return array{0: bool, 1: ?string, 2: array}|null [isPaid, gatewayTxnId, gatewayPayload], or null if the provider could not be reached at all. */
+    private function confirmStripe(Request $request, ApplicationPayment $payment): ?array
+    {
+        $secretKey = get_payment_keys('stripe', 'test_secret_key') ?: get_payment_keys('stripe', 'secret_live_key');
+
+        try {
+            \Stripe\Stripe::setApiKey($secretKey);
+            $session = \Stripe\Checkout\Session::retrieve($request->query('session_id') ?: $payment->gateway_txn_id);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return null;
+        }
+
+        $isPaid = ($session->payment_status ?? null) === 'paid';
+
+        return [
+            $isPaid,
+            $session->id,
+            ['payment_intent' => $session->payment_intent ?? null, 'payment_status' => $session->payment_status ?? null],
+        ];
+    }
+
+    /**
+     * Verifies against Flutterwave's own record of the transaction, not the
+     * status query param the browser was redirected back with — that value
+     * is client-controlled and never trusted on its own. amount/currency are
+     * re-checked too, so a tampered redirect can't settle the fee for less
+     * than what was actually charged.
+     */
+    private function confirmFlutterwave(Request $request, ApplicationPayment $payment): ?array
+    {
+        $secretKey = ApplicationFee::flutterwaveSecretKey();
+        $transactionId = $request->query('transaction_id');
+
+        if (blank($secretKey) || blank($transactionId)) {
+            return null;
+        }
+
+        try {
+            $response = Http::withToken($secretKey)
+                ->acceptJson()
+                ->get("https://api.flutterwave.com/v3/transactions/{$transactionId}/verify");
+        } catch (\Throwable $e) {
+            report($e);
+
+            return null;
+        }
+
+        if (! $response->successful()) {
+            return null;
+        }
+
+        $data = $response->json('data') ?? [];
+
+        $isPaid = ($data['status'] ?? null) === 'successful'
+            && ($data['tx_ref'] ?? null) === $payment->reference
+            && (float) ($data['amount'] ?? 0) >= (float) $payment->amount
+            && strtoupper((string) ($data['currency'] ?? '')) === strtoupper((string) $payment->currency);
+
+        return [$isPaid, (string) ($data['id'] ?? $transactionId), $data];
     }
 
     public function gatewayCancel(string $gateway, int $paymentId)

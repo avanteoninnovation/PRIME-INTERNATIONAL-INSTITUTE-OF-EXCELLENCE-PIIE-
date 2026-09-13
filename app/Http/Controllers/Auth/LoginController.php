@@ -36,6 +36,14 @@ class LoginController extends Controller
     public function __construct()
     {
         $this->middleware('guest')->except('logout');
+
+        // login() below is a full custom override of AuthenticatesUsers's
+        // default method, so Laravel's usual ThrottlesLogins lockout never
+        // engages — this route had no brute-force protection at all
+        // (unlike applicant/login, which already carries a throttle
+        // middleware). 5 attempts/minute per IP+session, same limiter
+        // Laravel's own scaffolding uses by default.
+        $this->middleware('throttle:5,1')->only('login');
     }
 
     public function login(Request $request)
@@ -93,12 +101,31 @@ class LoginController extends Controller
 
                     } else if (auth()->user()->role_id == 9) {
 
-                        session(['alumni_login' => 9]);
-                        return redirect()->route('alumni.dashboard');
+                        // role_id 9 is Registrar (RegistrarMiddleware), not
+                        // "alumni" — that route doesn't exist, and never
+                        // did; nothing gated 'alumni.dashboard' before this
+                        // fix, so logging in as a Registrar 500'd right
+                        // after authenticating. No Registrar-specific
+                        // dashboard exists yet either, so this lands them
+                        // on Admin's for now until one is built.
+                        session(['registrar_login' => 9]);
+                        return redirect()->route('admin.dashboard');
 
                     } else if (auth()->user()->role_id == 10) {
                         session(['warden_login' => 10]);
                         return redirect()->route('warden.dashboard');
+                    } else if (auth()->user()->role_id == 15) {
+
+                        // role_id 15 is HR Manager (HrManagerMiddleware).
+                        // No branch existed for it at all, so it fell
+                        // through to the landing page after a successful
+                        // login. No HR-specific dashboard exists, but the
+                        // 'hr_manager' middleware already gates a real
+                        // leave-management page (admin.leave.index), so
+                        // send them there instead of the marketing site.
+                        session(['hr_manager_login' => 15]);
+                        return redirect()->route('admin.leave.index');
+
                     } else {
                         return redirect()->route('landingPage');
                     }

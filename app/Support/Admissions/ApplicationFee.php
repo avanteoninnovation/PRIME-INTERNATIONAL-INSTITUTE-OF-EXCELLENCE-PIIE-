@@ -98,7 +98,8 @@ class ApplicationFee
      * advertising one without the other is a dead button on a payment page.
      */
     public const SUPPORTED_GATEWAYS = [
-        'stripe' => ['label' => 'Card Payment (Visa / Mastercard)', 'icon' => 'bi-credit-card'],
+        'stripe'      => ['label' => 'Card Payment (Visa / Mastercard)', 'icon' => 'bi-credit-card'],
+        'flutterwave' => ['label' => 'Card / Mobile Money (Flutterwave)', 'icon' => 'bi-phone'],
     ];
 
     public static function availableMethods(int $schoolId): array
@@ -134,6 +135,15 @@ class ApplicationFee
             return false;
         }
 
+        // Flutterwave is configured platform-wide (Super Admin > Payment
+        // Settings, stored in global_settings), not per-school like
+        // PaymentMethods below — this single-institution deployment only
+        // ever needs one set of gateway credentials.
+        if ($gateway === 'flutterwave') {
+            return get_payment_keys('flutterwave', 'status') == 1
+                && filled(self::flutterwaveSecretKey());
+        }
+
         $configured = PaymentMethods::where('name', $gateway)
             ->where('status', 1)
             ->where(function ($query) use ($schoolId) {
@@ -142,6 +152,20 @@ class ApplicationFee
             ->first();
 
         return $configured && ! empty($configured->payment_keys);
+    }
+
+    /**
+     * Flutterwave's secret key for whichever mode (test/live) is currently
+     * selected in Super Admin > Payment Settings — the one credential
+     * PaymentController actually needs to call the Flutterwave API.
+     */
+    public static function flutterwaveSecretKey(): ?string
+    {
+        $mode = get_payment_keys('flutterwave', 'mode');
+
+        return $mode === 'live'
+            ? get_payment_keys('flutterwave', 'secret_live_key')
+            : get_payment_keys('flutterwave', 'test_secret_key');
     }
 
     /**

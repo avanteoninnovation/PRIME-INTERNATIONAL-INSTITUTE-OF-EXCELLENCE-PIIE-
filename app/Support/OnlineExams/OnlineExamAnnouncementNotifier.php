@@ -1,0 +1,137 @@
+<?php
+
+namespace App\Support\OnlineExams;
+
+use App\Mail\ApplicantNotificationEmail;
+use App\Models\OnlineExam;
+use App\Models\User;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
+
+/**
+ * Emails the students an exam is actually meant for, the moment it becomes
+ * visible to them — same "intended audience" rule App\Models\OnlineExam::
+ * scopeVisibleToStudent() already uses: a class-scoped exam only reaches
+ * that class's enrolled students, a school-wide exam (class_id null) reaches
+ * every student in the school. Called once, from
+ * OnlineExamController::publish() on the draft-to-published transition —
+ * a draft is never visible to students in the first place, so publishing is
+ * the only moment "new exam available" is true.
+ *
+ * Same rules as App\Support\OnlineExams\OnlineExamResultNotifier: gated on
+ * SMTP actually being configured, and a failed send never blocks publishing
+ * — the exam is published whether or not the announcement email got out.
+ */
+class OnlineExamAnnouncementNotifier
+{
+    public static function isConfigured(): bool
+    {
+        return !empty(get_settings('smtp_user'))
+            && !empty(get_settings('smtp_pass'))
+            && !empty(get_settings('smtp_host'))
+            && !empty(get_settings('smtp_port'));
+    }
+
+    public static function examPublished(OnlineExam $exam): int
+    {
+        if (!self::isConfigured()) {
+            return 0;
+        }
+
+        $sent = 0;
+        foreach (self::eligibleStudents($exam) as $student) {
+            if (self::send($student, $exam, [
+                'subject'  => get_phrase('New Exam Available') . ': ' . $exam->title,
+                'heading'  => get_phrase('New Exam Available'),
+                'paragraphs' => [
+                    get_phrase('A new exam has been scheduled for you. Please review the details below.'),
+                ],
+            ])) {
+                $sent++;
+            }
+        }
+
+        return $sent;
+    }
+
+    /**
+     * The 24h/1h "exam starting soon" reminder — same recipients as
+     * examPublished(), sent by App\Console\Commands\SendOnlineExamStartReminders.
+     * $windowLabel is a phrase like "starts in 24 hours" / "starts in 1 hour",
+     * dropped straight into the email body.
+     */
+    public static function startingSoon(OnlineExam $exam, string $windowLabel): int
+    {
+        if (!self::isConfigured()) {
+            return 0;
+        }
+
+        $sent = 0;
+        foreach (self::eligibleStudents($exam) as $student) {
+            if (self::send($student, $exam, [
+                'subject'  => get_phrase('Exam Reminder') . ': ' . $exam->title,
+                'heading'  => get_phrase('Your Exam Is Starting Soon'),
+                'paragraphs' => [
+                    $exam->title . ' ' . $windowLabel . '. ' . get_phrase('Make sure you are ready before it begins.'),
+                ],
+            ])) {
+                $sent++;
+            }
+        }
+
+        return $sent;
+    }
+
+    /**
+     * Same audience rule App\Models\OnlineExam::scopeVisibleToStudent() uses:
+     * a class-scoped exam only reaches that class's enrolled students, a
+     * school-wide exam (class_id null) reaches every student in the school.
+     */
+    private static function eligibleStudents(OnlineExam $exam)
+    {
+        $studentsQuery = User::where('school_id', $exam->school_id)
+            ->where('role_id', 7)
+            ->whereNotNull('email');
+
+        if ($exam->class_id) {
+            $studentsQuery->whereExists(function ($sub) use ($exam) {
+                $sub->selectRaw('1')->from('enrollment')
+                    ->whereColumn('enrollment.user_id', 'users.id')
+                    ->where('enrollment.class_id', $exam->class_id);
+            });
+        }
+
+        return $studentsQuery->get();
+    }
+
+    private static function send(User $student, OnlineExam $exam, array $content): bool
+    {
+        if (blank($student->email)) {
+            return false;
+        }
+
+        $details = array_filter([
+            get_phrase('Exam')     => $exam->title,
+            get_phrase('Duration') => $exam->duration_mins . ' ' . get_phrase('minutes'),
+            get_phrase('Opens')    => $exam->start_datetime?->format('d M Y H:i'),
+            get_phrase('Closes')   => $exam->end_datetime?->format('d M Y H:i'),
+        ]);
+
+        try {
+            Mail::to($student->email)->send(new ApplicantNotificationEmail(array_merge([
+                'greeting' => get_phrase('Dear') . ' ' . $student->name . ',',
+                'details' => $details,
+                'cta_label'   => get_phrase('View Exam'),
+                'cta_url'     => route('student.online_exam.list'),
+                'footer_note' => get_phrase('If you have questions about this exam, please contact your school administration.'),
+                'school_id'   => $exam->school_id,
+            ], $content)));
+
+            return true;
+        } catch (\Throwable $e) {
+            report($e);
+
+            return false;
+        }
+    }
+}

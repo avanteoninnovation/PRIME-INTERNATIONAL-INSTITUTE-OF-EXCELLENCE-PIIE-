@@ -29,6 +29,12 @@
         url: url,
         success: function(response){
           $("#offcanvasScrollingRightLabel").html(response);
+        },
+        error: function(xhr){
+          var message = (xhr.status === 403)
+            ? "{{ get_phrase('You do not have permission to do this') }}"
+            : "{{ get_phrase('Something went wrong. Please try again') }}" + ' (' + xhr.status + ')';
+          $("#offcanvasScrollingRightLabel").html('<div class="alert alert-danger m-3">' + message + '</div>');
         }
       });
   }

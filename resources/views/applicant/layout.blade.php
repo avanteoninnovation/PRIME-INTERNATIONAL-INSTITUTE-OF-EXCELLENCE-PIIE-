@@ -145,6 +145,16 @@
 
         if (backdrop) backdrop.addEventListener('click', close);
     })();
+
+    function togglePasswordVisibility(inputId, btn) {
+        var input = document.getElementById(inputId);
+        var icon = btn.querySelector('i');
+        var showing = input.type === 'text';
+        input.type = showing ? 'password' : 'text';
+        icon.classList.toggle('bi-eye', showing);
+        icon.classList.toggle('bi-eye-slash', !showing);
+        btn.setAttribute('aria-label', showing ? '{{ get_phrase('Show password') }}' : '{{ get_phrase('Hide password') }}');
+    }
 </script>
 @stack('scripts')
 </body>

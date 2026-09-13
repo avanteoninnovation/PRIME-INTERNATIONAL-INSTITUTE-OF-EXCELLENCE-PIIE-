@@ -43,7 +43,10 @@ class AuthController extends Controller
 
     public function showRegister()
     {
-        return view('applicant.auth.register', ['schoolId' => $this->schoolId()]);
+        return view('applicant.auth.register', [
+            'schoolId'  => $this->schoolId(),
+            'countries' => config('countries'),
+        ]);
     }
 
     public function register(Request $request)
@@ -57,6 +60,8 @@ class AuthController extends Controller
             return redirect()->route('applicant.login')->with('success', get_phrase('Account created. Please sign in.'));
         }
 
+        $dialCodes = array_unique(array_filter(array_column(config('countries'), 'dial_code')));
+
         $validated = $request->validate([
             'first_name' => 'required|string|max:100',
             'last_name'  => 'required|string|max:100',
@@ -64,7 +69,8 @@ class AuthController extends Controller
                 'required', 'email', 'max:150',
                 Rule::unique('applicants', 'email')->where(fn ($q) => $q->where('school_id', $schoolId)),
             ],
-            'phone'                 => 'required|string|max:30',
+            'phone_code'            => ['required', Rule::in($dialCodes)],
+            'phone_number'          => 'required|string|max:20|regex:/^[0-9\s\-\(\)]+$/',
             'password'              => ['required', 'confirmed', Password::min(8)],
             'terms'                 => 'accepted',
         ], [
@@ -72,12 +78,14 @@ class AuthController extends Controller
             'terms.accepted' => get_phrase('Please accept the terms to continue.'),
         ]);
 
+        $phone = trim($validated['phone_code'] . ' ' . $validated['phone_number']);
+
         $applicant = Applicant::create([
             'school_id'  => $schoolId,
             'first_name' => $validated['first_name'],
             'last_name'  => $validated['last_name'],
             'email'      => $validated['email'],
-            'phone'      => $validated['phone'],
+            'phone'      => $phone,
             'password'   => Hash::make($validated['password']),
             'is_active'  => 1,
         ]);

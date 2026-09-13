@@ -1314,9 +1314,15 @@ Route::controller(LeaveController::class)->middleware('auth', 'staff')->group(fu
 Route::controller(OnlineExamController::class)->middleware('auth', 'admin')->group(function () {
     Route::get('admin/online-exams',                         'index')->name('admin.online_exams.index');
     Route::get('admin/online-exams/create',                  'create')->name('admin.online_exams.create');
+    // Must stay above the admin.online_exams.show {id} route below — Laravel
+    // matches routes in registration order, and a literal single-segment
+    // path like this one is otherwise swallowed by {id} (id becomes the
+    // literal string "open_modal", (int) casts to 0, the exam lookup 404s,
+    // and the "Create Exam" modal hangs on "Loading..." forever since its
+    // AJAX call has no error handler to surface the failure).
+    Route::get('admin/online-exams/open_modal',              'openModal')->name('admin.online_exams.open_modal');
     Route::get('admin/online-exams/{id}',                    'show')->name('admin.online_exams.show');
     Route::get('admin/online-exams/{id}/edit',               'edit')->name('admin.online_exams.edit');
-    Route::get('admin/online-exams/open_modal',              'openModal')->name('admin.online_exams.open_modal');
     Route::post('admin/online-exams/store',                  'store')->name('admin.online_exams.store');
     Route::post('admin/online-exams/update/{id}',            'update')->name('admin.online_exams.update');
     Route::get('admin/online-exams/publish/{id}',            'publish')->name('admin.online_exams.publish');

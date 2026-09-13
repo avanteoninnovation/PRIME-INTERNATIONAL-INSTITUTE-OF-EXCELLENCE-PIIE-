@@ -936,35 +936,49 @@ class SuperAdminController extends Controller
         $flutterwave = "";
         $paystack = "";
 
+        // None of these global_settings rows are seeded by an installer on
+        // this deployment — a fresh key defaults to an empty string, which
+        // the Blade template then tries to index (['status'], ['mode'], ...)
+        // for every field. That's a PHP warning per field rather than a
+        // fatal error normally, but it's still wrong output, and warnings
+        // become fatal under stricter error handling (e.g. PHPUnit). Each
+        // gateway gets the same shape it would have once configured, all
+        // blank, instead of an empty string.
         $paypal = GlobalSettings::where('key', 'paypal')->first();
-        if (!empty($paypal)) {
-            
-            $paypal = json_decode($paypal['value'], true);
-        }
+        $paypal = $paypal ? json_decode($paypal['value'], true) : [
+            'status' => 0, 'mode' => 'test',
+            'test_client_id' => '', 'test_secret_key' => '',
+            'live_client_id' => '', 'live_secret_key' => '',
+        ];
 
         $stripe = GlobalSettings::where('key', 'stripe')->first();
-        if (!empty($stripe)) {
-          
-            $stripe = json_decode($stripe['value'], true);
-        }
+        $stripe = $stripe ? json_decode($stripe['value'], true) : [
+            'status' => 0, 'mode' => 'test',
+            'test_key' => '', 'test_secret_key' => '',
+            'public_live_key' => '', 'secret_live_key' => '',
+        ];
 
         $razorpay = GlobalSettings::where('key', 'razorpay')->first();
-        if (!empty($razorpay)) {
-         
-            $razorpay = json_decode($razorpay['value'], true);
-        }
+        $razorpay = $razorpay ? json_decode($razorpay['value'], true) : [
+            'status' => 0, 'mode' => 'test',
+            'test_key' => '', 'test_secret_key' => '',
+            'live_key' => '', 'live_secret_key' => '', 'theme_color' => '',
+        ];
 
         $paytm = GlobalSettings::where('key', 'paytm')->first();
-        if (!empty($paytm)) {
+        $paytm = $paytm ? json_decode($paytm['value'], true) : [
+            'status' => 0, 'mode' => 'test',
+            'test_merchant_id' => '', 'test_merchant_key' => '',
+            'live_merchant_id' => '', 'live_merchant_key' => '',
+            'environment' => '', 'merchant_website' => '', 'channel' => '', 'industry_type' => '',
+        ];
 
-            $paytm = json_decode($paytm['value'], true);
-        }
-        
         $flutterwave = GlobalSettings::where('key', 'flutterwave')->first();
-        if (!empty($flutterwave)) {
-
-            $flutterwave = json_decode($flutterwave['value'], true);
-        }
+        $flutterwave = $flutterwave ? json_decode($flutterwave['value'], true) : [
+            'status' => 0, 'mode' => 'test',
+            'test_key' => '', 'test_secret_key' => '', 'test_encryption_key' => '',
+            'public_live_key' => '', 'secret_live_key' => '', 'encryption_live_key' => '',
+        ];
 
         $paystack = GlobalSettings::where('key', 'paystack')->first();
         if (!empty($paystack)) {
@@ -990,40 +1004,39 @@ class SuperAdminController extends Controller
 
         if ($data['method'] == 'currency') {
 
-            GlobalSettings::where('key', 'system_currency')->update([
-                'value' =>  $data['global_currency'],
-            ]);
-            GlobalSettings::where('key', 'currency_position')->update([
-                'value' =>  $data['currency_position'],
-            ]);
-        } 
+            // updateOrCreate, not ::where(...)->update(...) — that silently
+            // affects zero rows (no error, no effect) when the key hasn't
+            // been seeded yet, which is exactly the state this row was
+            // found in on this deployment.
+            GlobalSettings::updateOrCreate(['key' => 'system_currency'], ['value' => $data['global_currency']]);
+            GlobalSettings::updateOrCreate(['key' => 'currency_position'], ['value' => $data['currency_position']]);
+        }
         elseif ($data['method'] == 'paypal') {
             $keys = array();
-            $paypal = GlobalSettings::where('key', 'paypal')->first();
             $keys['status'] = $data['status'];
             $keys['mode'] = $data['mode'];
             $keys['test_client_id'] = $data['test_client_id'];
             $keys['test_secret_key'] = $data['test_secret_key'];
             $keys['live_client_id'] = $data['live_client_id'];
             $keys['live_secret_key'] = $data['live_secret_key'];
-            $paypal['value'] = json_encode($keys);
-            $paypal->save();
-        } 
+            // updateOrCreate, not ::where(...)->first()->save() — none of
+            // these gateway rows are seeded by an installer, so on a fresh
+            // setup ->first() returns null and ->save() on it fatal-errors
+            // the very first time anyone tries to save these credentials.
+            GlobalSettings::updateOrCreate(['key' => 'paypal'], ['value' => json_encode($keys)]);
+        }
         elseif ($data['method'] == 'stripe') {
             $keys = array();
-            $stripe = GlobalSettings::where('key', 'stripe')->first();
             $keys['status'] = $data['status'];
             $keys['mode'] = $data['mode'];
             $keys['test_key'] = $data['test_key'];
             $keys['test_secret_key'] = $data['test_secret_key'];
             $keys['public_live_key'] = $data['public_live_key'];
             $keys['secret_live_key'] = $data['secret_live_key'];
-            $stripe['value'] = json_encode($keys);
-            $stripe->save();
-        } 
+            GlobalSettings::updateOrCreate(['key' => 'stripe'], ['value' => json_encode($keys)]);
+        }
         elseif ($data['method'] == 'razorpay') {
             $keys = array();
-            $razorpay = GlobalSettings::where('key', 'razorpay')->first();
             $keys['status'] = $data['status'];
             $keys['mode'] = $data['mode'];
             $keys['test_key'] = $data['test_key'];
@@ -1031,12 +1044,10 @@ class SuperAdminController extends Controller
             $keys['live_key'] = $data['live_key'];
             $keys['live_secret_key'] = $data['live_secret_key'];
             $keys['theme_color'] = $data['theme_color'];
-            $razorpay['value'] = json_encode($keys);
-            $razorpay->save();
-        } 
+            GlobalSettings::updateOrCreate(['key' => 'razorpay'], ['value' => json_encode($keys)]);
+        }
         elseif ($data['method'] == 'paytm') {
             $keys = array();
-            $paytm = GlobalSettings::where('key', 'paytm')->first();
             $keys['status'] = $data['status'];
             $keys['mode'] = $data['mode'];
             $keys['test_merchant_id'] = $data['test_merchant_id'];
@@ -1047,12 +1058,10 @@ class SuperAdminController extends Controller
             $keys['merchant_website'] = $data['merchant_website'];
             $keys['channel'] = $data['channel'];
             $keys['industry_type'] = $data['industry_type'];
-            $paytm['value'] = json_encode($keys);
-            $paytm->save();
-        } 
+            GlobalSettings::updateOrCreate(['key' => 'paytm'], ['value' => json_encode($keys)]);
+        }
         elseif($data['method'] =='flutterwave') {
             $keys = array();
-            $flutterwave = GlobalSettings::where('key', 'flutterwave')->first();
             $keys['status'] = $data['status'];
             $keys['mode'] = $data['mode'];
             $keys['test_key'] = $data['test_key'];
@@ -1061,8 +1070,12 @@ class SuperAdminController extends Controller
             $keys['public_live_key'] = $data['public_live_key'];
             $keys['secret_live_key'] = $data['secret_live_key'];
             $keys['encryption_live_key'] = $data['encryption_live_key'];
-            $flutterwave['value'] = json_encode($keys);
-            $flutterwave->save();
+            // updateOrCreate, not ::where(...)->first()->save() — this row
+            // is never seeded by an installer/seeder, so on a fresh setup
+            // (like this one) ->first() returns null and ->save() on it
+            // fatal-errors the very first time anyone tries to save
+            // Flutterwave credentials.
+            GlobalSettings::updateOrCreate(['key' => 'flutterwave'], ['value' => json_encode($keys)]);
 
         } elseif ($data['method'] == 'paystack') {
             $keys = array();

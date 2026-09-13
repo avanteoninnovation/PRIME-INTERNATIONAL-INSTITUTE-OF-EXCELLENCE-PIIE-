@@ -16,13 +16,23 @@
 
     <div class="mb-3">
         <label class="form-label">{{ get_phrase('New Password') }} <span class="req">*</span></label>
-        <input type="password" name="password" class="form-control" required>
+        <div class="input-group">
+            <input type="password" name="password" id="password" class="form-control" required>
+            <button type="button" class="btn btn-outline-secondary" onclick="togglePasswordVisibility('password', this)" tabindex="-1" aria-label="{{ get_phrase('Show password') }}">
+                <i class="bi bi-eye"></i>
+            </button>
+        </div>
         <div class="ap-hint">{{ get_phrase('At least 8 characters.') }}</div>
     </div>
 
     <div class="mb-4">
         <label class="form-label">{{ get_phrase('Confirm New Password') }} <span class="req">*</span></label>
-        <input type="password" name="password_confirmation" class="form-control" required>
+        <div class="input-group">
+            <input type="password" name="password_confirmation" id="password_confirmation" class="form-control" required>
+            <button type="button" class="btn btn-outline-secondary" onclick="togglePasswordVisibility('password_confirmation', this)" tabindex="-1" aria-label="{{ get_phrase('Show password') }}">
+                <i class="bi bi-eye"></i>
+            </button>
+        </div>
     </div>
 
     <button type="submit" class="ap-btn ap-btn-primary w-100">

@@ -14,6 +14,8 @@ use Illuminate\Support\Str;
 use App\Models\Gradebook;
 use App\Models\Subject;
 use App\Models\School;
+use App\Models\Programme;
+use App\Models\StudentProfile;
 use DB;
 use PDF;
 
@@ -168,31 +170,67 @@ class CommonController extends Controller
     }
 
 
+    /**
+     * A class-based (K-12) student has an Enrollment row; a programme-based
+     * (HEI) student never does and uses StudentProfile instead (see
+     * resolve_student_academic_context() in CommonHelper.php, which
+     * establishes the same split for a single-student lookup). This used to
+     * assume every student has an Enrollment row and dereference it
+     * unconditionally — a fatal "read property on null" for any HEI
+     * student, in every caller (the admin/teacher/parent feedback lists and
+     * the admin Students list all call this for each row they render).
+     */
     public function get_student_academic_info($id = "")
     {
-
-        //Fetch Details
-        $enrol_data = Enrollment::where('user_id', $id)->first();
         $student = User::find($id);
-        $class_details = Classes::find($enrol_data->class_id);
+        if (!$student) {
+            return (object) [
+                'parent_id' => null, 'code' => null, 'user_id' => $id, 'name' => null, 'email' => null,
+                'class_name' => '', 'class_id' => '', 'section_name' => '', 'section_id' => '',
+                'programme_name' => '', 'programme_id' => '',
+            ];
+        }
 
-        $section_details = Section::find($enrol_data->section_id);
+        $enrol_data = Enrollment::where('user_id', $id)->first();
 
-        //End Fetch
+        if ($enrol_data) {
+            $class_details = Classes::find($enrol_data->class_id);
+            $section_details = Section::find($enrol_data->section_id);
 
-        $enrol_data['parent_id'] = $student->parent_id;
-        $enrol_data['code'] = $student->code;
-        $enrol_data['user_id'] = $id;
-        $enrol_data['name'] = $student->name;
-        $enrol_data['email'] = $student->email;
+            $enrol_data['parent_id'] = $student->parent_id;
+            $enrol_data['code'] = $student->code;
+            $enrol_data['user_id'] = $id;
+            $enrol_data['name'] = $student->name;
+            $enrol_data['email'] = $student->email;
 
+            $enrol_data['class_name'] = $class_details->name ?? "";
+            $enrol_data['class_id'] = $class_details->id ?? "";
+            $enrol_data['section_name'] = $section_details->name ?? "";
+            $enrol_data['section_id'] = $section_details->id ?? "";
+            $enrol_data['programme_name'] = "";
+            $enrol_data['programme_id'] = "";
 
-        $enrol_data['class_name'] = $class_details->name ??"";
-        $enrol_data['class_id'] = $class_details->id ??"";
-        $enrol_data['section_name'] = $section_details->name ??"";
-        $enrol_data['section_id'] = $section_details->id ??"";
+            return $enrol_data;
+        }
 
-        return $enrol_data;
+        // No Enrollment row — try the programme-based (HEI) profile instead
+        // of returning a row that looks like a deleted/removed class.
+        $profile = StudentProfile::where('user_id', $id)->first();
+        $programme = $profile && $profile->programme_id ? Programme::find($profile->programme_id) : null;
+
+        return (object) [
+            'parent_id' => $student->parent_id,
+            'code' => $student->code,
+            'user_id' => $id,
+            'name' => $student->name,
+            'email' => $student->email,
+            'class_name' => '',
+            'class_id' => '',
+            'section_name' => '',
+            'section_id' => '',
+            'programme_name' => $programme->name ?? '',
+            'programme_id' => $programme->id ?? '',
+        ];
     }
 
 

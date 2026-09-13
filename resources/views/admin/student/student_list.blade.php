@@ -206,16 +206,18 @@ $menu_permission = (empty($user->menu_permission) || $user->menu_permission == '
                             <div class="dAdmin_profile_name dAdmin_info_name">
                               <h4>{{ $student->name }}</h4>
                               <p>
-                                @if(empty($student_details->class_name))
+                                @if(!empty($student_details->class_name))
+                                <span>{{ get_phrase('Class') }}:</span> {{ $student_details->class_name }}
+                                <br>
+                                <span>{{ get_phrase('Section') }}:</span> {{ $student_details->section_name }}
+                                @elseif(!empty($student_details->programme_name))
+                                <span>{{ get_phrase('Programme') }}:</span> {{ $student_details->programme_name }}
+                                @else
                                 <span>{{ get_phrase('Class') }}:</span>
                                  {{ get_phrase('Removed') }}
                                  <br>
                                 <span>{{ get_phrase('Section') }}:</span>
                                 {{ get_phrase('Removed') }}
-                                @else
-                                <span>{{ get_phrase('Class') }}:</span> {{ $student_details->class_name }}
-                                <br>
-                                <span>{{ get_phrase('Section') }}:</span> {{ $student_details->section_name }}
                                 @endif
                               </p>
                             </div>

@@ -269,6 +269,18 @@ trait OnlineExamTestHelper
             $table->timestamps();
         });
 
+        Schema::create('online_exam_notifications', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('school_id')->index();
+            $table->unsignedBigInteger('online_exam_id')->index();
+            $table->string('type', 30);
+            $table->unsignedInteger('recipient_count')->default(0);
+            $table->timestamp('sent_at');
+            $table->timestamps();
+
+            $table->unique(['online_exam_id', 'type']);
+        });
+
         DB::table('global_settings')->insert([
             ['key' => 'role_perm_2', 'value' => json_encode([]), 'created_at' => now(), 'updated_at' => now()],
             ['key' => 'role_perm_4', 'value' => json_encode([]), 'created_at' => now(), 'updated_at' => now()],
@@ -402,5 +414,23 @@ trait OnlineExamTestHelper
         ];
 
         return (int) DB::table('online_exam_submissions')->insertGetId(array_merge($defaults, $overrides));
+    }
+
+    /**
+     * Notifier sends are gated on DB-stored settings (get_settings('smtp_*')),
+     * not .env — seed them so reminder-related tests can assert the send
+     * actually goes through instead of being silently skipped.
+     */
+    protected function enableSmtpSettings(): void
+    {
+        foreach ([
+            'smtp_user'    => 'noreply@example.test',
+            'smtp_pass'    => 'secret',
+            'smtp_host'    => 'smtp.example.test',
+            'smtp_port'    => '587',
+            'system_title' => 'Test School',
+        ] as $key => $value) {
+            DB::table('global_settings')->updateOrInsert(['key' => $key], ['value' => $value, 'updated_at' => now(), 'created_at' => now()]);
+        }
     }
 }

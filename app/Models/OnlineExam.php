@@ -53,6 +53,11 @@ class OnlineExam extends Model
         return $this->hasMany(OnlineExamSubmission::class, 'online_exam_id');
     }
 
+    public function notifications()
+    {
+        return $this->hasMany(OnlineExamNotification::class, 'online_exam_id');
+    }
+
     public function subject()
     {
         return $this->belongsTo(Subject::class, 'subject_id');

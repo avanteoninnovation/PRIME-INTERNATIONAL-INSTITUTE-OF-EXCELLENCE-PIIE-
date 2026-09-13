@@ -21,6 +21,8 @@ class Kernel extends ConsoleKernel
         // for what breaks silently if that isn't set up, and how to test the
         // command directly without it.
         $schedule->command('live-classes:send-reminders')->everyFiveMinutes();
+        $schedule->command('online-exams:send-result-emails')->everyFiveMinutes();
+        $schedule->command('online-exams:send-start-reminders')->everyFiveMinutes();
     }
 
     /**

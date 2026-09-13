@@ -148,7 +148,7 @@ class OnlineExamController extends Controller
 
         $exam = DB::transaction(fn() => OnlineExam::create($payload));
         AuditLog::record('create', 'Online Exams', "Created exam: {$exam->title}");
-        return response()->json(['status' => 'success', 'message' => get_phrase('Exam created'), 'id' => $exam->id]);
+        return redirect()->route('admin.online_exams.index')->with('success', get_phrase('Exam created'));
     }
 
     public function update(UpdateOnlineExamRequest $request, $id)
@@ -184,13 +184,15 @@ class OnlineExamController extends Controller
         });
 
         AuditLog::record('update', 'Online Exams', "Updated exam: {$exam->title}");
-        return response()->json(['status' => 'success', 'message' => get_phrase('Exam updated')]);
+        return redirect()->back()->with('success', get_phrase('Exam updated'));
     }
 
     public function publish($id)
     {
         $exam = $this->findExamOrFail((int) $id);
         $this->authorize('publish', $exam);
+
+        $wasPublished = $exam->is_published;
 
         DB::transaction(function () use ($exam) {
             $exam->refresh();
@@ -212,6 +214,10 @@ class OnlineExamController extends Controller
         });
 
         AuditLog::record('update', 'Online Exams', (($exam->is_published ? 'Published' : 'Unpublished') . " exam: {$exam->title}"));
+
+        if (!$wasPublished && $exam->is_published) {
+            \App\Support\OnlineExams\OnlineExamAnnouncementNotifier::examPublished($exam);
+        }
         return redirect()->back()->with('success', get_phrase('Exam status updated'));
     }
 
@@ -319,7 +325,7 @@ class OnlineExamController extends Controller
         });
 
         AuditLog::record('create', 'Online Exams', "Created exam question in exam #{$exam->id}");
-        return response()->json(['status' => 'success', 'message' => get_phrase('Question added')]);
+        return redirect()->back()->with('success', get_phrase('Question added'));
     }
 
     public function updateQuestion(UpdateOnlineExamQuestionRequest $request, $id)
@@ -343,7 +349,7 @@ class OnlineExamController extends Controller
         });
 
         AuditLog::record('update', 'Online Exams', "Updated exam question #{$question->id}");
-        return response()->json(['status' => 'success', 'message' => get_phrase('Question updated')]);
+        return redirect()->back()->with('success', get_phrase('Question updated'));
     }
 
     public function deleteQuestion($id)
@@ -441,7 +447,7 @@ class OnlineExamController extends Controller
             ]);
         });
 
-        return response()->json(['status' => 'success', 'message' => get_phrase('Question added to bank')]);
+        return redirect()->back()->with('success', get_phrase('Question added to bank'));
     }
 
     // ── Teacher: online exams ─────────────────────────────────────────────
@@ -1203,7 +1209,30 @@ class OnlineExamController extends Controller
             'exam' => $exam,
             'attemptsUsed' => $attemptsUsed,
             'questionCount' => OnlineExamQuestion::forExam($exam->id)->count(),
+            'withinWindow' => $this->withinExamWindow($exam),
         ]);
+    }
+
+    /**
+     * Every student sits an exam within the same scheduled [start_datetime,
+     * end_datetime] window — nobody can start early, and starting requires
+     * enough of the window left to actually attempt it. Checked both here
+     * (so the instructions page can explain *why* Start is unavailable) and
+     * again in start() (the actual gate — instructions is just the message).
+     */
+    private function withinExamWindow(OnlineExam $exam): bool
+    {
+        $now = now();
+
+        if ($exam->start_datetime && $now->lt($exam->start_datetime)) {
+            return false;
+        }
+
+        if ($exam->end_datetime && $now->gte($exam->end_datetime)) {
+            return false;
+        }
+
+        return true;
     }
 
     public function readiness(CameraReadinessRequest $request, $submissionId)
@@ -1235,6 +1264,11 @@ class OnlineExamController extends Controller
                 abort(422, 'Exam is not published.');
             }
 
+            // The scheduled [start_datetime, end_datetime] window is already
+            // enforced by StartOnlineExamRequest::withValidator() before this
+            // method body ever runs — see withinExamWindow(), used here only
+            // by instructions() to explain *why* Start is unavailable ahead
+            // of the click.
             $studentId = Auth::id();
             $active = OnlineExamSubmission::where('online_exam_id', $lockedExam->id)
                 ->where('student_id', $studentId)
@@ -1578,7 +1612,18 @@ class OnlineExamController extends Controller
             ->orderByDesc('submitted_at')
             ->paginate(30);
 
-        return view('admin.online_exam.results', compact('exam', 'submissions'));
+        $answersNeedingMarking = OnlineExamAnswer::query()
+            ->with(['submission.student', 'question'])
+            ->whereHas('submission', function ($q) use ($exam) {
+                $q->where('online_exam_id', $exam->id)->where('school_id', $this->school_id);
+            })
+            ->whereHas('question', function ($q) {
+                $q->whereIn('type', ['short', 'essay', 'fill_blank']);
+            })
+            ->whereNull('awarded_marks')
+            ->get();
+
+        return view('admin.online_exam.results', compact('exam', 'submissions', 'answersNeedingMarking'));
     }
 
     public function reviewProctoring($exam_id, $submission_id)
@@ -1619,7 +1664,7 @@ class OnlineExamController extends Controller
         });
 
         AuditLog::record('update', 'Online Exams', "Manual marking on answer #{$answer->id}");
-        return response()->json(['status' => 'success', 'message' => get_phrase('Answer marked')]);
+        return redirect()->back()->with('success', get_phrase('Answer marked'));
     }
 
     public function finalizeResult($submissionId)
@@ -1642,6 +1687,8 @@ class OnlineExamController extends Controller
         });
 
         AuditLog::record('update', 'Online Exams', "Finalized result for submission #{$submission->id}");
+
+        \App\Support\OnlineExams\OnlineExamResultNotifier::resultAvailable($submission->fresh());
         return redirect()->back()->with('success', get_phrase('Result finalized'));
     }
 
@@ -1718,6 +1765,8 @@ class OnlineExamController extends Controller
 
         $action = $submittedVia === 'timeout' ? 'timeout' : 'submit';
         AuditLog::record($action, 'Online Exams', "Submission #{$locked->id} completed via {$submittedVia}. Score: {$locked->score}");
+
+        \App\Support\OnlineExams\OnlineExamResultNotifier::resultAvailable($locked);
 
         return redirect()->route('student.online_exam.result', $locked->id);
     }

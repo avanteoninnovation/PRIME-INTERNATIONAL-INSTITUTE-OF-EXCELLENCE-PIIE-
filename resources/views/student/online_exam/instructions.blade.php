@@ -24,63 +24,89 @@
                 <div class="col-md-3 col-6"><div class="text-muted small">{{ get_phrase('Attempts') }}</div><strong>{{ $attemptsUsed }} / {{ $exam->max_attempts }}</strong></div>
             </div>
 
-            @if($exam->instructions)
-                <div class="alert alert-info">
-                    <strong>{{ get_phrase('Instructions') }}:</strong>
-                    <div class="mt-1">{{ $exam->instructions }}</div>
+            @if($exam->start_datetime || $exam->end_datetime)
+                <div class="alert alert-secondary">
+                    <i class="bi bi-calendar-event"></i>
+                    {{ get_phrase('This exam is taken at the same scheduled time for everyone') }}:
+                    @if($exam->start_datetime)
+                        <strong>{{ get_phrase('Opens') }} {{ $exam->start_datetime->format('d M Y, H:i') }}</strong>
+                    @endif
+                    @if($exam->end_datetime)
+                        &mdash; <strong>{{ get_phrase('Closes') }} {{ $exam->end_datetime->format('d M Y, H:i') }}</strong>
+                    @endif
                 </div>
             @endif
 
-            <div class="alert alert-warning">
-                <strong><i class="bi bi-shield-lock"></i> {{ get_phrase('This exam is monitored') }}:</strong>
-                <ul class="mb-0 mt-2">
-                    <li>{{ get_phrase('Copying, pasting and right-click are disabled while the exam is open.') }}</li>
-                    <li>{{ get_phrase('Switching tabs or minimising the window is logged.') }}</li>
-                    @if($exam->fullscreen_required)
-                        <li>{{ get_phrase('You must stay in fullscreen for the whole exam — exiting is logged and warned.') }}</li>
+            @unless($withinWindow)
+                <div class="alert alert-warning">
+                    <i class="bi bi-clock-history"></i>
+                    @if($exam->start_datetime && now()->lt($exam->start_datetime))
+                        {{ get_phrase('This exam has not opened yet. Come back at the scheduled start time above — the Start button will become available then.') }}
+                    @else
+                        {{ get_phrase('This exam window has closed. Contact your school administration if you believe this is an error.') }}
                     @endif
-                    @if($exam->webcam_required)
-                        <li>{{ get_phrase('This exam requires camera access for the duration of the attempt.') }}</li>
-                    @endif
-                    <li>{{ get_phrase('Your answers are saved automatically as you go, so a lost connection will not lose your work.') }}</li>
-                </ul>
-            </div>
+                </div>
+            @endif
 
-            @if($exam->webcam_required)
-                <div class="card mb-3">
-                    <div class="card-body">
-                        <h6><i class="bi bi-camera-video"></i> {{ get_phrase('Camera Check') }}</h6>
-                        <p class="text-muted small mb-2">{{ get_phrase('This exam requires your camera to be on. Grant access to continue.') }}</p>
-                        <video id="cameraPreview" width="240" height="180" autoplay muted playsinline style="background:#000; border-radius:6px;"></video>
-                        <div class="mt-2">
-                            <button type="button" class="eBtn eBtn-sm eBtn-primary" id="grantCameraBtn">{{ get_phrase('Grant Camera Access') }}</button>
-                            <span id="cameraStatus" class="ms-2 small text-muted">{{ get_phrase('Not granted yet') }}</span>
+            @if($withinWindow)
+                @if($exam->instructions)
+                    <div class="alert alert-info">
+                        <strong>{{ get_phrase('Instructions') }}:</strong>
+                        <div class="mt-1">{{ $exam->instructions }}</div>
+                    </div>
+                @endif
+
+                <div class="alert alert-warning">
+                    <strong><i class="bi bi-shield-lock"></i> {{ get_phrase('This exam is monitored') }}:</strong>
+                    <ul class="mb-0 mt-2">
+                        <li>{{ get_phrase('Copying, pasting and right-click are disabled while the exam is open.') }}</li>
+                        <li>{{ get_phrase('Switching tabs or minimising the window is logged.') }}</li>
+                        @if($exam->fullscreen_required)
+                            <li>{{ get_phrase('You must stay in fullscreen for the whole exam — exiting is logged and warned.') }}</li>
+                        @endif
+                        @if($exam->webcam_required)
+                            <li>{{ get_phrase('This exam requires camera access for the duration of the attempt.') }}</li>
+                        @endif
+                        <li>{{ get_phrase('Your answers are saved automatically as you go, so a lost connection will not lose your work.') }}</li>
+                    </ul>
+                </div>
+
+                @if($exam->webcam_required)
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h6><i class="bi bi-camera-video"></i> {{ get_phrase('Camera Check') }}</h6>
+                            <p class="text-muted small mb-2">{{ get_phrase('This exam requires your camera to be on. Grant access to continue.') }}</p>
+                            <video id="cameraPreview" width="240" height="180" autoplay muted playsinline style="background:#000; border-radius:6px;"></video>
+                            <div class="mt-2">
+                                <button type="button" class="eBtn eBtn-sm eBtn-primary" id="grantCameraBtn">{{ get_phrase('Grant Camera Access') }}</button>
+                                <span id="cameraStatus" class="ms-2 small text-muted">{{ get_phrase('Not granted yet') }}</span>
+                            </div>
                         </div>
                     </div>
-                </div>
-            @endif
+                @endif
 
-            @if($exam->fullscreen_required)
-                <div class="card mb-3">
-                    <div class="card-body">
-                        <h6><i class="bi bi-arrows-fullscreen"></i> {{ get_phrase('Fullscreen Check') }}</h6>
-                        <p class="text-muted small mb-2">{{ get_phrase('This exam must be taken in fullscreen.') }}</p>
-                        <button type="button" class="eBtn eBtn-sm eBtn-primary" id="enterFullscreenBtn">{{ get_phrase('Enter Fullscreen') }}</button>
-                        <span id="fullscreenStatus" class="ms-2 small text-muted">{{ get_phrase('Not entered yet') }}</span>
+                @if($exam->fullscreen_required)
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h6><i class="bi bi-arrows-fullscreen"></i> {{ get_phrase('Fullscreen Check') }}</h6>
+                            <p class="text-muted small mb-2">{{ get_phrase('This exam must be taken in fullscreen.') }}</p>
+                            <button type="button" class="eBtn eBtn-sm eBtn-primary" id="enterFullscreenBtn">{{ get_phrase('Enter Fullscreen') }}</button>
+                            <span id="fullscreenStatus" class="ms-2 small text-muted">{{ get_phrase('Not entered yet') }}</span>
+                        </div>
                     </div>
+                @endif
+
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="declareReady">
+                    <label class="form-check-label" for="declareReady">
+                        {{ get_phrase('I have read the instructions and I am ready to begin. I understand this attempt cannot be paused once started, other than a disconnection.') }}
+                    </label>
                 </div>
+
+                <button type="button" class="eBtn eBtn-primary" id="startExamBtn" disabled>
+                    <i class="bi bi-play-fill"></i> {{ get_phrase('Start Exam') }}
+                </button>
             @endif
-
-            <div class="form-check mb-3">
-                <input class="form-check-input" type="checkbox" id="declareReady">
-                <label class="form-check-label" for="declareReady">
-                    {{ get_phrase('I have read the instructions and I am ready to begin. I understand this attempt cannot be paused once started, other than a disconnection.') }}
-                </label>
-            </div>
-
-            <button type="button" class="eBtn eBtn-primary" id="startExamBtn" disabled>
-                <i class="bi bi-play-fill"></i> {{ get_phrase('Start Exam') }}
-            </button>
         </div>
     </div>
 </div>
@@ -103,6 +129,9 @@
     var errorBox = document.getElementById('startError');
 
     function refreshStartButton() {
+        if (!startBtn || !declareCheckbox) {
+            return;
+        }
         startBtn.disabled = !(declareCheckbox.checked && cameraReady && fullscreenReady);
     }
 
@@ -158,6 +187,7 @@
     }
 
     // ── Start ───────────────────────────────────────────────────────────
+    if (startBtn) {
     startBtn.addEventListener('click', function () {
         startBtn.disabled = true;
         errorBox.classList.add('d-none');
@@ -207,6 +237,7 @@
             refreshStartButton();
         });
     });
+    }
 
     refreshStartButton();
 })();

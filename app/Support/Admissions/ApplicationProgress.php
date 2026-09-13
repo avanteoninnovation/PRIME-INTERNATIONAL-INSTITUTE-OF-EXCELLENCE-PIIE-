@@ -192,7 +192,8 @@ class ApplicationProgress
     /**
      * Whether the application can be submitted: everything except the review
      * step itself must be complete. Review is excluded because submitting is
-     * what completes it.
+     * what completes it. Payment is excluded too — applicants may submit
+     * unpaid; the fee is settled after submission and review, not before.
      */
     public static function canSubmit(Admission $admission): bool
     {
@@ -203,13 +204,18 @@ class ApplicationProgress
      * Human-readable reasons submission is blocked, ready to show as a list.
      * Document requirements are itemised rather than collapsed into
      * "Supporting Documents" so the applicant knows exactly what to upload.
+     *
+     * The payment step is deliberately never listed here, even when unpaid —
+     * applicants can submit before paying; the fee is settled afterwards.
+     * It still appears in the stepper/checklist as incomplete so they know
+     * it's outstanding, it just never blocks the Submit button.
      */
     public static function blockers(Admission $admission): array
     {
         $blockers = [];
 
         foreach (self::applicableSteps($admission) as $step) {
-            if ($step['key'] === self::STEP_REVIEW || $step['complete']) {
+            if (in_array($step['key'], [self::STEP_REVIEW, self::STEP_PAYMENT], true) || $step['complete']) {
                 continue;
             }
 

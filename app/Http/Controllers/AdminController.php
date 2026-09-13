@@ -1789,19 +1789,46 @@ class AdminController extends Controller
         $users->where('users.school_id', auth()->user()->school_id)
             ->where('users.role_id', 7);
 
-        if ($section_id == 'all' || $section_id != "") {
-            $users->where('section_id', $section_id);
-        }
+        $this->filterStudentsByClassAndSection($users, $class_id, $section_id);
 
-        if ($class_id == 'all' || $class_id != "") {
-            $users->where('class_id', $class_id);
-        }
-
-        $students = $users->join('enrollment', 'users.id', '=', 'enrollment.user_id')->select('enrollment.*')->paginate(10);
+        // Was an inner join on `enrollment` — that silently dropped every
+        // programme-based (HEI) student from the list, since (per
+        // resolve_student_academic_context() in CommonHelper.php) only a
+        // class-based student ever gets an Enrollment row at all. Selecting
+        // from `users` directly and using Enrollment only to *filter* (via
+        // the whereExists calls above, when a class/section is actually
+        // picked) includes both kinds of student instead of excluding one.
+        $students = $users->select('users.id as user_id')->paginate(10);
 
         $classes = Classes::get()->where('school_id', auth()->user()->school_id);
 
         return view('admin.student.student_list', compact('students', 'search', 'classes', 'class_id', 'section_id'));
+    }
+
+    /**
+     * Shared by studentList()/studentListExport()/studentListExportExcel():
+     * narrows to students enrolled in a specific class/section without a
+     * join, so a student who has no Enrollment row at all (every HEI
+     * student) is only excluded when a class/section filter is actually
+     * applied — never merely because the join had nothing to match.
+     */
+    private function filterStudentsByClassAndSection($query, $classId, $sectionId): void
+    {
+        if ($sectionId === 'all' || $sectionId !== '') {
+            $query->whereExists(function ($sub) use ($sectionId) {
+                $sub->selectRaw('1')->from('enrollment')
+                    ->whereColumn('enrollment.user_id', 'users.id')
+                    ->where('enrollment.section_id', $sectionId);
+            });
+        }
+
+        if ($classId === 'all' || $classId !== '') {
+            $query->whereExists(function ($sub) use ($classId) {
+                $sub->selectRaw('1')->from('enrollment')
+                    ->whereColumn('enrollment.user_id', 'users.id')
+                    ->where('enrollment.class_id', $classId);
+            });
+        }
     }
 
     public function studentListExport(Request $request)
@@ -1819,15 +1846,9 @@ class AdminController extends Controller
         $users->where('users.school_id', $school_id)
             ->where('users.role_id', 7);
 
-        if ($section_id == 'all' || $section_id != "") {
-            $users->where('section_id', $section_id);
-        }
+        $this->filterStudentsByClassAndSection($users, $class_id, $section_id);
 
-        if ($class_id == 'all' || $class_id != "") {
-            $users->where('class_id', $class_id);
-        }
-
-        $students = $users->join('enrollment', 'users.id', '=', 'enrollment.user_id')->select('enrollment.*')->get();
+        $students = $users->select('users.id as user_id')->get();
 
         $headers = [
             'Content-Type'        => 'text/csv',
@@ -1876,14 +1897,9 @@ class AdminController extends Controller
                     ->orWhere('users.email', 'LIKE', "%{$search}%");
             });
 
-        if ($section_id == 'all' || $section_id != "") {
-            $users->where('section_id', $section_id);
-        }
-        if ($class_id == 'all' || $class_id != "") {
-            $users->where('class_id', $class_id);
-        }
+        $this->filterStudentsByClassAndSection($users, $class_id, $section_id);
 
-        $enrollments = $users->join('enrollment', 'users.id', '=', 'enrollment.user_id')->select('enrollment.*')->get();
+        $enrollments = $users->select('users.id as user_id')->get();
 
         $rows = [];
         foreach ($enrollments as $i => $enrollment) {

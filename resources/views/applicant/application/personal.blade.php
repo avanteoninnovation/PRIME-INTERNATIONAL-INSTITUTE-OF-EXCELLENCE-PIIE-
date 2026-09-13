@@ -42,7 +42,17 @@
             </div>
             <div class="col-md-6">
                 <label class="form-label">{{ get_phrase('Phone Contact') }} <span class="req">*</span></label>
-                <input type="text" name="phone" class="form-control" value="{{ old('phone', $admission->phone) }}" {{ $readOnly ? 'readonly' : 'required' }}>
+                <div class="input-group">
+                    <select name="phone_code" class="form-select" style="max-width:130px;" {{ $readOnly ? 'disabled' : 'required' }}>
+                        <option value="">{{ get_phrase('Code') }}</option>
+                        @foreach($countries as $c)
+                            @if($c['dial_code'])
+                                <option value="{{ $c['dial_code'] }}" {{ old('phone_code', $phoneCode) === $c['dial_code'] ? 'selected' : '' }}>{{ $c['dial_code'] }} {{ $c['name'] }}</option>
+                            @endif
+                        @endforeach
+                    </select>
+                    <input type="text" name="phone_number" class="form-control" placeholder="{{ get_phrase('e.g. 700000000') }}" value="{{ old('phone_number', $phoneNumber) }}" {{ $readOnly ? 'readonly' : 'required' }}>
+                </div>
             </div>
 
             <div class="col-md-4">
@@ -71,15 +81,39 @@
 
             <div class="col-md-4">
                 <label class="form-label">{{ get_phrase('Nationality') }} <span class="req">*</span></label>
-                <input type="text" name="nationality" class="form-control" value="{{ old('nationality', $admission->nationality) }}" {{ $readOnly ? 'readonly' : 'required' }}>
+                <select name="nationality" class="form-select" {{ $readOnly ? 'disabled' : 'required' }}>
+                    <option value="">{{ get_phrase('Select nationality') }}</option>
+                    @foreach($countries as $c)
+                        <option value="{{ $c['nationality'] }}" {{ old('nationality', $admission->nationality) === $c['nationality'] ? 'selected' : '' }}>{{ $c['nationality'] }}</option>
+                    @endforeach
+                </select>
             </div>
             <div class="col-md-4">
                 <label class="form-label">{{ get_phrase('Country of Residence') }}</label>
-                <input type="text" name="country_of_residence" class="form-control" value="{{ old('country_of_residence', $admission->country_of_residence) }}" {{ $readOnly ? 'readonly' : '' }}>
+                <select name="country_of_residence" class="form-select" {{ $readOnly ? 'disabled' : '' }}>
+                    <option value="">{{ get_phrase('Select country') }}</option>
+                    @foreach($countries as $c)
+                        <option value="{{ $c['name'] }}" {{ old('country_of_residence', $admission->country_of_residence) === $c['name'] ? 'selected' : '' }}>{{ $c['name'] }}</option>
+                    @endforeach
+                </select>
             </div>
             <div class="col-md-4">
                 <label class="form-label">{{ get_phrase('Religion') }}</label>
-                <input type="text" name="religion" class="form-control" value="{{ old('religion', $admission->religion) }}" {{ $readOnly ? 'readonly' : '' }}>
+                @php
+                    $currentReligion = old('religion', $admission->religion);
+                    $religionIsOther = filled($currentReligion) && !in_array($currentReligion, $religions, true);
+                @endphp
+                <select name="religion" id="religionSelect" class="form-select" {{ $readOnly ? 'disabled' : '' }}>
+                    <option value="">—</option>
+                    @foreach($religions as $option)
+                        <option value="{{ $option }}" {{ ($religionIsOther ? 'Other' : $currentReligion) === $option ? 'selected' : '' }}>{{ get_phrase($option) }}</option>
+                    @endforeach
+                </select>
+                <input type="text" name="religion_other" id="religionOther"
+                       class="form-control mt-2 {{ $religionIsOther ? '' : 'd-none' }}"
+                       placeholder="{{ get_phrase('Please specify') }}"
+                       value="{{ old('religion_other', $religionIsOther ? $currentReligion : '') }}"
+                       {{ $readOnly ? 'readonly' : '' }}>
             </div>
 
             <div class="col-md-6">
@@ -164,6 +198,10 @@
 <script>
     document.getElementById('hasDisability')?.addEventListener('change', function () {
         document.getElementById('disabilityDetailsWrap').classList.toggle('d-none', !this.checked);
+    });
+
+    document.getElementById('religionSelect')?.addEventListener('change', function () {
+        document.getElementById('religionOther').classList.toggle('d-none', this.value !== 'Other');
     });
 </script>
 @endpush

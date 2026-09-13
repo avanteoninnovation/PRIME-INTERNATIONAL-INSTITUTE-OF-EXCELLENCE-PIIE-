@@ -386,6 +386,28 @@ if (!function_exists('get_payment_keys')) {
         $return_value = [];
         $global_system_currency = get_active_currency();
 
+        if ($payment_method == "flutterwave") {
+            $flutterwave = \App\Models\GlobalSettings::where('key', 'flutterwave')->first();
+            if (!$flutterwave || empty($flutterwave->value)) {
+                return null;
+            }
+
+            $flutterwave_keys = json_decode($flutterwave->value);
+            if (!$flutterwave_keys) {
+                return null;
+            }
+
+            $return_value['status'] = $flutterwave_keys->status ?? null;
+            $return_value['mode'] = $flutterwave_keys->mode ?? null;
+            $return_value['test_key'] = $flutterwave_keys->test_key ?? null;
+            $return_value['test_secret_key'] = $flutterwave_keys->test_secret_key ?? null;
+            $return_value['public_live_key'] = $flutterwave_keys->public_live_key ?? null;
+            $return_value['secret_live_key'] = $flutterwave_keys->secret_live_key ?? null;
+            $return_value['currency'] = $global_system_currency;
+
+            return $returnItem !== '' ? ($return_value[$returnItem] ?? null) : $return_value;
+        }
+
         if ($payment_method == "stripe") {
             $stripe = PaymentMethods::where('name', 'stripe')->first();
             if (!$stripe) {

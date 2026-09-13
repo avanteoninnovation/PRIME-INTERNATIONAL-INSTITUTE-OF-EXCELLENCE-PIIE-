@@ -521,6 +521,42 @@
     font-weight: 700;
 }
 
+/* Programme Catalogue Accordion */
+.piie-programs-accordion .accordion-item {
+    border: 1px solid #e8edf4;
+    border-radius: 10px !important;
+    margin-bottom: 14px;
+    overflow: hidden;
+}
+.piie-programs-accordion .accordion-button {
+    background: #fff;
+    color: var(--primary-color);
+    font-weight: 800;
+    font-size: 1.1rem;
+    padding: 20px 24px;
+    box-shadow: none;
+}
+.piie-programs-accordion .accordion-button span { display: block; }
+.piie-programs-accordion .accordion-button small {
+    display: block;
+    color: var(--text-muted);
+    font-weight: 500;
+    font-size: 12.5px;
+    margin-top: 4px;
+    text-transform: none;
+    letter-spacing: normal;
+}
+.piie-programs-accordion .accordion-button:not(.collapsed) {
+    background: var(--light-bg);
+    color: var(--primary-color);
+    box-shadow: none;
+}
+.piie-programs-accordion .accordion-button:focus { box-shadow: none; border-color: #e8edf4; }
+.piie-programs-accordion .accordion-button::after {
+    filter: invert(38%) sepia(80%) saturate(1800%) hue-rotate(360deg) brightness(95%) contrast(96%);
+}
+.piie-programs-accordion .accordion-body { padding: 26px 24px; background: #fbfcfe; }
+
 /* Fees Section */
 .fees-section { background: var(--light-bg); }
 .fee-notice {
@@ -824,7 +860,6 @@
                     <li class="nav-item"><a class="nav-link" href="#about">About</a></li>
                     <li class="nav-item"><a class="nav-link" href="#portals">Portals</a></li>
                     <li class="nav-item"><a class="nav-link" href="#programs">Programs</a></li>
-                    <li class="nav-item"><a class="nav-link" href="#fees">Fees</a></li>
                     <li class="nav-item"><a class="nav-link" href="#news">News</a></li>
                     <li class="nav-item"><a class="nav-link" href="#team">Team</a></li>
                     <li class="nav-item"><a class="nav-link" href="#affiliations">Affiliations</a></li>
@@ -909,7 +944,6 @@
         <a href="#about" onclick="closeMobileMenu()"><i class="fa-solid fa-circle-info"></i> About</a>
         <a href="#portals" onclick="closeMobileMenu()"><i class="fa-solid fa-table-columns"></i> Portals</a>
         <a href="#programs" onclick="closeMobileMenu()"><i class="fa-solid fa-graduation-cap"></i> Programs</a>
-        <a href="#fees" onclick="closeMobileMenu()"><i class="fa-solid fa-file-invoice-dollar"></i> Fees</a>
         <a href="#news" onclick="closeMobileMenu()"><i class="fa-solid fa-newspaper"></i> News</a>
         <a href="#team" onclick="closeMobileMenu()"><i class="fa-solid fa-users"></i> Team</a>
         <a href="#affiliations" onclick="closeMobileMenu()"><i class="fa-solid fa-handshake"></i> Affiliations</a>
@@ -1136,94 +1170,73 @@
     <div class="container-xl">
         <div class="section-title text-center">
             <span class="section-badge">Academic Programs</span>
-            <h2>Our Programs</h2>
+            <h2>{{ $sectionField('academic_programmes', 'title', 'Our Programs') }}</h2>
             <div class="divider mx-auto"></div>
-            <p>{{ $sectionField('academic_programmes', 'content', 'All programs are delivered fully online through our virtual eLearning platform. Choose a category below to explore available programs.') }}</p>
-        </div>
-        <div class="row g-4">
-            @foreach($sectionItems('programme_categories') as $program)
-                <div class="col-lg-4 col-md-6">
-                    <div class="program-card">
-                        <span class="online-badge">{{ $setting('program_delivery_label', 'FULLY ONLINE / VIRTUAL') }}</span>
-                        @if(stripos((string) $program->content, 'coming soon') !== false || stripos((string) $program->content, 'in development') !== false)
-                            <span class="coming-badge">Coming Soon</span>
-                        @endif
-                        <div class="prog-icon"><i class="fa-solid fa-layer-group"></i></div>
-                        <h4>{{ $program->title }}</h4>
-                        <p>{{ $program->description }}</p>
-                        <div class="prog-count"><i class="fa-solid fa-layer-group me-1"></i> {{ $program->content }}</div>
-                    </div>
-                </div>
+            @foreach($sectionParagraphs('academic_programmes') as $paragraph)
+                <p>{{ $paragraph }}</p>
             @endforeach
         </div>
-        <div class="text-center mt-5">
-            <p style="color:var(--text-muted);font-size:14px;">For the full list of available programmes, contact the Admissions Office at <a href="mailto:{{ $setting('contact_email', 'admissions@example.com') }}" style="color:var(--secondary-color);">{{ $setting('contact_email', 'admissions@example.com') }}</a>@if($setting('contact_phone_1')) or call <a href="tel:{{ preg_replace('/\s+/', '', $setting('contact_phone_1')) }}" style="color:var(--secondary-color);">{{ $setting('contact_phone_1') }}</a>@endif.</p>
-        </div>
-    </div>
-</section>
 
-<!--===== FEES SECTION =====-->
-<section class="fees-section section-padding" id="fees">
-    <div class="container-xl">
-        <div class="row">
-            <div class="col-lg-8 mx-auto">
-                <div class="section-title text-center">
-                    <span class="section-badge">Fees &amp; Payments</span>
-                    <h2>Fee Information</h2>
-                    <div class="divider mx-auto"></div>
-                    <p>Below is a summary of our fee structure. All fees are payable upon acceptance of admission. Contact the institute to confirm current fees before making payment.</p>
-                </div>
-            </div>
-        </div>
-        <div class="row g-4">
-            <div class="col-lg-6">
+        <!-- Fee Structure -->
+        <div class="row g-4 justify-content-center mb-5">
+            <div class="col-lg-10">
                 <div class="fee-table-card">
-                    <div class="fee-header"><i class="fa-solid fa-file-invoice-dollar me-2"></i>Graduate Courses &ndash; Fee Guide</div>
+                    <div class="fee-header"><i class="fa-solid fa-file-invoice-dollar me-2"></i>Programme Levels, Durations &amp; Fees</div>
                     <table class="table table-striped mb-0">
-                        <thead><tr><th>Program Level</th><th>Delivery</th><th>Note</th></tr></thead>
+                        <thead><tr><th>Programme Level</th><th>Duration</th><th>Fee per Semester</th></tr></thead>
                         <tbody>
-                            <tr><td>Postgraduate Diploma</td><td>Online</td><td>Contact institute</td></tr>
-                            <tr><td>Master&apos;s Programs</td><td>Online</td><td>Contact institute</td></tr>
+                            <tr><td>Master&apos;s Degree</td><td>2 Academic Years (4 Semesters)</td><td>UGX 1,200,000</td></tr>
+                            <tr><td>Postgraduate Diploma</td><td>1 Academic Year (2 Semesters)</td><td>UGX 1,200,000</td></tr>
+                            <tr><td>Bachelor&apos;s Degree</td><td>3 Academic Years (6 Semesters)</td><td>UGX 1,000,000</td></tr>
+                            <tr><td>Diploma</td><td>2 Academic Years (4 Semesters)</td><td>UGX 650,000</td></tr>
+                            <tr><td>Certificate / National Certificate</td><td>2 Academic Years (4 Semesters)</td><td>UGX 600,000</td></tr>
                         </tbody>
                     </table>
-                </div>
-            </div>
-            <div class="col-lg-6">
-                <div class="fee-table-card">
-                    <div class="fee-header"><i class="fa-solid fa-file-invoice-dollar me-2"></i>Undergraduate &amp; Below &ndash; Fee Guide</div>
-                    <table class="table table-striped mb-0">
-                        <thead><tr><th>Program Level</th><th>Delivery</th><th>Note</th></tr></thead>
-                        <tbody>
-                            <tr><td>Bachelor&apos;s Degree</td><td>Online</td><td>Contact institute</td></tr>
-                            <tr><td>Diploma</td><td>Online</td><td>Contact institute</td></tr>
-                            <tr><td>National Certificate</td><td>Online</td><td>Contact institute</td></tr>
-                            <tr><td>Vocational Programs</td><td>Online</td><td>Contact institute</td></tr>
-                            <tr><td>Short Courses</td><td>Online</td><td>Contact institute</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-        <div class="row mt-3">
-            <div class="col-lg-10 mx-auto">
-                <div class="fee-table-card">
-                    <div class="fee-header"><i class="fa-solid fa-info-circle me-2"></i>Important Notes on Fee Payment</div>
-                    <div class="p-4">
-                        <ul style="margin:0;padding-left:20px;font-size:14px;color:#444;line-height:2;">
-                            <li>Fees are payable in full on or before the commencement of each semester or programme.</li>
-                            <li>All fee down payments shall be made upon acceptance of admission through the student portal.</li>
-                            <li>Subsequent fee payments can be made through the Fee Accounts menu in the student portal.</li>
-                            <li>Fee payment receipts will reflect in the student portal under the Fee Account menu.</li>
-                            <li>The fee structure may be reviewed at the discretion of the institute.</li>
-                            <li>All fees paid are <strong>non-refundable</strong> once registration has been processed.</li>
-                        </ul>
-                    </div>
                 </div>
                 <div class="fee-notice">
-                    <i class="fa-solid fa-triangle-exclamation"></i>
-                    <strong>Please Note:</strong> Fees may be reviewed at any time. Applicants are advised to confirm the current fee structure directly with the institute before making any payment. Contact us at <strong>{{ $setting('contact_email', 'admissions@example.com') }}</strong>@if($setting('contact_phone_1')) or call <strong>{{ $setting('contact_phone_1') }}@if($setting('contact_phone_2')) / {{ $setting('contact_phone_2') }}@endif</strong>@endif.
+                    <i class="fa-solid fa-circle-info"></i>
+                    Masters, Postgraduate Diploma, and Bachelor's programmes are delivered through partnerships with accredited and recognised universities. Fees are reviewed periodically &mdash; confirm current rates with the Admissions Office.
                 </div>
             </div>
+        </div>
+
+        <!-- Full Programme Catalogue (accordion, one faculty open at a time) -->
+        <div class="accordion piie-programs-accordion" id="programmeCatalogueAccordion">
+            @foreach(['programme_catalog_graduate_school', 'programme_catalog_business_management', 'programme_catalog_humanities', 'programme_catalog_education'] as $index => $catalogKey)
+                @if($sectionItems($catalogKey)->count() > 0)
+                    <div class="accordion-item">
+                        <h3 class="accordion-header" id="heading-{{ $catalogKey }}">
+                            <button class="accordion-button @if($index !== 0) collapsed @endif" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-{{ $catalogKey }}" aria-expanded="{{ $index === 0 ? 'true' : 'false' }}" aria-controls="collapse-{{ $catalogKey }}">
+                                <span>
+                                    {{ $sectionField($catalogKey, 'title') }}
+                                    <small>{{ $sectionField($catalogKey, 'subtitle') }} &middot; {{ $sectionItems($catalogKey)->count() }} programmes</small>
+                                </span>
+                            </button>
+                        </h3>
+                        <div id="collapse-{{ $catalogKey }}" class="accordion-collapse collapse @if($index === 0) show @endif" aria-labelledby="heading-{{ $catalogKey }}" data-bs-parent="#programmeCatalogueAccordion">
+                            <div class="accordion-body">
+                                <div class="row g-4">
+                                    @foreach($sectionItems($catalogKey) as $program)
+                                        <div class="col-lg-4 col-md-6">
+                                            <div class="program-card">
+                                                <span class="online-badge">{{ $setting('program_delivery_label', 'FULLY ONLINE / ODEL') }}</span>
+                                                <div class="prog-icon"><i class="fa-solid fa-layer-group"></i></div>
+                                                <h4>{{ $program->title }}</h4>
+                                                @if(!empty($program->subtitle))
+                                                    <p style="font-weight:600;color:var(--secondary-color);font-size:13px;margin-bottom:6px;">{{ $program->subtitle }}</p>
+                                                @endif
+                                                @if(!empty($program->content))
+                                                    <div class="prog-count"><i class="fa-solid fa-clock me-1"></i> {{ $program->content }}</div>
+                                                @endif
+                                            </div>
+                                        </div>
+                                    @endforeach
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                @endif
+            @endforeach
         </div>
     </div>
 </section>
@@ -1235,68 +1248,38 @@
             <div class="col-lg-8 mx-auto text-center">
                 <div class="section-title">
                     <span class="section-badge">Admissions</span>
-                    <h2>Admission Process</h2>
+                    <h2>{{ $sectionField('admissions', 'title', 'Admission Process') }}</h2>
                     <div class="divider mx-auto"></div>
-                    <p>PIIE offers fully online study through its ODeL delivery model. The admissions process is straightforward, merit-based, and designed to be accessible to qualified applicants.</p>
+                    <p>{{ $sectionField('admissions', 'content', 'PIIE offers fully online study through its ODeL delivery model. The admissions process is straightforward, merit-based, and designed to be accessible to qualified applicants.') }}</p>
                 </div>
             </div>
         </div>
         <div class="row g-5">
             <div class="col-lg-6">
                 <h4 style="color:var(--primary-color);font-weight:700;margin-bottom:24px;">How to Apply</h4>
-                <div class="admission-step">
-                    <div class="step-num">1</div>
-                    <div class="step-content">
-                        <h5>Submit Your Application</h5>
-                        <p>Apply through the PIIE admissions process, provide complete and accurate information, and upload the required academic and identity documents for review.</p>
+                @foreach($sectionItems('admissions') as $step)
+                    <div class="admission-step">
+                        <div class="step-num">{{ $loop->iteration }}</div>
+                        <div class="step-content">
+                            <h5>{{ $step->title }}</h5>
+                            <p>{{ $step->description }}</p>
+                        </div>
                     </div>
-                </div>
-                <div class="admission-step">
-                    <div class="step-num">2</div>
-                    <div class="step-content">
-                        <h5>Receive Your Provisional Admission Offer</h5>
-                        <p>Upon successful review of your application, PIIE will issue a provisional admission offer letter subject to verification of submitted qualifications and supporting documents.</p>
-                    </div>
-                </div>
-                <div class="admission-step">
-                    <div class="step-num">3</div>
-                    <div class="step-content">
-                        <h5>Accept the Offer &amp; Register</h5>
-                        <p>Accept your admission offer through the student portal and complete registration within <strong>four (4) weeks</strong> from the commencement of the semester. Late registration may result in cancellation of your place.</p>
-                    </div>
-                </div>
-                <div class="admission-step">
-                    <div class="step-num">4</div>
-                    <div class="step-content">
-                        <h5>Pay Your Fees</h5>
-                        <p>Fees are payable in full on or before commencement of each semester. Down payments are made upon acceptance of admission through the portal. All fees are non-refundable once processed.</p>
-                    </div>
-                </div>
-                <div class="admission-step">
-                    <div class="step-num">5</div>
-                    <div class="step-content">
-                        <h5>Access the eLearning Portal</h5>
-                        <p>Once registered and fees are confirmed, you will receive access credentials for the PIIE digital learning environment to begin your studies.</p>
-                    </div>
-                </div>
+                @endforeach
             </div>
             <div class="col-lg-6">
-                <h4 style="color:var(--primary-color);font-weight:700;margin-bottom:24px;">Required Documents</h4>
-                <ul class="requirement-list list-unstyled">
-                    <li><i class="fa-solid fa-check-circle"></i>Completed application form (online or physical)</li>
-                    <li><i class="fa-solid fa-check-circle"></i>Original and certified copies of all academic certificates and transcripts</li>
-                    <li><i class="fa-solid fa-check-circle"></i>Valid national identity card or passport</li>
-                    <li><i class="fa-solid fa-check-circle"></i>Passport-size photographs (as specified on the application)</li>
-                    <li><i class="fa-solid fa-check-circle"></i>NCHE (National Council for Higher Education) contribution where applicable</li>
-                    <li><i class="fa-solid fa-check-circle"></i>Any other supporting documents as required by the programme</li>
-                </ul>
-                <h4 style="color:var(--primary-color);font-weight:700;margin-top:32px;margin-bottom:16px;">Conditions of Admission</h4>
-                <ul class="requirement-list list-unstyled">
-                    <li><i class="fa-solid fa-check-circle"></i>Undertaking to adhere to all rules and regulations governing studentship at PIIE</li>
-                    <li><i class="fa-solid fa-check-circle"></i>Acceptance to pay fees in accordance with the institute&apos;s fee schedule</li>
-                    <li><i class="fa-solid fa-check-circle"></i>Agreement to abide by the terms and conditions set out in the declaration for admission</li>
-                    <li><i class="fa-solid fa-check-circle"></i>All fees paid are non-refundable once registration has been processed</li>
-                </ul>
+                <h4 style="color:var(--primary-color);font-weight:700;margin-bottom:24px;">Entry Requirements</h4>
+                @foreach($sectionItems('entry_requirements') as $requirement)
+                    <div style="margin-bottom:22px;">
+                        <h6 style="color:var(--primary-color);font-weight:700;margin-bottom:2px;">
+                            {{ $requirement->title }}
+                            @if(!empty($requirement->subtitle))
+                                <span style="color:var(--secondary-color);font-weight:600;font-size:11px;text-transform:uppercase;margin-left:8px;">{{ $requirement->subtitle }}</span>
+                            @endif
+                        </h6>
+                        <div style="color:#555;font-size:13.5px;line-height:1.8;">{!! nl2br(e($requirement->description)) !!}</div>
+                    </div>
+                @endforeach
                 <div class="warning-box mt-4">
                     <i class="fa-solid fa-circle-exclamation"></i>
                     <strong>Important:</strong> Any offer of admission will be automatically cancelled if it is established that an applicant provided falsified documents, engaged in impersonation, or submitted false or incomplete information during the application process.
@@ -1532,6 +1515,11 @@
         'programme_categories',
         'fees_structure',
         'admissions',
+        'entry_requirements',
+        'programme_catalog_graduate_school',
+        'programme_catalog_business_management',
+        'programme_catalog_humanities',
+        'programme_catalog_education',
         'online_learning_odel',
         'student_support_services',
         'international_students',
@@ -1553,7 +1541,6 @@
         <section class="section-padding" id="{{ $dynamicKey }}" style="background:#fff; border-top:1px solid #eef2f7;">
             <div class="container-xl">
                 <div class="section-title text-center">
-                    <span class="section-badge">Dynamic Content</span>
                     <h2>{{ $dynamicSection->title ?: ucwords(str_replace('_', ' ', $dynamicKey)) }}</h2>
                     <div class="divider mx-auto"></div>
                     @if(!empty($dynamicSection->subtitle))
@@ -1623,7 +1610,6 @@
                             <li><a href="#about">About</a></li>
                             <li><a href="#portals">Portals</a></li>
                             <li><a href="#programs">Programs</a></li>
-                            <li><a href="#fees">Fees</a></li>
                             <li><a href="#news">News</a></li>
                             <li><a href="#team">Team</a></li>
                             <li><a href="#affiliations">Affiliations</a></li>
@@ -1641,10 +1627,10 @@
                         </ul>
                         <h4 style="margin-top:24px;">Programs</h4>
                         <ul class="footer-links">
-                            <li><a href="#programs">Graduate Courses</a></li>
-                            <li><a href="#programs">Bachelor Programs</a></li>
-                            <li><a href="#programs">Diploma Programs</a></li>
-                            <li><a href="#programs">Short Courses</a></li>
+                            <li><a href="#programs">Graduate School</a></li>
+                            <li><a href="#programs">Faculty of Business &amp; Management</a></li>
+                            <li><a href="#programs">Faculty of Humanities</a></li>
+                            <li><a href="#programs">Faculty of Education</a></li>
                         </ul>
                     </div>
                 </div>

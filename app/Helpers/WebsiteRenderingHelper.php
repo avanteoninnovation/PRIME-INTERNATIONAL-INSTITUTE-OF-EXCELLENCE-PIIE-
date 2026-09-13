@@ -33,6 +33,10 @@ class WebsiteRenderingHelper
             'programs_section' => 'programs_section',
             'academic_programmes' => 'programs_section',
             'programme_categories' => 'programs_section',
+            'programme_catalog_graduate_school' => 'programs_section',
+            'programme_catalog_business_management' => 'programs_section',
+            'programme_catalog_humanities' => 'programs_section',
+            'programme_catalog_education' => 'programs_section',
             
             'team' => 'team_section',
             'team_section' => 'team_section',

@@ -30,16 +30,36 @@
         </div>
         <div class="col-12">
             <label class="form-label">{{ get_phrase('Phone Number') }} <span class="req">*</span></label>
-            <input type="text" name="phone" class="form-control" value="{{ old('phone') }}" required>
+            <div class="input-group">
+                <select name="phone_code" class="form-select" style="max-width:150px;" required>
+                    <option value="">{{ get_phrase('Code') }}</option>
+                    @foreach($countries as $c)
+                        @if($c['dial_code'])
+                            <option value="{{ $c['dial_code'] }}" {{ old('phone_code') === $c['dial_code'] ? 'selected' : '' }}>{{ $c['dial_code'] }} {{ $c['name'] }}</option>
+                        @endif
+                    @endforeach
+                </select>
+                <input type="text" name="phone_number" class="form-control" placeholder="{{ get_phrase('e.g. 700000000') }}" value="{{ old('phone_number') }}" required>
+            </div>
         </div>
         <div class="col-sm-6">
             <label class="form-label">{{ get_phrase('Password') }} <span class="req">*</span></label>
-            <input type="password" name="password" class="form-control" required>
+            <div class="input-group">
+                <input type="password" name="password" id="password" class="form-control" required>
+                <button type="button" class="btn btn-outline-secondary" onclick="togglePasswordVisibility('password', this)" tabindex="-1" aria-label="{{ get_phrase('Show password') }}">
+                    <i class="bi bi-eye"></i>
+                </button>
+            </div>
             <div class="ap-hint">{{ get_phrase('At least 8 characters.') }}</div>
         </div>
         <div class="col-sm-6">
             <label class="form-label">{{ get_phrase('Confirm Password') }} <span class="req">*</span></label>
-            <input type="password" name="password_confirmation" class="form-control" required>
+            <div class="input-group">
+                <input type="password" name="password_confirmation" id="password_confirmation" class="form-control" required>
+                <button type="button" class="btn btn-outline-secondary" onclick="togglePasswordVisibility('password_confirmation', this)" tabindex="-1" aria-label="{{ get_phrase('Show password') }}">
+                    <i class="bi bi-eye"></i>
+                </button>
+            </div>
         </div>
     </div>
 

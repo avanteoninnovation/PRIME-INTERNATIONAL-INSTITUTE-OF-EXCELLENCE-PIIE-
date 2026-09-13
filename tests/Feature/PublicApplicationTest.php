@@ -44,7 +44,8 @@ class PublicApplicationTest extends TestCase
             'first_name'            => 'Alice',
             'last_name'             => 'Applicant',
             'email'                 => 'alice@example.com',
-            'phone'                 => '0700111222',
+            'phone_code'            => '+256',
+            'phone_number'          => '0700111222',
             'password'              => 'secret-password',
             'password_confirmation' => 'secret-password',
             'terms'                 => '1',
@@ -98,7 +99,7 @@ class PublicApplicationTest extends TestCase
 
         $response = $this->post(route('applicant.register.submit'), []);
 
-        $response->assertSessionHasErrors(['first_name', 'last_name', 'email', 'phone', 'password', 'terms']);
+        $response->assertSessionHasErrors(['first_name', 'last_name', 'email', 'phone_code', 'phone_number', 'password', 'terms']);
         $this->assertSame(0, Applicant::count());
     }
 

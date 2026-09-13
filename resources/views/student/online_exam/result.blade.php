@@ -19,8 +19,8 @@
         @endif
     </div>
     <div class="row g-3 mb-4">
-        <div class="col-4"><div class="card"><div class="card-body"><h6 class="text-muted">{{ get_phrase('Score') }}</h6><h4>{{ $submission->score }}/{{ $submission->total_marks }}</h4></div></div></div>
-        <div class="col-4"><div class="card"><div class="card-body"><h6 class="text-muted">{{ get_phrase('Percentage') }}</h6><h4>{{ $submission->total_marks > 0 ? round(($submission->score/$submission->total_marks)*100,1) : 0 }}%</h4></div></div></div>
+        <div class="col-4"><div class="card"><div class="card-body"><h6 class="text-muted">{{ get_phrase('Score') }}</h6><h4>{{ $submission->score }}/{{ $submission->total_marks_snapshot }}</h4></div></div></div>
+        <div class="col-4"><div class="card"><div class="card-body"><h6 class="text-muted">{{ get_phrase('Percentage') }}</h6><h4>{{ $submission->total_marks_snapshot > 0 ? round(($submission->score/$submission->total_marks_snapshot)*100,1) : 0 }}%</h4></div></div></div>
         <div class="col-4"><div class="card"><div class="card-body"><h6 class="text-muted">{{ get_phrase('Pass Mark') }}</h6><h4>{{ $exam->pass_mark }}%</h4></div></div></div>
     </div>
     <a href="{{ route('student.online_exam.list') }}" class="eBtn eBtn-primary">{{ get_phrase('Back to Exams') }}</a>

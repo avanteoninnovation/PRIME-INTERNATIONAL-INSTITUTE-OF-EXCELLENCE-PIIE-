@@ -57,6 +57,104 @@ class OnlineExamStudentFrontendTest extends TestCase
         $response->assertRedirect(route('student.online_exam.take', $examId));
     }
 
+    // ── Scheduled window: every student sits it at the same time ───────────
+
+    public function test_instructions_hides_the_start_button_before_the_exam_opens(): void
+    {
+        $student = $this->makeUser(7, 1);
+        $classId = $this->makeClass(1);
+        $this->enrollStudent($student->id, 1, $classId);
+
+        $examId = $this->makeExam([
+            'school_id' => 1, 'class_id' => $classId,
+            'start_datetime' => now()->addHour(),
+            'end_datetime' => now()->addHours(2),
+        ]);
+
+        $response = $this->actingAs($student)->get(route('student.online_exam.instructions', $examId));
+
+        $response->assertStatus(200);
+        $response->assertDontSee('id="startExamBtn"', false);
+        $response->assertSee('has not opened yet');
+    }
+
+    public function test_instructions_hides_the_start_button_after_the_exam_window_closes(): void
+    {
+        $student = $this->makeUser(7, 1);
+        $classId = $this->makeClass(1);
+        $this->enrollStudent($student->id, 1, $classId);
+
+        $examId = $this->makeExam([
+            'school_id' => 1, 'class_id' => $classId,
+            'start_datetime' => now()->subHours(3),
+            'end_datetime' => now()->subHour(),
+        ]);
+
+        $response = $this->actingAs($student)->get(route('student.online_exam.instructions', $examId));
+
+        $response->assertStatus(200);
+        $response->assertDontSee('id="startExamBtn"', false);
+        $response->assertSee('window has closed');
+    }
+
+    public function test_start_is_rejected_before_the_scheduled_opening_time(): void
+    {
+        $student = $this->makeUser(7, 1);
+        $classId = $this->makeClass(1);
+        $this->enrollStudent($student->id, 1, $classId);
+
+        $examId = $this->makeExam([
+            'school_id' => 1, 'class_id' => $classId,
+            'start_datetime' => now()->addHour(),
+            'end_datetime' => now()->addHours(2),
+        ]);
+
+        // Accept: application/json matches how the real "Start Exam" button
+        // actually calls this endpoint (fetch() with that header set) — a
+        // plain form post instead gets Laravel's default redirect-with-
+        // errors behavior for a failed FormRequest, not 422.
+        $response = $this->actingAs($student)->postJson(route('student.online_exam.start', $examId), []);
+
+        $response->assertStatus(422);
+        $this->assertSame(0, OnlineExamSubmission::where('online_exam_id', $examId)->count());
+    }
+
+    public function test_start_is_rejected_after_the_scheduled_window_closes(): void
+    {
+        $student = $this->makeUser(7, 1);
+        $classId = $this->makeClass(1);
+        $this->enrollStudent($student->id, 1, $classId);
+
+        $examId = $this->makeExam([
+            'school_id' => 1, 'class_id' => $classId,
+            'start_datetime' => now()->subHours(3),
+            'end_datetime' => now()->subHour(),
+        ]);
+
+        $response = $this->actingAs($student)->postJson(route('student.online_exam.start', $examId), []);
+
+        $response->assertStatus(422);
+        $this->assertSame(0, OnlineExamSubmission::where('online_exam_id', $examId)->count());
+    }
+
+    public function test_start_succeeds_inside_the_scheduled_window(): void
+    {
+        $student = $this->makeUser(7, 1);
+        $classId = $this->makeClass(1);
+        $this->enrollStudent($student->id, 1, $classId);
+
+        $examId = $this->makeExam([
+            'school_id' => 1, 'class_id' => $classId,
+            'start_datetime' => now()->subMinutes(10),
+            'end_datetime' => now()->addHour(),
+        ]);
+
+        $response = $this->actingAs($student)->post(route('student.online_exam.start', $examId), []);
+
+        $response->assertStatus(200);
+        $this->assertSame(1, OnlineExamSubmission::where('online_exam_id', $examId)->where('student_id', $student->id)->count());
+    }
+
     // ── takeExam(): shuffling ────────────────────────────────────────────
 
     public function test_question_order_is_stable_across_reloads_of_the_same_attempt_when_shuffled(): void

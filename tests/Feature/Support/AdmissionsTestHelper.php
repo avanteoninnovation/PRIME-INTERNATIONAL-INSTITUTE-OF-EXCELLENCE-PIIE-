@@ -46,6 +46,7 @@ trait AdmissionsTestHelper
             $table->id();
             $table->string('title')->nullable();
             $table->unsignedInteger('running_session')->nullable();
+            $table->integer('status')->nullable();
             $table->timestamps();
         });
 
@@ -391,6 +392,13 @@ trait AdmissionsTestHelper
             $table->id();
             $table->string('name');
             $table->unsignedBigInteger('school_id');
+            $table->timestamps();
+        });
+
+        Schema::create('sections', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->integer('class_id');
             $table->timestamps();
         });
 

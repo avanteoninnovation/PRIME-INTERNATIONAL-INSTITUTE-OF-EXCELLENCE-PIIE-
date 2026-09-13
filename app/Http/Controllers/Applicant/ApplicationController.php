@@ -69,9 +69,15 @@ class ApplicationController extends BaseApplicantController
 
         switch ($step) {
             case ApplicationProgress::STEP_PERSONAL:
+                [$phoneCode, $phoneNumber] = self::splitPhone($admission->phone);
+
                 return view('applicant.application.personal', $shared + [
                     'genders'        => self::GENDERS,
                     'maritalStatus'  => self::MARITAL_STATUS,
+                    'countries'      => config('countries'),
+                    'religions'      => config('religions'),
+                    'phoneCode'      => $phoneCode,
+                    'phoneNumber'    => $phoneNumber,
                 ]);
 
             case ApplicationProgress::STEP_PROGRAMME:
@@ -123,19 +129,26 @@ class ApplicationController extends BaseApplicantController
             return $redirect;
         }
 
+        $countryNames  = array_column(config('countries'), 'name');
+        $nationalities = array_column(config('countries'), 'nationality');
+        $dialCodes     = array_unique(array_filter(array_column(config('countries'), 'dial_code')));
+        $religions     = config('religions');
+
         $validated = $request->validate([
             'title'                => 'nullable|string|max:10',
             'first_name'           => 'required|string|max:100',
             'middle_name'          => 'nullable|string|max:100',
             'last_name'            => 'required|string|max:100',
             'email'                => 'required|email|max:150',
-            'phone'                => 'required|string|max:20',
+            'phone_code'           => ['required', Rule::in($dialCodes)],
+            'phone_number'         => 'required|string|max:20|regex:/^[0-9\s\-\(\)]+$/',
             'dob'                  => 'required|date|before:today',
             'gender'               => ['required', Rule::in(self::GENDERS)],
             'marital_status'       => ['nullable', Rule::in(self::MARITAL_STATUS)],
-            'religion'             => 'nullable|string|max:50',
-            'nationality'          => 'required|string|max:80',
-            'country_of_residence' => 'nullable|string|max:80',
+            'religion'             => ['nullable', Rule::in($religions)],
+            'religion_other'       => 'nullable|string|max:50',
+            'nationality'          => ['required', Rule::in($nationalities)],
+            'country_of_residence' => ['nullable', Rule::in($countryNames)],
             'national_id_no'       => 'nullable|string|max:50',
             'passport_no'          => 'nullable|string|max:50',
             'physical_address'     => 'required|string|max:500',
@@ -149,6 +162,14 @@ class ApplicationController extends BaseApplicantController
             'nok_address'          => 'nullable|string|max:500',
         ]);
 
+        $validated['phone'] = trim($validated['phone_code'] . ' ' . $validated['phone_number']);
+        unset($validated['phone_code'], $validated['phone_number']);
+
+        if ((($validated['religion'] ?? null) === 'Other') && filled($validated['religion_other'] ?? null)) {
+            $validated['religion'] = $validated['religion_other'];
+        }
+        unset($validated['religion_other']);
+
         $validated['has_disability'] = $request->boolean('has_disability');
 
         if (! $validated['has_disability']) {
@@ -158,6 +179,30 @@ class ApplicationController extends BaseApplicantController
         $admission->update($validated);
 
         return $this->advance($request, $admission, ApplicationProgress::STEP_PERSONAL);
+    }
+
+    /**
+     * Splits a stored "<dial code> <number>" phone value back into its two
+     * parts for pre-filling the form's dial-code select + number input.
+     * Historical values saved before this split existed (plain free-text
+     * phone numbers) won't match any known dial code — they fall back to no
+     * code selected and the whole stored value shown in the number field,
+     * so nothing is silently dropped.
+     */
+    private static function splitPhone(?string $phone): array
+    {
+        if (blank($phone)) {
+            return [null, null];
+        }
+
+        if (preg_match('/^(\+\d{1,4})\s+(.+)$/', trim($phone), $m)) {
+            $codes = array_column(config('countries'), 'dial_code');
+            if (in_array($m[1], $codes, true)) {
+                return [$m[1], $m[2]];
+            }
+        }
+
+        return [null, $phone];
     }
 
     public function saveProgramme(Request $request)

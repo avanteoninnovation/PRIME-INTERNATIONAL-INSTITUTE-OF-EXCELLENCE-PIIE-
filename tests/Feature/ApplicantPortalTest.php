@@ -7,6 +7,7 @@ use App\Models\AdmissionDocument;
 use App\Models\AdmissionDocumentRequirement;
 use App\Models\Applicant;
 use App\Models\ApplicationPayment;
+use App\Support\Admissions\ApplicationFee;
 use App\Support\Admissions\ApplicationProgress;
 use App\Support\Admissions\ApplicationReference;
 use Illuminate\Http\UploadedFile;
@@ -65,7 +66,8 @@ class ApplicantPortalTest extends TestCase
             'first_name'            => 'Alice',
             'last_name'             => 'Applicant',
             'email'                 => 'alice@example.com',
-            'phone'                 => '0700111222',
+            'phone_code'            => '+256',
+            'phone_number'          => '0700111222',
             'password'              => 'secret-password',
             'password_confirmation' => 'secret-password',
             'terms'                 => '1',
@@ -77,6 +79,7 @@ class ApplicantPortalTest extends TestCase
         $this->assertNotNull($applicant);
         $this->assertSame($this->schoolId, (int) $applicant->school_id);
         $this->assertTrue(Hash::check('secret-password', $applicant->password));
+        $this->assertSame('+256 0700111222', $applicant->phone);
 
         // An applicant is never a `users` row — that is the whole point of
         // the separate guard.
@@ -148,7 +151,8 @@ class ApplicantPortalTest extends TestCase
             'first_name'       => 'Alice',
             'last_name'        => 'Applicant',
             'email'            => 'alice@example.com',
-            'phone'            => '0700111222',
+            'phone_code'       => '+256',
+            'phone_number'     => '0700111222',
             'dob'              => '2000-01-15',
             'gender'           => 'Female',
             'nationality'      => 'Ugandan',
@@ -163,6 +167,7 @@ class ApplicantPortalTest extends TestCase
 
         $admission = Admission::first();
         $this->assertSame('Ugandan', $admission->nationality);
+        $this->assertSame('+256 0700111222', $admission->phone);
         $this->assertSame('Mary Doe', $admission->nok_name);
         $this->assertTrue(ApplicationProgress::isComplete($admission, ApplicationProgress::STEP_PERSONAL));
     }
@@ -331,6 +336,39 @@ class ApplicantPortalTest extends TestCase
         ]);
     }
 
+    /**
+     * Applicants may submit before paying — the fee is settled after
+     * submission and review, not before. Payment stays visible as an
+     * outstanding step, it just no longer blocks the Submit button.
+     */
+    public function test_a_complete_but_unpaid_application_can_still_submit(): void
+    {
+        $this->signIn();
+        $this->get(route('applicant.dashboard'));
+
+        $admission = $this->completeApplicationFields(Admission::first(), [
+            'programme_id'      => $this->makeProgramme($this->schoolId),
+            'intake_session_id' => $this->makeIntakeSession($this->schoolId, ['application_fee' => 50000]),
+        ]);
+
+        AdmissionDocumentRequirement::create([
+            'school_id'   => $this->schoolId,
+            'key'         => 'optional_extra',
+            'label'       => 'Optional Extra',
+            'is_required' => false,
+        ]);
+
+        $admission = $admission->fresh();
+        $this->assertTrue(ApplicationFee::isRequired($admission));
+        $this->assertFalse(ApplicationFee::isSettled($admission));
+        $this->assertTrue(ApplicationProgress::canSubmit($admission));
+
+        $response = $this->post(route('applicant.application.submit'), ['declaration' => '1']);
+
+        $response->assertRedirect(route('applicant.dashboard'));
+        $this->assertSame(Admission::STATUS_SUBMITTED, Admission::first()->status);
+    }
+
     public function test_a_submitted_application_can_no_longer_be_edited_by_the_applicant(): void
     {
         $this->signIn();
@@ -420,6 +458,205 @@ class ApplicantPortalTest extends TestCase
         $this->assertSame(Admission::FEE_PENDING, Admission::first()->fee_status);
 
         @unlink(public_path(ApplicationPayment::PROOF_DIR . '/' . $payment->proof_file));
+    }
+
+    // ── Flutterwave ──────────────────────────────────────────────────────
+
+    private function enableFlutterwave(): void
+    {
+        DB::table('global_settings')->insert([
+            'key'   => 'flutterwave',
+            'value' => json_encode([
+                'status'          => '1',
+                'mode'            => 'test',
+                'test_key'        => 'FLWPUBK_TEST-fakekey',
+                'test_secret_key' => 'FLWSECK_TEST-fakesecret',
+            ]),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    }
+
+    public function test_flutterwave_appears_as_a_payment_option_once_configured(): void
+    {
+        $this->signIn();
+        $this->get(route('applicant.dashboard'));
+
+        Admission::first()->update([
+            'intake_session_id' => $this->makeIntakeSession($this->schoolId, ['application_fee' => 50000]),
+        ]);
+
+        $this->enableFlutterwave();
+
+        $methods = ApplicationFee::availableMethods($this->schoolId);
+
+        $this->assertContains('flutterwave', array_column($methods, 'key'));
+    }
+
+    public function test_starting_flutterwave_checkout_redirects_to_the_hosted_payment_link(): void
+    {
+        $this->signIn();
+        $this->get(route('applicant.dashboard'));
+
+        Admission::first()->update([
+            'intake_session_id' => $this->makeIntakeSession($this->schoolId, ['application_fee' => 50000]),
+        ]);
+
+        $this->enableFlutterwave();
+
+        \Illuminate\Support\Facades\Http::fake([
+            'api.flutterwave.com/v3/payments' => \Illuminate\Support\Facades\Http::response([
+                'status' => 'success',
+                'data'   => ['link' => 'https://checkout.flutterwave.com/v3/hosted/pay/fake-session'],
+            ], 200),
+        ]);
+
+        $response = $this->post(route('applicant.payment.gateway.start', 'flutterwave'));
+
+        $response->assertRedirect('https://checkout.flutterwave.com/v3/hosted/pay/fake-session');
+
+        $payment = ApplicationPayment::first();
+        $this->assertSame('flutterwave', $payment->method);
+        $this->assertSame(ApplicationPayment::STATUS_PENDING, $payment->status);
+    }
+
+    public function test_flutterwave_return_settles_the_fee_when_verification_confirms_payment(): void
+    {
+        $this->signIn();
+        $this->get(route('applicant.dashboard'));
+
+        $admission = Admission::first();
+        $admission->update([
+            'intake_session_id' => $this->makeIntakeSession($this->schoolId, ['application_fee' => 50000]),
+        ]);
+
+        $this->enableFlutterwave();
+
+        $payment = ApplicationPayment::create([
+            'school_id'    => $this->schoolId,
+            'admission_id' => $admission->id,
+            'applicant_id' => $admission->applicant_id,
+            'amount'       => 50000,
+            'currency'     => 'UGX',
+            'method'       => 'flutterwave',
+            'status'       => ApplicationPayment::STATUS_PENDING,
+            'reference'    => 'APPFEE-TESTREF',
+        ]);
+
+        \Illuminate\Support\Facades\Http::fake([
+            'api.flutterwave.com/v3/transactions/*/verify' => \Illuminate\Support\Facades\Http::response([
+                'status' => 'success',
+                'data'   => [
+                    'id' => 998877,
+                    'tx_ref' => 'APPFEE-TESTREF',
+                    'amount' => 50000,
+                    'currency' => 'UGX',
+                    'status' => 'successful',
+                ],
+            ], 200),
+        ]);
+
+        $response = $this->get(route('applicant.payment.gateway.return', ['gateway' => 'flutterwave', 'payment' => $payment->id]) . '?transaction_id=998877&status=successful');
+
+        $response->assertRedirect(route('applicant.application.step', ApplicationProgress::STEP_REVIEW));
+
+        $payment->refresh();
+        $this->assertSame(ApplicationPayment::STATUS_PAID, $payment->status);
+        $this->assertNotNull($payment->paid_at);
+        $this->assertSame(Admission::FEE_PAID, $admission->fresh()->fee_status);
+    }
+
+    public function test_flutterwave_return_does_not_settle_the_fee_when_verification_says_unsuccessful(): void
+    {
+        $this->signIn();
+        $this->get(route('applicant.dashboard'));
+
+        $admission = Admission::first();
+        $admission->update([
+            'intake_session_id' => $this->makeIntakeSession($this->schoolId, ['application_fee' => 50000]),
+        ]);
+
+        $this->enableFlutterwave();
+
+        $payment = ApplicationPayment::create([
+            'school_id'    => $this->schoolId,
+            'admission_id' => $admission->id,
+            'applicant_id' => $admission->applicant_id,
+            'amount'       => 50000,
+            'currency'     => 'UGX',
+            'method'       => 'flutterwave',
+            'status'       => ApplicationPayment::STATUS_PENDING,
+            'reference'    => 'APPFEE-TESTREF2',
+        ]);
+
+        \Illuminate\Support\Facades\Http::fake([
+            'api.flutterwave.com/v3/transactions/*/verify' => \Illuminate\Support\Facades\Http::response([
+                'status' => 'success',
+                'data'   => [
+                    'id' => 998878,
+                    'tx_ref' => 'APPFEE-TESTREF2',
+                    'amount' => 50000,
+                    'currency' => 'UGX',
+                    'status' => 'failed',
+                ],
+            ], 200),
+        ]);
+
+        $this->get(route('applicant.payment.gateway.return', ['gateway' => 'flutterwave', 'payment' => $payment->id]) . '?transaction_id=998878&status=failed');
+
+        $payment->refresh();
+        $this->assertSame(ApplicationPayment::STATUS_FAILED, $payment->status);
+        $this->assertNotSame(Admission::FEE_PAID, $admission->fresh()->fee_status);
+    }
+
+    /**
+     * A tampered redirect (someone crafts ?transaction_id=X&status=successful
+     * pointing at a real-but-mismatched Flutterwave transaction) must never
+     * settle the fee — the amount/currency/tx_ref on the *verified* record
+     * are what's trusted, not the query string.
+     */
+    public function test_flutterwave_return_rejects_a_verified_transaction_with_the_wrong_amount(): void
+    {
+        $this->signIn();
+        $this->get(route('applicant.dashboard'));
+
+        $admission = Admission::first();
+        $admission->update([
+            'intake_session_id' => $this->makeIntakeSession($this->schoolId, ['application_fee' => 50000]),
+        ]);
+
+        $this->enableFlutterwave();
+
+        $payment = ApplicationPayment::create([
+            'school_id'    => $this->schoolId,
+            'admission_id' => $admission->id,
+            'applicant_id' => $admission->applicant_id,
+            'amount'       => 50000,
+            'currency'     => 'UGX',
+            'method'       => 'flutterwave',
+            'status'       => ApplicationPayment::STATUS_PENDING,
+            'reference'    => 'APPFEE-TESTREF3',
+        ]);
+
+        // Verified transaction is real and "successful", but for a much
+        // smaller amount than what was actually owed.
+        \Illuminate\Support\Facades\Http::fake([
+            'api.flutterwave.com/v3/transactions/*/verify' => \Illuminate\Support\Facades\Http::response([
+                'status' => 'success',
+                'data'   => [
+                    'id' => 998879,
+                    'tx_ref' => 'APPFEE-TESTREF3',
+                    'amount' => 100,
+                    'currency' => 'UGX',
+                    'status' => 'successful',
+                ],
+            ], 200),
+        ]);
+
+        $this->get(route('applicant.payment.gateway.return', ['gateway' => 'flutterwave', 'payment' => $payment->id]) . '?transaction_id=998879&status=successful');
+
+        $payment->refresh();
+        $this->assertSame(ApplicationPayment::STATUS_FAILED, $payment->status);
     }
 
     public function test_the_payment_step_does_not_apply_to_a_free_intake(): void

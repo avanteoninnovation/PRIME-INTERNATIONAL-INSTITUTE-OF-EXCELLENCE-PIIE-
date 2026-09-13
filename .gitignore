@@ -91,3 +91,8 @@ auth.json
 
 
 /config/*.php
+
+# Written at runtime by set_config() in app/Helpers/CommonHelper.php —
+# ends up holding live SMTP credentials, so it must never be committed
+# (it was, from the very first commit, until this line was added).
+/config/config.json
