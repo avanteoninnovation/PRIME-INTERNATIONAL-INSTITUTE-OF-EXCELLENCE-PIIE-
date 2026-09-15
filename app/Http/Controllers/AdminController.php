@@ -2136,6 +2136,8 @@ class AdminController extends Controller
                 StudentFeeInvoiceGenerator::generateForStudent($student, (int) $data['programme_id'], $school_id);
             }
 
+            \App\Support\EnrollmentDefaults::ensureRow($student->id, $school_id);
+
             if (! empty(get_settings('smtp_user')) && (get_settings('smtp_pass')) && (get_settings('smtp_host')) && (get_settings('smtp_port'))) {
                 Mail::to($data['email'])->send(new NewUserEmail([
                     'name'     => $data['name'],
@@ -2236,10 +2238,24 @@ class AdminController extends Controller
             ]);
         }
 
-        Enrollment::where('user_id', $id)->update([
-            'class_id'   => $data['class_id'],
-            'section_id' => $data['section_id'],
-        ]);
+        // A Programme-track (HEI) student may have no Enrollment row yet —
+        // update() alone would silently no-op for them, so any class
+        // assigned here through this shared edit form would appear to save
+        // but never actually take effect. updateOrCreate() fixes that: it
+        // creates the row the first time a class is assigned, and from then
+        // on updates it in place, exactly like a class/section-track
+        // student's row already behaved.
+        $enrollmentSchoolId = auth()->user()->school_id;
+        Enrollment::updateOrCreate(
+            ['user_id' => $id, 'school_id' => $enrollmentSchoolId],
+            [
+                'class_id'      => $data['class_id'] ?: 0,
+                'section_id'    => $data['section_id'] ?: 0,
+                'department_id' => 0,
+                'session_id'    => get_school_settings($enrollmentSchoolId)->value('running_session')
+                    ?: (Session::where('school_id', $enrollmentSchoolId)->value('id') ?? Session::value('id') ?? 1),
+            ]
+        );
 
         $additionalImageName = null;
         if ($request->hasFile('additional_photo')) {
@@ -2504,6 +2520,8 @@ class AdminController extends Controller
                     'session_id'    => $active_session,
                 ]);
 
+                \App\Support\StudentFeeInvoiceGenerator::generateForClassBasedStudent($user, (int) $data['class_id'], auth()->user()->school_id);
+
                 if (! empty(get_settings('smtp_user')) && (get_settings('smtp_pass')) && (get_settings('smtp_host')) && (get_settings('smtp_port'))) {
                     Mail::to($data['email'])->send(new NewUserEmail($data));
                 }
@@ -2574,6 +2592,8 @@ class AdminController extends Controller
                     'department_id' => $department_id,
                     'session_id'    => $active_session,
                 ]);
+
+                \App\Support\StudentFeeInvoiceGenerator::generateForClassBasedStudent($user, (int) $class_id, auth()->user()->school_id);
             } else {
                 $duplication_counter++;
             }
@@ -2663,6 +2683,8 @@ class AdminController extends Controller
                                 'department_id' => $department_id,
                                 'session_id'    => $session_id,
                             ]);
+
+                            \App\Support\StudentFeeInvoiceGenerator::generateForClassBasedStudent($user, (int) $class_id, $school_id);
                         } else {
                             $duplication_counter++;
                         }

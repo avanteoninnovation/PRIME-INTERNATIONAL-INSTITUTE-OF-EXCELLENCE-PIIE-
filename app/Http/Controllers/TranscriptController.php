@@ -8,6 +8,7 @@ use App\Models\ExamCategory;
 use App\Models\Grade;
 use App\Models\Gradebook;
 use App\Models\Programme;
+use App\Models\Section;
 use App\Models\Subject;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -85,6 +86,14 @@ class TranscriptController extends Controller
             : optional($student->studentProfile)->programme;
 
         $intakeSession = optional($student->studentProfile)->intakeSession;
+        $yearOfStudy = optional($student->studentProfile)->year_of_study;
+
+        $classRoom = $enrollment?->class_id
+            ? Classes::where('school_id', $school_id)->find($enrollment->class_id)
+            : null;
+        $section = $enrollment?->section_id
+            ? Section::find($enrollment->section_id)
+            : null;
 
         $exam_categories = ExamCategory::where('school_id', $school_id)->get();
 
@@ -129,6 +138,9 @@ class TranscriptController extends Controller
             'enrollment',
             'programme',
             'intakeSession',
+            'yearOfStudy',
+            'classRoom',
+            'section',
             'exam_categories',
             'subjects',
             'gradebook',

@@ -268,6 +268,44 @@ trait AdmissionsTestHelper
             $table->timestamps();
         });
 
+        Schema::create('exam_categories', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->unsignedBigInteger('school_id')->index();
+            $table->unsignedBigInteger('session_id')->nullable();
+            $table->integer('timestamp')->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('grades', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->string('grade_point')->nullable();
+            $table->decimal('gpa_points', 3, 2)->nullable();
+            $table->string('classification', 50)->nullable();
+            $table->integer('mark_from');
+            $table->integer('mark_upto');
+            $table->unsignedBigInteger('school_id')->index();
+            $table->integer('total_marks')->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('gradebooks', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('class_id')->default(0);
+            $table->unsignedBigInteger('section_id')->default(0);
+            $table->unsignedBigInteger('student_id');
+            $table->unsignedBigInteger('exam_category_id');
+            $table->unsignedBigInteger('programme_id')->nullable();
+            $table->unsignedBigInteger('intake_session_id')->nullable();
+            $table->text('marks')->nullable();
+            $table->string('comment')->nullable();
+            $table->unsignedBigInteger('school_id')->index();
+            $table->unsignedBigInteger('session_id')->nullable();
+            $table->integer('timestamp')->nullable();
+            $table->timestamps();
+        });
+
         Schema::create('fee_structures', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('school_id')->index();
@@ -425,9 +463,11 @@ trait AdmissionsTestHelper
         Schema::create('subjects', function (Blueprint $table) {
             $table->id();
             $table->string('name');
-            $table->unsignedBigInteger('class_id');
+            $table->unsignedBigInteger('class_id')->nullable();
+            $table->unsignedBigInteger('programme_id')->nullable();
             $table->unsignedBigInteger('school_id');
-            $table->unsignedBigInteger('session_id');
+            $table->unsignedBigInteger('session_id')->nullable();
+            $table->unsignedTinyInteger('pass_mark')->default(50);
             $table->timestamps();
         });
 
@@ -598,6 +638,58 @@ trait AdmissionsTestHelper
             'school_id' => $schoolId,
             'name' => 'January Intake',
             'is_open' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ], $overrides));
+    }
+
+    protected function makeClass(int $schoolId, array $overrides = []): int
+    {
+        return (int) DB::table('classes')->insertGetId(array_merge([
+            'name' => 'Class A',
+            'school_id' => $schoolId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ], $overrides));
+    }
+
+    protected function makeExamCategory(int $schoolId, array $overrides = []): int
+    {
+        return (int) DB::table('exam_categories')->insertGetId(array_merge([
+            'name' => 'Final Exam',
+            'school_id' => $schoolId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ], $overrides));
+    }
+
+    protected function makeGrade(int $schoolId, array $overrides = []): int
+    {
+        return (int) DB::table('grades')->insertGetId(array_merge([
+            'name' => 'A',
+            'grade_point' => '5.0',
+            'gpa_points' => 5.0,
+            'classification' => 'Distinction',
+            'mark_from' => 80,
+            'mark_upto' => 100,
+            'school_id' => $schoolId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ], $overrides));
+    }
+
+    protected function makeGradebook(int $schoolId, array $overrides = []): int
+    {
+        return (int) DB::table('gradebooks')->insertGetId(array_merge([
+            'class_id' => 0,
+            'section_id' => 0,
+            'student_id' => 0,
+            'exam_category_id' => 0,
+            'marks' => json_encode([]),
+            'comment' => '',
+            'school_id' => $schoolId,
+            'session_id' => 1,
+            'timestamp' => time(),
             'created_at' => now(),
             'updated_at' => now(),
         ], $overrides));

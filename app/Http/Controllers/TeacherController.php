@@ -91,6 +91,7 @@ class TeacherController extends Controller
 
         $enroll_students = Enrollment::where('class_id', $page_data['class_id'])
             ->where('section_id', $page_data['section_id'])
+            ->where('school_id', auth()->user()->school_id)
             ->get();
 
         $page_data['exam_categories'] = ExamCategory::where('school_id', auth()->user()->school_id)->get();

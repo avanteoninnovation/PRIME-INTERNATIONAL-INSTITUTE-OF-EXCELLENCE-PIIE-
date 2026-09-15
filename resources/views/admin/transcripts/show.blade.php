@@ -53,6 +53,8 @@
                     <tr><td style="color:#6c757d;padding:3px 0;width:150px">{{ get_phrase('Programme') }}:</td><td><strong>{{ $programme?->name ?? '—' }}</strong></td></tr>
                     <tr><td style="color:#6c757d;padding:3px 0">{{ get_phrase('Level') }}:</td><td>{{ $programme?->level ?? '—' }}</td></tr>
                     <tr><td style="color:#6c757d;padding:3px 0">{{ get_phrase('Intake') }}:</td><td>{{ $intakeSession?->name ?? '—' }}</td></tr>
+                    <tr><td style="color:#6c757d;padding:3px 0">{{ get_phrase('Class') }}:</td><td>{{ $classRoom?->name ?? '—' }}{{ $section ? ' / ' . $section->name : '' }}</td></tr>
+                    <tr><td style="color:#6c757d;padding:3px 0">{{ get_phrase('Year of Study') }}:</td><td>{{ $yearOfStudy ?? '—' }}</td></tr>
                     <tr><td style="color:#6c757d;padding:3px 0">{{ get_phrase('Enrolled') }}:</td><td>{{ $enrollment?->created_at?->format('Y') ?? '—' }}</td></tr>
                 </table>
             </div>

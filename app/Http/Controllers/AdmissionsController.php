@@ -739,6 +739,8 @@ class AdmissionsController extends Controller
 
         StudentFeeInvoiceGenerator::generateForStudent($student, $admission->programme_id, $this->school_id);
 
+        \App\Support\EnrollmentDefaults::ensureRow($student->id, $this->school_id);
+
         // Link the portal account to the student it became, so the applicant
         // portal can point them at the student login rather than leaving them
         // on a finished application with nowhere to go.

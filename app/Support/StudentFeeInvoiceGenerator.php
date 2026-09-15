@@ -81,4 +81,69 @@ class StudentFeeInvoiceGenerator
 
         return $created;
     }
+
+    /**
+     * Class/section-track counterpart to generateForStudent() above — same
+     * idempotent, create-only auto-invoicing, but sourced from a class-based
+     * FeeStructure row (school's own class_id column, previously unused)
+     * instead of a Programme one. Added so a student admitted through the
+     * offline class/section admission forms (AdminController::
+     * offlineAdmissionCreate/BulkCreate/ExcelCreate) gets fee invoices the
+     * same way a Programme-track student already does, instead of never
+     * getting any until a bursar remembers to run the separate manual
+     * "mass invoice" action.
+     *
+     * @return StudentFeeManager[] newly created invoices
+     */
+    public static function generateForClassBasedStudent(User $student, ?int $classId, int $schoolId): array
+    {
+        if (! $classId) {
+            return [];
+        }
+
+        $sessionId = DB::table('schools')->where('id', $schoolId)->value('running_session');
+
+        $feeStructures = FeeStructure::where('school_id', $schoolId)
+            ->where('is_mandatory', 1)
+            ->where(function ($q) use ($classId) {
+                $q->whereNull('class_id')->orWhere('class_id', $classId);
+            })
+            ->where(function ($q) use ($sessionId) {
+                $q->whereNull('session_id')->orWhere('session_id', $sessionId);
+            })
+            ->get();
+
+        $created = [];
+
+        foreach ($feeStructures as $fee) {
+            $alreadyInvoiced = StudentFeeManager::where('student_id', $student->id)
+                ->where('fee_structure_id', $fee->id)
+                ->where('session_id', $sessionId)
+                ->exists();
+
+            if ($alreadyInvoiced) {
+                continue;
+            }
+
+            $created[] = StudentFeeManager::create([
+                'title'            => $fee->name,
+                'total_amount'     => (int) round((float) $fee->amount),
+                'amount'           => $fee->amount,
+                'discounted_price' => 0,
+                'class_id'         => $classId,
+                'programme_id'     => null,
+                'student_id'       => $student->id,
+                'fee_structure_id' => $fee->id,
+                'parent_id'        => $student->parent_id,
+                'payment_method'   => 'unpaid',
+                'paid_amount'      => 0,
+                'status'           => 'unpaid',
+                'school_id'        => $schoolId,
+                'session_id'       => $sessionId,
+                'timestamp'        => strtotime(date('d-M-Y')),
+            ]);
+        }
+
+        return $created;
+    }
 }

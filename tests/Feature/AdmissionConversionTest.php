@@ -46,6 +46,15 @@ class AdmissionConversionTest extends TestCase
         $this->assertNotNull($profile);
         $this->assertSame($programmeId, $profile->programme_id);
         $this->assertSame($intakeId, $profile->intake_session_id);
+
+        // Every teacher-facing roster (gradebook, attendance, online exam
+        // class lists) reads from Enrollment, not StudentProfile — without
+        // this row a Programme-track student was previously invisible
+        // everywhere a teacher looks, silently. See EnrollmentDefaults.
+        $this->assertDatabaseHas('enrollment', [
+            'user_id' => $student->id,
+            'school_id' => $schoolId,
+        ]);
     }
 
     public function test_retrying_conversion_does_not_create_duplicate_accounts_profiles_or_invoices(): void
@@ -74,6 +83,7 @@ class AdmissionConversionTest extends TestCase
         $student = User::where('email', 'retry.me@example.com')->first();
         $this->assertSame(1, StudentProfile::where('user_id', $student->id)->count(), 'Must not create duplicate student profiles.');
         $this->assertSame(1, StudentFeeManager::where('student_id', $student->id)->count(), 'Must not create duplicate fee invoices.');
+        $this->assertSame(1, DB::table('enrollment')->where('user_id', $student->id)->count(), 'Must not create duplicate enrollment rows.');
     }
 
     public function test_registration_numbers_generated_in_bulk_are_unique(): void

@@ -232,11 +232,16 @@ class AccountantController extends Controller
 
     public function classWiseStudents($id='')
     {
-        $enrollments = Enrollment::get()->where('class_id', $id);
+        $enrollments = Enrollment::where('class_id', $id)
+            ->where('school_id', auth()->user()->school_id)
+            ->with('student')
+            ->get();
         $options = '<option value="">'.'Select a student'.'</option>';
         foreach ($enrollments as $enrollment):
-            $student = User::find($enrollment->user_id);
-            $options .= '<option value="'.$student->id.'">'.$student->name.'</option>';
+            if (! $enrollment->student) {
+                continue;
+            }
+            $options .= '<option value="'.$enrollment->student->id.'">'.e($enrollment->student->name).'</option>';
         endforeach;
         echo $options;
     }
@@ -244,7 +249,17 @@ class AccountantController extends Controller
     public function editFeeManager($id='')
     {
         $invoice_details = StudentFeeManager::find($id);
-        $enrollments = Enrollment::get()->where('class_id', $invoice_details->class_id);
+        // class_id 0 is the "not class-based" sentinel used for
+        // Programme-track invoices (see StudentFeeInvoiceGenerator) — every
+        // Programme-track student's own Enrollment row now also uses 0 for
+        // an unassigned class (see EnrollmentDefaults::ensureRow()), so this
+        // still resolves correctly rather than the empty dropdown it used
+        // to silently produce. Only students enrolled since that fix will
+        // show up this way; older Programme-track accounts predate it and
+        // have no Enrollment row at all yet.
+        $enrollments = Enrollment::where('class_id', $invoice_details->class_id)
+            ->where('school_id', auth()->user()->school_id)
+            ->get();
         $classes = Classes::where('school_id', auth()->user()->school_id)->get();
         return view('accountant.student_fee_manager.edit', ['invoice_details' => $invoice_details, 'classes' => $classes, 'enrollments' => $enrollments]);
     }
