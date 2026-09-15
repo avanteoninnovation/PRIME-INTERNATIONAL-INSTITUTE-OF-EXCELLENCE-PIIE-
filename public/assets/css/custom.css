@@ -582,11 +582,6 @@ a.list-group-item.list-group-item-action:last-child {
 	margin-left: 10px;
 	margin-top: 7px;
 }
-.badge {
-	position: absolute;
-	left: 5px;
-	top: 11px;
-}
 .discount_price_text{
 	font-size: 11px;
 }

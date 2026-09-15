@@ -477,7 +477,13 @@ class ApplicantPortalTest extends TestCase
         ]);
     }
 
-    public function test_flutterwave_appears_as_a_payment_option_once_configured(): void
+    /**
+     * Flutterwave is fully configured here but stays hidden — MarzPay is
+     * the only gateway offered by default now (see ApplicationFee::
+     * ENABLED_GATEWAYS); Flutterwave/Stripe are left wired but dormant
+     * rather than deleted, in case this institution wants them back later.
+     */
+    public function test_flutterwave_stays_hidden_even_when_configured(): void
     {
         $this->signIn();
         $this->get(route('applicant.dashboard'));
@@ -490,7 +496,39 @@ class ApplicantPortalTest extends TestCase
 
         $methods = ApplicationFee::availableMethods($this->schoolId);
 
-        $this->assertContains('flutterwave', array_column($methods, 'key'));
+        $this->assertNotContains('flutterwave', array_column($methods, 'key'));
+    }
+
+    public function test_marzpay_appears_as_a_payment_option_once_configured(): void
+    {
+        $this->signIn();
+        $this->get(route('applicant.dashboard'));
+
+        Admission::first()->update([
+            'intake_session_id' => $this->makeIntakeSession($this->schoolId, ['application_fee' => 50000]),
+        ]);
+
+        $this->enableMarzpay();
+
+        $methods = ApplicationFee::availableMethods($this->schoolId);
+
+        $this->assertContains('marzpay', array_column($methods, 'key'));
+    }
+
+    private function enableMarzpay(): void
+    {
+        \App\Models\PaymentMethods::create([
+            'name'         => 'marzpay',
+            'image'        => 'marzpay.png',
+            'status'       => 1,
+            'mode'         => 'test',
+            'school_id'    => $this->schoolId,
+            'payment_keys' => json_encode([
+                'sandbox_api_key'    => 'fake_key',
+                'sandbox_api_secret' => 'fake_secret',
+                'country'            => 'UG',
+            ]),
+        ]);
     }
 
     public function test_starting_flutterwave_checkout_redirects_to_the_hosted_payment_link(): void

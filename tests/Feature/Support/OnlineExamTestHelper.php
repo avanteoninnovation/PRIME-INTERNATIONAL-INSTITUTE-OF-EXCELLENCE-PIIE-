@@ -269,6 +269,22 @@ trait OnlineExamTestHelper
             $table->timestamps();
         });
 
+        Schema::create('noticeboard', function (Blueprint $table) {
+            $table->id();
+            $table->longText('notice_title');
+            $table->longText('notice');
+            $table->string('start_date');
+            $table->string('start_time');
+            $table->string('end_date');
+            $table->string('end_time');
+            $table->integer('status');
+            $table->integer('show_on_website');
+            $table->string('image')->nullable();
+            $table->unsignedBigInteger('school_id');
+            $table->unsignedBigInteger('session_id');
+            $table->timestamps();
+        });
+
         Schema::create('online_exam_notifications', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('school_id')->index();

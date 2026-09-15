@@ -80,4 +80,34 @@ class OnlineExamPermissionTest extends TestCase
 
         $this->assertSame(200, $response->getStatusCode());
     }
+
+    /**
+     * A teacher whose school has never seeded role_perm_3 (no "Teacher" row
+     * in the roles table at all — the real state this app was found in,
+     * see OnlineExamPermissionSeeder::run() which only iterates rows that
+     * actually exist in `roles`) must still be able to delete their own
+     * draft exams and review proctoring on their own exams: both come from
+     * OnlineExamPermissionService::teacherFallbackPermission(), the last
+     * resort the service falls back to for role_id 3.
+     */
+    public function test_teacher_fallback_permission_grants_delete_and_review_proctoring_without_a_seeded_role_row(): void
+    {
+        $teacher = $this->makeUser(3, 1);
+
+        $service = app(OnlineExamPermissionService::class);
+
+        $this->assertTrue($service->has($teacher, 'delete_online_exams'));
+        $this->assertTrue($service->has($teacher, 'review_exam_proctoring'));
+    }
+
+    public function test_online_exam_permission_seeder_grants_teachers_delete_and_review_proctoring(): void
+    {
+        (new OnlineExamPermissionSeeder())->run();
+
+        $teacherPermissions = json_decode((string) DB::table('global_settings')->where('key', 'role_perm_3')->value('value'), true);
+
+        $this->assertIsArray($teacherPermissions);
+        $this->assertContains('delete_online_exams', $teacherPermissions);
+        $this->assertContains('review_exam_proctoring', $teacherPermissions);
+    }
 }

@@ -89,11 +89,6 @@
         </select>
     </div>
 
-    <div class="col-md-6">
-        <label class="eForm-label">{{ get_phrase('Programme') }}</label>
-        <input type="text" class="form-control eForm-control" value="{{ get_phrase('Not configured for online exams in this installation') }}" disabled>
-    </div>
-
     <div class="col-md-3">
         <label class="eForm-label">{{ get_phrase('Start') }}</label>
         <input type="datetime-local" class="form-control eForm-control" name="start_datetime" value="{{ old('start_datetime', !empty($exam?->start_datetime) ? $exam->start_datetime->format('Y-m-d\\TH:i') : '') }}" required {{ !empty($structureLocked) ? 'disabled' : '' }}>

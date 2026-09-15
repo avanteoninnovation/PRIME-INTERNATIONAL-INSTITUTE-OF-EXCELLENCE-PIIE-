@@ -159,6 +159,7 @@ trait LiveClassTestHelper
             $table->unsignedBigInteger('school_id')->index();
             $table->unsignedBigInteger('live_class_id')->index();
             $table->string('type', 10)->default('file');
+            $table->string('category', 20)->default('resource');
             $table->string('title', 200);
             $table->string('original_name', 255)->nullable();
             $table->string('stored_name', 255)->nullable();
@@ -178,6 +179,16 @@ trait LiveClassTestHelper
             $table->timestamp('sent_at');
             $table->timestamps();
             $table->unique(['live_class_id', 'type']);
+        });
+
+        Schema::create('live_class_meet_guests', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('school_id')->index();
+            $table->string('email', 191);
+            $table->string('label', 191)->nullable();
+            $table->unsignedBigInteger('created_by')->nullable();
+            $table->timestamps();
+            $table->unique(['school_id', 'email']);
         });
 
         Schema::create('global_settings', function (Blueprint $table) {

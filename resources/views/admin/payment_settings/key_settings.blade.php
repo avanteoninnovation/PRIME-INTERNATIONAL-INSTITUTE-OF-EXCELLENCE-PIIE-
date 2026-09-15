@@ -504,6 +504,80 @@
     </div>
 </div>
 
+<div class="row">
+    <div class="col-12">
+        <div class="eSection-wrap">
+            <div class="title">
+                <h3>{{ get_phrase('MarzPay settings') }}</h3>
+            </div>
+            <div class="eMain">
+                <div class="row">
+                    <div class="col-md-6 pb-3">
+                        <div class="eForm-layouts">
+                            <form method="POST" class="col-12 live-class-settings-form" action="{{ route('admin.settings.payment_post') }}" id="live-class-settings-form">
+                                @csrf
+
+                                <div class="fpb-7">
+                                    <label for="status" class="eForm-label">{{ get_phrase('Active') }}</label>
+                                    <select class="form-select eForm-select eChoice-multiple-with-remove" name="status" id="status">
+                                        <option value="1" <?php if ($marzpay['status'] == 1): ?> selected <?php endif; ?>>{{ get_phrase('yes') }}</option>
+                                        <option value="0" <?php if ($marzpay['status'] == 0): ?> selected <?php endif; ?>>{{ get_phrase('no') }}</option>
+                                      </select>
+                                </div>
+
+                                <div class="fpb-7">
+                                    <label for="mode" class="eForm-label">{{ get_phrase('Mode') }}</label>
+                                    <select class="form-select eForm-select eChoice-multiple-with-remove" name="mode" id="mode">
+                                        <option value="live" <?php if ($marzpay['mode'] == 'live'): ?> selected <?php endif; ?>>{{ get_phrase('Live') }}</option>
+                                        <option value="test" <?php if ($marzpay['mode'] == 'test'): ?> selected <?php endif; ?>>{{ get_phrase('Sandbox') }}</option>
+                                      </select>
+                                </div>
+
+                                <div class="fpb-7">
+                                    <label for="country" class="eForm-label">{{ get_phrase('Country') }}</label>
+                                    <select class="form-select eForm-select eChoice-multiple-with-remove" name="country" id="country">
+                                        @foreach(['UG' => 'Uganda', 'KE' => 'Kenya', 'RW' => 'Rwanda', 'CD' => 'DRC', 'ZM' => 'Zambia', 'CM' => 'Cameroon'] as $code => $label)
+                                            <option value="{{ $code }}" {{ ($marzpay_keys->country ?? 'UG') == $code ? 'selected' : '' }}>{{ $label }}</option>
+                                        @endforeach
+                                      </select>
+                                </div>
+
+                                <div class="fpb-7">
+                                    <label for="sandbox_api_key" class="eForm-label">{{ get_phrase('API Key (Sandbox)') }}</label>
+                                    <input type="text" class="form-control eForm-control" id="sandbox_api_key" name="sandbox_api_key" placeholder="Sandbox API Key" value="{{ $marzpay_keys->sandbox_api_key ?? '' }}" aria-label="Sandbox API Key">
+                                </div>
+
+                                <div class="fpb-7">
+                                    <label for="sandbox_api_secret" class="eForm-label">{{ get_phrase('API Secret (Sandbox)') }}</label>
+                                    <input type="text" class="form-control eForm-control" id="sandbox_api_secret" name="sandbox_api_secret" placeholder="Sandbox API Secret" value="{{ $marzpay_keys->sandbox_api_secret ?? '' }}" aria-label="Sandbox API Secret">
+                                </div>
+
+                                <div class="fpb-7">
+                                    <label for="live_api_key" class="eForm-label">{{ get_phrase('API Key (Live)') }}</label>
+                                    <input type="text" class="form-control eForm-control" id="live_api_key" name="live_api_key" placeholder="Live API Key" value="{{ $marzpay_keys->live_api_key ?? '' }}" aria-label="Live API Key">
+                                </div>
+
+                                <div class="fpb-7">
+                                    <label for="live_api_secret" class="eForm-label">{{ get_phrase('API Secret (Live)') }}</label>
+                                    <input type="text" class="form-control eForm-control" id="live_api_secret" name="live_api_secret" placeholder="Live API Secret" value="{{ $marzpay_keys->live_api_secret ?? '' }}" aria-label="Live API Secret">
+                                </div>
+
+                                <input type="hidden" id="method" name="method" value="marzpay">
+                                <input type="hidden" id="update_id" name="update_id" value="{{ $marzpay['id'] }}">
+
+                                <div class="fpb-7 pt-2">
+                                    <button type="submit" class="btn-form" onclick="">{{ get_phrase('Update MarzPay') }}</button>
+                                </div>
+
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 @endif
 
 

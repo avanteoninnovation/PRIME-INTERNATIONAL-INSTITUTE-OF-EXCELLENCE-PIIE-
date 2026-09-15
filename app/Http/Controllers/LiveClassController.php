@@ -9,12 +9,14 @@ use App\Models\Classes;
 use App\Models\LiveClass;
 use App\Models\LiveClassAttendance;
 use App\Models\LiveClassMaterial;
+use App\Models\LiveClassMeetGuest;
 use App\Models\Noticeboard;
 use App\Models\Programme;
 use App\Models\Session;
 use App\Models\Subject;
 use App\Models\TeacherPermission;
 use App\Models\TeacherProgrammeAssignment;
+use App\Support\LiveClasses\JitsiTokenService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -438,10 +440,40 @@ class LiveClassController extends Controller
             $attendance = $this->recordJoin($liveClass);
 
             if ($this->shouldRenderEmbeddedMeeting($liveClass)) {
+                $isModerator = Auth::user()->can('update', $liveClass);
+                $jitsiJwt = JitsiTokenService::generate($liveClass, Auth::user(), $isModerator);
+                $meetingUrl = $liveClass->safe_meeting_url;
+
                 return view('admin.live_class.meeting_room', [
                     'liveClass' => $liveClass,
-                    'meetingUrl' => $liveClass->safe_meeting_url,
+                    'meetingUrl' => $meetingUrl,
                     'attendanceId' => $attendance?->id,
+                    'isModerator' => $isModerator,
+                    'jitsiJwt' => $jitsiJwt,
+                    'jitsiConfigured' => JitsiTokenService::isConfigured(),
+                    'displayName' => Auth::user()->name,
+                    // Everything after the domain: just the room slug on
+                    // plain meet.jit.si, "{appId}/{room}" on 8x8 JaaS — the
+                    // IFrame API's `roomName` option needs the full path,
+                    // unlike the JWT's `room` claim (see JitsiTokenService).
+                    'jitsiDomain' => parse_url($meetingUrl, PHP_URL_HOST),
+                    'jitsiRoomPath' => trim((string) parse_url($meetingUrl, PHP_URL_PATH), '/'),
+                ]);
+            }
+
+            if ($liveClass->platform === 'google_meet') {
+                // Google Meet events created by this app are always owned by
+                // one single, school-wide Google account (services.google_meet.
+                // refresh_token — see createGoogleMeetUrl()), never the
+                // individual teacher's own Google identity. Whoever opens the
+                // link while signed into a *different* Google account in
+                // their browser is not recognised as host and lands on
+                // Meet's "Ask to join" knock screen instead of being let
+                // straight in — surface that before sending them away, since
+                // Meet's own UI gives no hint why.
+                return view('admin.live_class.google_meet_join', [
+                    'liveClass' => $liveClass,
+                    'meetingUrl' => $liveClass->safe_meeting_url,
                 ]);
             }
 
@@ -572,10 +604,12 @@ class LiveClassController extends Controller
         abort_unless((int) $liveClass->school_id === (int) $this->school_id, 404);
         $this->authorize('view', $liveClass);
 
-        $materials = $liveClass->materials()->orderByDesc('id')->get();
+        $allMaterials = $liveClass->materials()->orderByDesc('id')->get();
+        $resources = $allMaterials->where('category', LiveClassMaterial::CATEGORY_RESOURCE)->values();
+        $recordings = $allMaterials->where('category', LiveClassMaterial::CATEGORY_RECORDING)->values();
         $canManage = Auth::user()->can('update', $liveClass);
 
-        return view('admin.live_class.materials', compact('liveClass', 'materials', 'canManage'));
+        return view('admin.live_class.materials', compact('liveClass', 'resources', 'recordings', 'canManage'));
     }
 
     public function storeMaterial(Request $request, LiveClass $liveClass)
@@ -583,13 +617,22 @@ class LiveClassController extends Controller
         abort_unless((int) $liveClass->school_id === (int) $this->school_id, 404);
         $this->authorize('update', $liveClass);
 
+        $category = $request->input('category', LiveClassMaterial::CATEGORY_RESOURCE);
+        if (!in_array($category, [LiveClassMaterial::CATEGORY_RESOURCE, LiveClassMaterial::CATEGORY_RECORDING], true)) {
+            $category = LiveClassMaterial::CATEGORY_RESOURCE;
+        }
+
+        $isRecording = $category === LiveClassMaterial::CATEGORY_RECORDING;
+        $allowedExtensions = $isRecording ? LiveClassMaterial::ALLOWED_RECORDING_EXTENSIONS : LiveClassMaterial::ALLOWED_EXTENSIONS;
+        $maxKb = ($isRecording ? LiveClassMaterial::MAX_RECORDING_MB : LiveClassMaterial::MAX_FILE_MB) * 1024;
+
         $validated = $request->validate([
             'type' => ['required', 'in:file,link'],
             'title' => ['required', 'string', 'max:200'],
             'file' => [
                 'required_if:type,file', 'nullable', 'file',
-                'mimes:' . implode(',', LiveClassMaterial::ALLOWED_EXTENSIONS),
-                'max:' . (LiveClassMaterial::MAX_FILE_MB * 1024),
+                'mimes:' . implode(',', $allowedExtensions),
+                'max:' . $maxKb,
             ],
             'link_url' => ['required_if:type,link', 'nullable', 'url', 'starts_with:https://', 'max:500'],
         ]);
@@ -598,19 +641,21 @@ class LiveClassController extends Controller
             'school_id' => $this->school_id,
             'live_class_id' => $liveClass->id,
             'type' => $validated['type'],
+            'category' => $category,
             'title' => $validated['title'],
             'uploaded_by' => Auth::id(),
         ];
 
         if ($validated['type'] === 'file') {
             $file = $request->file('file');
-            $destination = public_path(LiveClassMaterial::UPLOAD_DIR);
+            $destination = public_path($isRecording ? LiveClassMaterial::RECORDING_UPLOAD_DIR : LiveClassMaterial::UPLOAD_DIR);
 
             if (!is_dir($destination)) {
                 mkdir($destination, 0755, true);
             }
 
-            $storedAs = 'lcm' . $liveClass->id . '_' . uniqid() . '.' . strtolower($file->getClientOriginalExtension());
+            $prefix = $isRecording ? 'lcr' : 'lcm';
+            $storedAs = $prefix . $liveClass->id . '_' . uniqid() . '.' . strtolower($file->getClientOriginalExtension());
             $file->move($destination, $storedAs);
 
             $payload += [
@@ -625,9 +670,9 @@ class LiveClassController extends Controller
 
         LiveClassMaterial::create($payload);
 
-        AuditLog::record('create', 'Live Classes', "Material added to live class: {$liveClass->title}");
+        AuditLog::record('create', 'Live Classes', ($isRecording ? 'Recording' : 'Material') . " added to live class: {$liveClass->title}");
 
-        return redirect()->back()->with('success', get_phrase('Material added'));
+        return redirect()->back()->with('success', get_phrase($isRecording ? 'Recording added' : 'Material added'));
     }
 
     public function destroyMaterial(LiveClassMaterial $material)
@@ -673,7 +718,21 @@ class LiveClassController extends Controller
             $configuredHost = 'meet.jit.si';
         }
 
-        return strcasecmp($meetingHost, $configuredHost) === 0;
+        if (strcasecmp($meetingHost, $configuredHost) !== 0) {
+            return false;
+        }
+
+        // meet.jit.si (Jitsi's free public server) refuses to stay embedded
+        // past 5 minutes ("only meant for demo purposes") and never
+        // validates our JWT, so embedding it gains nothing and actively
+        // breaks longer classes — send it to its own tab instead, same as
+        // Zoom/Google Meet. Only a real configured domain (self-hosted or
+        // 8x8 JaaS) gets the in-app embed.
+        if (strcasecmp($meetingHost, 'meet.jit.si') === 0) {
+            return false;
+        }
+
+        return true;
     }
 
     public function studentIndex(Request $request)
@@ -1025,9 +1084,17 @@ class LiveClassController extends Controller
             return null;
         }
 
+        // Guests configured in admin/live-classes/meet-guests — added as
+        // attendees so a teacher signed into one of these addresses is a
+        // named, recognised guest on the invite (and is emailed a calendar
+        // invite via sendUpdates=all below), instead of every joiner being
+        // an anonymous link-holder the way this event used to be created.
+        $guestEmails = LiveClassMeetGuest::forSchool($this->school_id)->pluck('email');
+        $attendees = $guestEmails->map(fn (string $email) => ['email' => $email])->values()->all();
+
         $eventResponse = Http::withToken($accessToken)
             ->acceptJson()
-            ->post('https://www.googleapis.com/calendar/v3/calendars/' . urlencode($calendarId) . '/events?conferenceDataVersion=1', [
+            ->post('https://www.googleapis.com/calendar/v3/calendars/' . urlencode($calendarId) . '/events?conferenceDataVersion=1&sendUpdates=all', [
                 'summary' => $title,
                 'start' => [
                     'dateTime' => $scheduledAt->copy()->setTimezone($timezone)->toIso8601String(),
@@ -1037,6 +1104,8 @@ class LiveClassController extends Controller
                     'dateTime' => $endsAt->copy()->setTimezone($timezone)->toIso8601String(),
                     'timeZone' => $timezone,
                 ],
+                'attendees' => $attendees,
+                'guestsCanSeeOtherGuests' => true,
                 'conferenceData' => [
                     'createRequest' => [
                         'requestId' => (string) Str::uuid(),
@@ -1119,6 +1188,65 @@ class LiveClassController extends Controller
      * fallback to Jitsi — the one platform that never needs external
      * credentials — holds until Google Meet is actually configured.
      */
+    /**
+     * Admin-only list of emails added as attendees on every Google Meet
+     * event this school creates (see createGoogleMeetUrl()) — lets an admin
+     * grow the "recognised guest" list without ever touching .env.
+     */
+    public function meetGuests()
+    {
+        $this->authorize('create', LiveClass::class);
+        abort_unless((int) Auth::user()->role_id === 2, 403);
+
+        $guests = LiveClassMeetGuest::forSchool($this->school_id)->orderBy('email')->get();
+
+        return view('admin.live_class.meet_guests', compact('guests'));
+    }
+
+    public function storeMeetGuest(Request $request)
+    {
+        $this->authorize('create', LiveClass::class);
+        abort_unless((int) Auth::user()->role_id === 2, 403);
+
+        $validated = $request->validate([
+            'email' => ['required', 'email', 'max:191'],
+            'label' => ['nullable', 'string', 'max:191'],
+        ]);
+
+        $exists = LiveClassMeetGuest::forSchool($this->school_id)
+            ->where('email', $validated['email'])
+            ->exists();
+
+        if ($exists) {
+            return redirect()->back()->with('error', get_phrase('That email is already on the list'));
+        }
+
+        LiveClassMeetGuest::create([
+            'school_id' => $this->school_id,
+            'email' => $validated['email'],
+            'label' => $validated['label'] ?? null,
+            'created_by' => Auth::id(),
+        ]);
+
+        AuditLog::record('create', 'Live Classes', "Added Google Meet guest: {$validated['email']}");
+
+        return redirect()->back()->with('success', get_phrase('Guest email added'));
+    }
+
+    public function destroyMeetGuest($id)
+    {
+        $this->authorize('create', LiveClass::class);
+        abort_unless((int) Auth::user()->role_id === 2, 403);
+
+        $guest = LiveClassMeetGuest::forSchool($this->school_id)->findOrFail((int) $id);
+        $email = $guest->email;
+        $guest->delete();
+
+        AuditLog::record('delete', 'Live Classes', "Removed Google Meet guest: {$email}");
+
+        return redirect()->back()->with('success', get_phrase('Guest email removed'));
+    }
+
     private function defaultPlatform(): string
     {
         return $this->platformIsConfigured('google_meet') ? 'google_meet' : 'jitsi';

@@ -303,6 +303,26 @@ trait AdmissionsTestHelper
             $table->integer('school_id');
             $table->integer('session_id')->nullable();
             $table->integer('timestamp')->nullable();
+            // Added by 2026_09_14_180000_add_gateway_tracking_to_fee_tables
+            $table->string('gateway_reference', 191)->nullable()->index();
+            $table->json('gateway_payload')->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('question_banks', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('school_id')->index();
+            $table->unsignedBigInteger('subject_id')->nullable();
+            $table->text('question');
+            $table->string('type')->default('mcq');
+            $table->text('option_a')->nullable();
+            $table->text('option_b')->nullable();
+            $table->text('option_c')->nullable();
+            $table->text('option_d')->nullable();
+            $table->string('correct_ans', 5)->nullable();
+            $table->tinyInteger('marks')->default(1);
+            $table->string('difficulty')->default('medium');
+            $table->unsignedBigInteger('created_by')->nullable();
             $table->timestamps();
         });
 

@@ -376,6 +376,216 @@ class TeacherOnlineExamTest extends TestCase
         $this->assertTrue(Route::has('student.online_exam.list'));
     }
 
+    public function test_teacher_index_lifecycle_stats_and_upcoming_tab_filter_agree(): void
+    {
+        $teacher = $this->makeTeacherWithPermission(1);
+        $classId = DB::table('teacher_permissions')->where('teacher_id', $teacher->id)->value('class_id');
+        $subjectId = $this->makeSubject(1, $classId);
+
+        $this->makeExam([
+            'school_id' => 1,
+            'class_id' => $classId,
+            'subject_id' => $subjectId,
+            'title' => 'A Draft Exam',
+            'workflow_state' => 'draft',
+            'is_published' => 0,
+            'created_by' => $teacher->id,
+            'creator_id' => $teacher->id,
+        ]);
+        $this->makeExam([
+            'school_id' => 1,
+            'class_id' => $classId,
+            'subject_id' => $subjectId,
+            'title' => 'An Upcoming Exam',
+            'workflow_state' => 'published',
+            'is_published' => 1,
+            'start_datetime' => now()->addDay(),
+            'end_datetime' => now()->addDay()->addHour(),
+            'created_by' => $teacher->id,
+            'creator_id' => $teacher->id,
+        ]);
+        $this->makeExam([
+            'school_id' => 1,
+            'class_id' => $classId,
+            'subject_id' => $subjectId,
+            'title' => 'An Ongoing Exam',
+            'workflow_state' => 'published',
+            'is_published' => 1,
+            'start_datetime' => now()->subMinutes(10),
+            'end_datetime' => now()->addMinutes(20),
+            'created_by' => $teacher->id,
+            'creator_id' => $teacher->id,
+        ]);
+
+        // The "Upcoming" stat card's count must be the same population the
+        // tab=upcoming filter actually returns — a mismatch here would mean
+        // clicking the card shows a different set of exams than its own number.
+        $indexResponse = $this->actingAs($teacher)->get(route('teacher.online_exams.index'));
+        $indexResponse->assertOk();
+        $indexResponse->assertSee('An Upcoming Exam');
+        $indexResponse->assertSee('An Ongoing Exam');
+        $indexResponse->assertSee('A Draft Exam');
+
+        $upcomingTabResponse = $this->actingAs($teacher)->get(route('teacher.online_exams.index', ['tab' => 'upcoming']));
+        $upcomingTabResponse->assertOk();
+        $upcomingTabResponse->assertSee('An Upcoming Exam');
+        $upcomingTabResponse->assertDontSee('An Ongoing Exam');
+        $upcomingTabResponse->assertDontSee('A Draft Exam');
+    }
+
+    public function test_teacher_live_monitor_shows_ongoing_exam_with_in_progress_count_and_upcoming_exam(): void
+    {
+        $teacher = $this->makeTeacherWithPermission(1);
+        $classId = DB::table('teacher_permissions')->where('teacher_id', $teacher->id)->value('class_id');
+        $subjectId = $this->makeSubject(1, $classId);
+
+        $ongoingExamId = $this->makeExam([
+            'school_id' => 1,
+            'class_id' => $classId,
+            'subject_id' => $subjectId,
+            'title' => 'Ongoing Exam',
+            'created_by' => $teacher->id,
+            'creator_id' => $teacher->id,
+            'start_datetime' => now()->subMinutes(10),
+            'end_datetime' => now()->addMinutes(20),
+        ]);
+        $student = $this->makeUser(7, 1);
+        $this->makeSubmission([
+            'online_exam_id' => $ongoingExamId,
+            'student_id' => $student->id,
+            'school_id' => 1,
+            'status' => 'in_progress',
+        ]);
+
+        $this->makeExam([
+            'school_id' => 1,
+            'class_id' => $classId,
+            'subject_id' => $subjectId,
+            'title' => 'Upcoming Exam',
+            'created_by' => $teacher->id,
+            'creator_id' => $teacher->id,
+            'start_datetime' => now()->addHours(2),
+            'end_datetime' => now()->addHours(3),
+        ]);
+
+        $response = $this->actingAs($teacher)->get(route('teacher.online_exams.live_monitor'));
+
+        $response->assertOk();
+        $response->assertSee('Ongoing Exam');
+        $response->assertSee('Upcoming Exam');
+    }
+
+    public function test_teacher_live_monitor_excludes_other_teachers_exams_without_edit_all_permission(): void
+    {
+        $teacherA = $this->makeTeacherWithPermission(1);
+        $teacherB = $this->makeTeacherWithPermission(1);
+
+        $classId = $this->makeClass(1);
+        $subjectId = $this->makeSubject(1, $classId);
+        $this->makeExam([
+            'school_id' => 1,
+            'class_id' => $classId,
+            'subject_id' => $subjectId,
+            'title' => 'Teacher A Ongoing Exam',
+            'created_by' => $teacherA->id,
+            'creator_id' => $teacherA->id,
+            'start_datetime' => now()->subMinutes(5),
+            'end_datetime' => now()->addMinutes(25),
+        ]);
+
+        $response = $this->actingAs($teacherB)->get(route('teacher.online_exams.live_monitor'));
+
+        $response->assertOk();
+        $response->assertDontSee('Teacher A Ongoing Exam');
+    }
+
+    public function test_teacher_can_review_proctoring_for_their_own_exam_submission(): void
+    {
+        $teacher = $this->makeTeacherWithPermission(1);
+        DB::table('global_settings')->where('key', 'role_perm_3')->update([
+            'value' => json_encode([
+                'view_online_exams',
+                'create_online_exams',
+                'edit_own_online_exams',
+                'manage_exam_questions',
+                'view_exam_attempts',
+                'review_exam_proctoring',
+            ]),
+            'updated_at' => now(),
+        ]);
+
+        $classId = DB::table('teacher_permissions')->where('teacher_id', $teacher->id)->value('class_id');
+        $subjectId = $this->makeSubject(1, $classId);
+        $student = $this->makeUser(7, 1);
+
+        $examId = $this->makeExam([
+            'school_id' => 1,
+            'class_id' => $classId,
+            'subject_id' => $subjectId,
+            'created_by' => $teacher->id,
+            'creator_id' => $teacher->id,
+        ]);
+        $submissionId = $this->makeSubmission([
+            'online_exam_id' => $examId,
+            'student_id' => $student->id,
+            'school_id' => 1,
+        ]);
+        DB::table('online_exam_proctoring_events')->insert([
+            'submission_id' => $submissionId,
+            'event_type' => 'tab_hidden',
+            'event_time' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($teacher)->get(route('teacher.online_exams.proctoring.review', [
+            'exam' => $examId,
+            'submission_id' => $submissionId,
+        ]));
+
+        $response->assertOk();
+        $response->assertSee('Tab Hidden');
+    }
+
+    public function test_teacher_cannot_review_proctoring_for_another_teachers_exam(): void
+    {
+        $teacherA = $this->makeTeacherWithPermission(1);
+        $teacherB = $this->makeTeacherWithPermission(1);
+        DB::table('global_settings')->where('key', 'role_perm_3')->update([
+            'value' => json_encode([
+                'view_online_exams',
+                'create_online_exams',
+                'edit_own_online_exams',
+                'manage_exam_questions',
+                'view_exam_attempts',
+                'review_exam_proctoring',
+            ]),
+            'updated_at' => now(),
+        ]);
+
+        $classId = $this->makeClass(1);
+        $subjectId = $this->makeSubject(1, $classId);
+        $student = $this->makeUser(7, 1);
+
+        $examId = $this->makeExam([
+            'school_id' => 1,
+            'class_id' => $classId,
+            'subject_id' => $subjectId,
+            'created_by' => $teacherA->id,
+            'creator_id' => $teacherA->id,
+        ]);
+        $submissionId = $this->makeSubmission([
+            'online_exam_id' => $examId,
+            'student_id' => $student->id,
+            'school_id' => 1,
+        ]);
+
+        $this->actingAs($teacherB)->get(route('teacher.online_exams.proctoring.review', [
+            'exam' => $examId,
+            'submission_id' => $submissionId,
+        ]))->assertStatus(403);
+    }
+
     public function test_teacher_navigation_links_render_only_when_permitted(): void
     {
         $teacher = $this->makeTeacherWithPermission(1);

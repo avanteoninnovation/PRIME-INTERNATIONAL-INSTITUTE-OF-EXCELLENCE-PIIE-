@@ -98,9 +98,17 @@ class ApplicationFee
      * advertising one without the other is a dead button on a payment page.
      */
     public const SUPPORTED_GATEWAYS = [
+        'marzpay'     => ['label' => 'Mobile Money / Card (MarzPay)', 'icon' => 'bi-phone'],
         'stripe'      => ['label' => 'Card Payment (Visa / Mastercard)', 'icon' => 'bi-credit-card'],
         'flutterwave' => ['label' => 'Card / Mobile Money (Flutterwave)', 'icon' => 'bi-phone'],
     ];
+
+    /**
+     * Which of SUPPORTED_GATEWAYS are actually offered. Stripe/Flutterwave
+     * stay fully wired below (dormant) rather than deleted, in case this
+     * institution ever wants them back — only MarzPay is offered today.
+     */
+    private const ENABLED_GATEWAYS = ['marzpay'];
 
     public static function availableMethods(int $schoolId): array
     {
@@ -114,6 +122,10 @@ class ApplicationFee
         ];
 
         foreach (self::SUPPORTED_GATEWAYS as $name => $meta) {
+            if (! in_array($name, self::ENABLED_GATEWAYS, true)) {
+                continue;
+            }
+
             if (! self::gatewayIsConfigured($name, $schoolId)) {
                 continue;
             }
@@ -133,6 +145,10 @@ class ApplicationFee
     {
         if (! array_key_exists($gateway, self::SUPPORTED_GATEWAYS)) {
             return false;
+        }
+
+        if ($gateway === 'marzpay') {
+            return \App\Support\Payments\MarzPayService::isConfigured($schoolId);
         }
 
         // Flutterwave is configured platform-wide (Super Admin > Payment

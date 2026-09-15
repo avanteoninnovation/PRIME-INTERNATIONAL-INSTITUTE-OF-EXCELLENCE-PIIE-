@@ -82,8 +82,8 @@
                             <i class="bi bi-camera-video-fill"></i> {{ $lc->computed_status=='live' ? get_phrase('Join Now') : get_phrase('Join Class') }}
                         </a>
                     @endif
-                    <a href="javascript:;" class="eBtn eBtn-sm eBtn-dark w-100 mt-2" onclick="rightModal('{{ route('student.live_classes.materials', $lc->id) }}', '{{ get_phrase('Class Materials') }}')">
-                        <i class="bi bi-paperclip"></i> {{ get_phrase('Materials') }}
+                    <a href="javascript:;" class="eBtn eBtn-sm eBtn-dark w-100 mt-2" onclick="rightModal('{{ route('student.live_classes.materials', $lc->id) }}', '{{ get_phrase('Resources & Recordings') }}')">
+                        <i class="bi bi-paperclip"></i> {{ get_phrase('Resources & Recordings') }}
                     </a>
                     @if($lc->computed_status === \App\Models\LiveClass::STATUS_ENDED && $lc->safe_recording_url)
                         <a href="{{ $lc->safe_recording_url }}" target="_blank" class="eBtn eBtn-sm eBtn-dark w-100 mt-2">{{ get_phrase('View Recording') }}</a>

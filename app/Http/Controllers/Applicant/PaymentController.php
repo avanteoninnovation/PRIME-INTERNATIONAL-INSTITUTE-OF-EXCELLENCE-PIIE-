@@ -124,8 +124,12 @@ class PaymentController extends BaseApplicantController
             return redirect()->route('applicant.dashboard');
         }
 
-        if (! in_array($gateway, ['stripe', 'flutterwave'], true) || ! ApplicationFee::gatewayIsConfigured($gateway, $admission->school_id)) {
+        if (! in_array($gateway, ['stripe', 'flutterwave', 'marzpay'], true) || ! ApplicationFee::gatewayIsConfigured($gateway, $admission->school_id)) {
             return back()->with('error', get_phrase('That payment method is not available right now. Please use bank deposit.'));
+        }
+
+        if ($gateway === 'marzpay') {
+            return $this->startMarzPay($request, $admission, $amount);
         }
 
         $reference = 'APPFEE-' . $admission->id . '-' . strtoupper(Str::random(8));
@@ -144,6 +148,90 @@ class PaymentController extends BaseApplicantController
         return $gateway === 'flutterwave'
             ? $this->startFlutterwave($admission, $payment, $amount)
             : $this->startStripe($admission, $payment, $amount);
+    }
+
+    /**
+     * MarzPay mobile money is a push flow (USSD prompt), not a redirect —
+     * so unlike Stripe/Flutterwave this needs a phone number up front and
+     * lands the applicant on a "check your phone" pending page instead of
+     * an external checkout page.
+     */
+    private function startMarzPay(Request $request, Admission $admission, float $amount)
+    {
+        $request->validate(['phone_number' => 'required|string|min:9|max:15']);
+
+        $reference = 'APPFEE-' . $admission->id . '-' . strtoupper(Str::random(8));
+
+        $payment = ApplicationPayment::create([
+            'school_id'    => $admission->school_id,
+            'admission_id' => $admission->id,
+            'applicant_id' => $this->applicant()->id,
+            'amount'       => $amount,
+            'currency'     => ApplicationFee::currency(),
+            'method'       => 'marzpay',
+            'status'       => ApplicationPayment::STATUS_PENDING,
+            'reference'    => $reference,
+        ]);
+
+        $result = \App\Support\Payments\MarzPayService::initiateMobileMoneyCollection(
+            (int) $admission->school_id,
+            $request->phone_number,
+            $amount,
+            $reference,
+            get_phrase('Application Fee') . ' — ' . $admission->app_number,
+            route('webhooks.marzpay'),
+            ['context' => 'application', 'context_id' => $payment->id]
+        );
+
+        if (! $result['ok']) {
+            $payment->delete();
+
+            return back()->with('error', $result['error'] ?: get_phrase('We could not start the MarzPay payment. Please try again or pay by bank deposit.'));
+        }
+
+        $payment->update(['gateway_txn_id' => $result['transaction_uuid'] ?: $reference]);
+
+        return view('applicant.payment_marzpay_pending', ['admission' => $admission, 'payment' => $payment]);
+    }
+
+    /** AJAX poll from the pending page. */
+    public function checkMarzPayStatus(int $paymentId)
+    {
+        $admission = $this->currentApplication();
+        $payment = ApplicationPayment::where('admission_id', $admission->id)->find($paymentId);
+
+        if (! $payment) {
+            return response()->json(['status' => 'not_found']);
+        }
+
+        if ($payment->isSettled()) {
+            return response()->json(['status' => 'paid']);
+        }
+
+        $verified = \App\Support\Payments\MarzPayService::getCollectionStatus($payment->gateway_txn_id, (int) $payment->school_id);
+        $verifiedStatus = $verified['transaction']['status'] ?? null;
+
+        if (in_array($verifiedStatus, ['successful', 'completed'], true)) {
+            $payment->update([
+                'status'          => ApplicationPayment::STATUS_PAID,
+                'paid_at'         => now(),
+                'gateway_payload' => $verified,
+            ]);
+
+            ApplicationFee::refreshStatus($admission);
+            ApplicantNotifier::paymentReceived($admission, $payment);
+
+            return response()->json(['status' => 'paid']);
+        }
+
+        if (in_array($verifiedStatus, ['failed', 'cancelled'], true)) {
+            $payment->update(['status' => ApplicationPayment::STATUS_FAILED]);
+            ApplicationFee::refreshStatus($admission);
+
+            return response()->json(['status' => 'failed']);
+        }
+
+        return response()->json(['status' => 'processing']);
     }
 
     private function startStripe(Admission $admission, ApplicationPayment $payment, float $amount)

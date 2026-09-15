@@ -16,6 +16,10 @@ class StudentFeeManager extends Model
      */
     protected $fillable = [
         'title', 'total_amount', 'class_id', 'parent_id','student_id', 'fee_structure_id', 'payment_method', 'paid_amount', 'status', 'school_id', 'session_id', 'timestamp', 'discounted_price', 'amount',
-        'programme_id',
+        'programme_id', 'gateway_reference', 'gateway_payload',
+    ];
+
+    protected $casts = [
+        'gateway_payload' => 'array',
     ];
 }

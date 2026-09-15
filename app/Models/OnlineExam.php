@@ -122,6 +122,15 @@ class OnlineExam extends Model
             ->where('end_datetime', '<', $at);
     }
 
+    public function scopeUpcoming($query, ?Carbon $at = null)
+    {
+        $at = $at ?: now();
+
+        return $query->where('workflow_state', 'published')
+            ->whereNotNull('start_datetime')
+            ->where('start_datetime', '>', $at);
+    }
+
     public function scopeVisibleToStudent($query, int $schoolId, ?int $classId)
     {
         return $query->forSchool($schoolId)

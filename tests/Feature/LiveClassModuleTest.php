@@ -19,6 +19,72 @@ class LiveClassModuleTest extends TestCase
         $this->withoutMiddleware(\App\Http\Middleware\VerifyCsrfToken::class);
     }
 
+    /**
+     * Unlike every other Feature test file in this suite, this one has no
+     * isolated sqlite fixture — guardRequiredSchema() intentionally runs
+     * against whatever real database connection is configured (this app's
+     * live_classes schema has too many interdependent migrations to hand-
+     * roll safely), which in a normal dev setup is the real dev database,
+     * not a throwaway one. Every createUser()/createAcademicContext()/
+     * createLiveClass() call in this file writes real rows there with no
+     * cleanup — running this file (or the full suite) repeatedly compounds
+     * without bound. This purges everything matching those helpers' own
+     * synthetic naming patterns after every test, by relationship rather
+     * than by title text (several tests create live_classes through the
+     * store() route with literal titles like "Admin Class" that a title-
+     * pattern match would miss) — so the file is self-cleaning regardless
+     * of how many times, or in what order, its tests run.
+     */
+    protected function tearDown(): void
+    {
+        if (Schema::hasTable('users')) {
+            $testUserIds = DB::table('users')->where('email', 'like', 'u%@example.test')->pluck('id');
+            $testClassIds = Schema::hasTable('classes') ? DB::table('classes')->where('name', 'like', 'Class %')->pluck('id') : collect();
+            $testSubjectIds = Schema::hasTable('subjects') ? DB::table('subjects')->where('name', 'like', 'Subject %')->pluck('id') : collect();
+            $testSessionIds = Schema::hasTable('sessions') ? DB::table('sessions')->where('session_title', 'like', 'Session %')->pluck('id') : collect();
+
+            if (Schema::hasTable('live_classes')) {
+                $liveClassIds = DB::table('live_classes')
+                    ->where(function ($q) use ($testClassIds, $testSubjectIds, $testUserIds) {
+                        $q->whereIn('class_id', $testClassIds)
+                            ->orWhereIn('subject_id', $testSubjectIds)
+                            ->orWhereIn('teacher_id', $testUserIds);
+                    })
+                    ->pluck('id');
+
+                if (Schema::hasTable('live_class_attendances')) {
+                    DB::table('live_class_attendances')->whereIn('live_class_id', $liveClassIds)->delete();
+                }
+                if (Schema::hasTable('live_class_materials')) {
+                    DB::table('live_class_materials')->whereIn('live_class_id', $liveClassIds)->delete();
+                }
+                if (Schema::hasTable('live_class_notifications')) {
+                    DB::table('live_class_notifications')->whereIn('live_class_id', $liveClassIds)->delete();
+                }
+                DB::table('live_classes')->whereIn('id', $liveClassIds)->delete();
+            }
+
+            if (Schema::hasTable('enrollment')) {
+                DB::table('enrollment')->where(function ($q) use ($testUserIds, $testClassIds) {
+                    $q->whereIn('user_id', $testUserIds)->orWhereIn('class_id', $testClassIds);
+                })->delete();
+            }
+
+            if (Schema::hasTable('subjects')) {
+                DB::table('subjects')->whereIn('id', $testSubjectIds)->delete();
+            }
+            if (Schema::hasTable('classes')) {
+                DB::table('classes')->whereIn('id', $testClassIds)->delete();
+            }
+            if (Schema::hasTable('sessions')) {
+                DB::table('sessions')->whereIn('id', $testSessionIds)->delete();
+            }
+            DB::table('users')->whereIn('id', $testUserIds)->delete();
+        }
+
+        parent::tearDown();
+    }
+
     public function test_administrator_can_create_live_class(): void
     {
         $this->guardRequiredSchema();
@@ -484,6 +550,40 @@ class LiveClassModuleTest extends TestCase
 
         $response = $this->actingAs($student)->get(route('student.live_classes.join', $liveClassId));
         $response->assertOk()->assertSee('Live Meeting Room');
+    }
+
+    public function test_google_meet_join_shows_shared_host_account_warning_instead_of_redirecting_immediately(): void
+    {
+        $this->guardRequiredSchema();
+        $student = $this->createUser(7, 1);
+        $context = $this->createAcademicContext(1);
+        $this->enrollStudent($student->id, $context['class_id'], $context['session_id']);
+
+        $liveClassId = DB::table('live_classes')->insertGetId([
+            'school_id' => 1,
+            'title' => 'Google Meet Class',
+            'subject_id' => $context['subject_id'],
+            'class_id' => $context['class_id'],
+            'teacher_id' => $this->createUser(3, 1)->id,
+            'platform' => 'google_meet',
+            'meeting_url' => 'https://meet.google.com/abc-defg-hij',
+            'scheduled_at' => now()->subMinutes(10)->format('Y-m-d H:i:s'),
+            'ends_at' => now()->addMinutes(50)->format('Y-m-d H:i:s'),
+            'start_date' => now()->format('Y-m-d'),
+            'start_time' => now()->subMinutes(10)->format('H:i:s'),
+            'end_time' => now()->addMinutes(50)->format('H:i:s'),
+            'timezone' => 'UTC',
+            'status' => 'live',
+            'is_published' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($student)->get(route('student.live_classes.join', $liveClassId));
+
+        $response->assertOk();
+        $response->assertSee('Join Google Meet');
+        $response->assertSee('https://meet.google.com/abc-defg-hij', false);
     }
 
     public function test_permission_seeder_adds_permissions_without_destroying_existing(): void

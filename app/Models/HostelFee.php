@@ -16,6 +16,15 @@ class HostelFee extends Model
         'status',
         'document_image',
         'fee_payment_date',
+        'paid_amount',
+        'payment_method',
+        'payment_date',
+        'gateway_reference',
+        'gateway_payload',
+    ];
+
+    protected $casts = [
+        'gateway_payload' => 'array',
     ];
 
     public function student()

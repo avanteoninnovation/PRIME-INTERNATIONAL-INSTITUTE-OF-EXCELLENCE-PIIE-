@@ -70,6 +70,10 @@
                     @foreach($gateways as $gateway)
                         <form action="{{ route('applicant.payment.gateway.start', $gateway['key']) }}" method="POST" class="mb-2">
                             @csrf
+                            @if($gateway['key'] === 'marzpay')
+                                <label class="form-label" for="marzpay_phone_number">{{ get_phrase('Mobile Money Number') }}</label>
+                                <input type="tel" class="form-control mb-2" id="marzpay_phone_number" name="phone_number" placeholder="e.g. 0712345678" required>
+                            @endif
                             <button type="submit" class="ap-btn ap-btn-accent w-100">
                                 <i class="bi {{ $gateway['icon'] }}"></i> {{ $gateway['label'] }}
                             </button>

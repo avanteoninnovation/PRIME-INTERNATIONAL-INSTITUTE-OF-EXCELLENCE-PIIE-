@@ -62,4 +62,29 @@ return [
         'calendar_id' => env('GOOGLE_CALENDAR_ID', 'primary'),
     ],
 
+    /*
+     * Jitsi moderator JWT — see LIVE_CLASS_JITSI_JWT_SETUP.md.
+     *
+     * Without this, every Jitsi meeting embed is anonymous, so Jitsi's
+     * server never learns who "the host" is and shows "waiting for a
+     * moderator" to everyone, including the person who started the class.
+     * App\Support\LiveClasses\JitsiTokenService treats missing credentials
+     * as "not configured" and returns null (no JWT) rather than failing —
+     * the embed still works, just without moderator rights, exactly like
+     * today, until this is filled in.
+     *
+     * Two supported algorithms, picked by JITSI_JWT_ALGORITHM:
+     *   - RS256 (default): 8x8 JaaS (jaas.8x8.vc) — no server to run,
+     *     works on ordinary shared hosting. Needs app_id, kid, private_key.
+     *   - HS256: a self-hosted Jitsi with the jitsi-meet-tokens prosody
+     *     plugin. Needs app_id, app_secret.
+     */
+    'jitsi' => [
+        'algorithm' => env('JITSI_JWT_ALGORITHM', 'RS256'),
+        'app_id' => env('JITSI_APP_ID', ''),
+        'kid' => env('JITSI_KID', ''),
+        'private_key' => env('JITSI_PRIVATE_KEY', ''),
+        'app_secret' => env('JITSI_APP_SECRET', ''),
+    ],
+
 ];

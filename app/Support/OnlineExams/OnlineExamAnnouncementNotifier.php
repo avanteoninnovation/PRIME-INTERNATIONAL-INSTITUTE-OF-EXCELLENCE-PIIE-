@@ -3,7 +3,9 @@
 namespace App\Support\OnlineExams;
 
 use App\Mail\ApplicantNotificationEmail;
+use App\Models\Noticeboard;
 use App\Models\OnlineExam;
+use App\Models\Session;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
@@ -55,13 +57,21 @@ class OnlineExamAnnouncementNotifier
     }
 
     /**
-     * The 24h/1h "exam starting soon" reminder — same recipients as
+     * The 24h/1h/15m "exam starting soon" reminder — same recipients as
      * examPublished(), sent by App\Console\Commands\SendOnlineExamStartReminders.
-     * $windowLabel is a phrase like "starts in 24 hours" / "starts in 1 hour",
-     * dropped straight into the email body.
+     * $windowLabel is a phrase like "starts in 24 hours" / "starts in 15 minutes",
+     * dropped straight into the email body and the in-app notice.
+     *
+     * Always posts an in-app Noticeboard entry first (mirrors
+     * LiveClassNotifier::createNotice()) — email is gated on SMTP actually
+     * being configured and there is no bell/toast UI in this app, so the
+     * Noticeboard is the only reliable way a student sees this reminder on
+     * an install without outbound mail set up.
      */
     public static function startingSoon(OnlineExam $exam, string $windowLabel): int
     {
+        self::createNotice($exam, $windowLabel);
+
         if (!self::isConfigured()) {
             return 0;
         }
@@ -80,6 +90,48 @@ class OnlineExamAnnouncementNotifier
         }
 
         return $sent;
+    }
+
+    /**
+     * Same school-wide Noticeboard entry style Live Classes already use for
+     * their reminders (LiveClassNotifier::createNotice()) — a class-scoped
+     * exam still posts a school-wide notice (identical simplification to the
+     * Live Class precedent), just with the target class named in the body.
+     */
+    private static function createNotice(OnlineExam $exam, string $windowLabel): void
+    {
+        $subjectName = optional($exam->subject)->name ?: get_phrase('All subjects');
+        $classInfo = $exam->class_id
+            ? (get_phrase('Class') . ': ' . (optional($exam->classRoom)->name ?: ('ID ' . $exam->class_id)))
+            : get_phrase('Class') . ': ' . get_phrase('All classes');
+
+        $noticeTitle = get_phrase('Exam Reminder') . ': ' . $exam->title . ' ' . $windowLabel;
+        $noticeBody = get_phrase('This exam') . " {$windowLabel}.\n"
+            . get_phrase('Subject') . ": {$subjectName}\n"
+            . "{$classInfo}\n"
+            . get_phrase('Opens') . ': ' . (optional($exam->start_datetime)->format('Y-m-d H:i') ?: 'TBD') . "\n"
+            . get_phrase('Duration') . ': ' . $exam->duration_mins . ' ' . get_phrase('minutes');
+
+        $sessionId = (int) get_school_settings($exam->school_id)->value('running_session');
+        if ($sessionId === 0) {
+            $sessionId = (int) Session::where('school_id', $exam->school_id)->max('id');
+        }
+
+        $startDate = optional($exam->start_datetime)->format('Y-m-d') ?: now()->format('Y-m-d');
+
+        Noticeboard::create([
+            'notice_title' => $noticeTitle,
+            'notice' => $noticeBody,
+            'start_date' => $startDate,
+            'start_time' => optional($exam->start_datetime)->format('H:i') ?: '',
+            'end_date' => $startDate,
+            'end_time' => optional($exam->end_datetime)->format('H:i') ?: '',
+            'status' => 1,
+            'show_on_website' => 0,
+            'image' => '',
+            'school_id' => $exam->school_id,
+            'session_id' => $sessionId > 0 ? $sessionId : 0,
+        ]);
     }
 
     /**

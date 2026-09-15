@@ -6,12 +6,30 @@
             <h4>{{ get_phrase('Question Bank') }}</h4>
             <ul class="d-flex align-items-center eBreadcrumb-2"><li><a href="{{ route('admin.online_exams.index') }}">{{ get_phrase('Online Exams') }}</a></li><li><a href="#">{{ get_phrase('Question Bank') }}</a></li></ul>
         </div>
-        <div class="export-btn-area">
+        <div class="export-btn-area d-flex gap-2">
+            <a href="javascript:;" class="export_btn" onclick="rightModal('{{ route('admin.question_bank.import_modal') }}', '{{ get_phrase('Import Questions') }}')">{{ get_phrase('Import Questions') }}</a>
             <a href="javascript:;" class="export_btn" onclick="rightModal('{{ route('admin.question_bank.modal') }}', '{{ get_phrase('Add to Bank') }}')">{{ get_phrase('Add Question') }}</a>
         </div>
     </div>
 </div></div></div>
 @if(session('success'))<div class="alert alert-success">{{ session('success') }}</div>@endif
+@if(session('error'))<div class="alert alert-danger">{{ session('error') }}</div>@endif
+@if(session('import_warnings') && count(session('import_warnings')))
+    <div class="alert alert-warning">
+        <strong>{{ get_phrase('Warnings') }}:</strong>
+        <ul class="mb-0">
+            @foreach(session('import_warnings') as $w)<li>{{ $w }}</li>@endforeach
+        </ul>
+    </div>
+@endif
+@if(session('import_errors') && count(session('import_errors')))
+    <div class="alert alert-danger">
+        <strong>{{ get_phrase('Skipped rows') }}:</strong>
+        <ul class="mb-0">
+            @foreach(session('import_errors') as $e)<li>{{ $e }}</li>@endforeach
+        </ul>
+    </div>
+@endif
 <div class="row"><div class="col-12"><div class="eSection-wrap">
     <div class="table-responsive">
         <table class="table eTable">

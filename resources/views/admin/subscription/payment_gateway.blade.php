@@ -103,6 +103,19 @@ $subscription = Subscription::latest()->first();
 
                     @endforeach
 
+                    @if(addon_status('payment_gateways')==1 && \App\Support\Payments\MarzPayService::isConfigured(auth()->user()->school_id))
+                        <div class="tabItem show active" id="v-pills-marzpay-tab" data-bs-toggle="pill" data-bs-target="#v-pills-marzpay" role="tab" aria-controls="v-pills-marzpay" aria-selected="true">
+                            <div class="payment_gateway_option d-flex align-items-center">
+                                <div class="logo">
+                                    <img src="{{ asset('assets/images/marzpay.png') }}" alt="" />
+                                </div>
+                                <div class="info">
+                                    <p class="card_no">{{ get_phrase('MarzPay') }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    @endif
+
                     @if(addon_status('payment_gateways')!=1)
                     @php $off=' show active'; @endphp
 
@@ -204,12 +217,8 @@ $subscription = Subscription::latest()->first();
                 <div class="tab-content payment_modalTab_content" id="v-pills-tabContent">
 
 
-                    @if(addon_status('payment_gateways')==1)
-                        @include('admin.subscription.paypal')
-                        @include('admin.subscription.stripe')
-                        @include('admin.subscription.razorpay')
-                        @include('admin.subscription.paytm')
-                        {{-- @include('admin.subscription.paystack') --}}
+                    @if(addon_status('payment_gateways')==1 && \App\Support\Payments\MarzPayService::isConfigured(auth()->user()->school_id))
+                        @include('admin.subscription.marzpay')
                     @endif
 
 

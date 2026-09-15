@@ -3,12 +3,16 @@ use App\Models\PaymentMethods;
 use App\Models\School;
 
 $school_data = School::where('id', auth()->user()->school_id)->first();
+// Only 'marzpay' has a real tab-pane below now — the old paypal/stripe/
+// razorpay/paytm/flutterwave rows are legacy and were never functional
+// (their buttons posted to routes that didn't exist), so they're excluded
+// here rather than left as dead tabs.
 $active_payment_methods = PaymentMethods::where('school_id', auth()->user()->school_id)
-    ->orWhere('mode', 'offline')
+    ->where('name', 'marzpay')
     ->get();
 $number_of_activated_payment_gateway = PaymentMethods::where('status', 1)
     ->where('school_id', auth()->user()->school_id)
-    ->orWhere('mode', 'offline')
+    ->where('name', 'marzpay')
     ->get();
 
 $off = '';
@@ -167,11 +171,7 @@ if (count($number_of_activated_payment_gateway) == 1) {
 
 
                     @if (addon_status('payment_gateways') == 1)
-                        @include('student.payment.paypal')
-                        @include('student.payment.stripe')
-                        @include('student.payment.razorpay')
-                        @include('student.payment.paytm')
-                        @include('student.payment.flutterwave')
+                        @include('student.payment.marzpay')
                     @endif
 
                     <div class="tab-pane fade <?= $off ?>" id="v-pills-offline" role="tabpanel" aria-labelledby="v-pills-offline-tab" tabindex="0">

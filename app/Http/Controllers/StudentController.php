@@ -479,6 +479,94 @@ class StudentController extends Controller
         return view('student.payment.payment_gateway', ['fee_details' => $fee_details, 'user_info' => $user_info]);
     }
 
+    /**
+     * Starts a MarzPay mobile-money collection for a tuition fee invoice.
+     * Nothing is marked paid here — that only happens once MarzPayWebhookController
+     * confirms the collection actually completed.
+     */
+    public function startMarzpayTuitionPayment(Request $request, $id)
+    {
+        $fee = StudentFeeManager::where('id', $id)
+            ->where('student_id', auth()->id())
+            ->where('school_id', auth()->user()->school_id)
+            ->first();
+
+        if (! $fee || $fee->status === 'paid') {
+            return redirect()->route('student.FeePayment', $id)->with('error', get_phrase('Invoice not found or already paid.'));
+        }
+
+        $request->validate([
+            'phone_number' => 'required|string|min:9|max:15',
+        ]);
+
+        $reference = (string) \Illuminate\Support\Str::uuid();
+
+        $result = \App\Support\Payments\MarzPayService::initiateMobileMoneyCollection(
+            (int) $fee->school_id,
+            $request->phone_number,
+            (float) $fee->total_amount,
+            $reference,
+            'Tuition fee: ' . $fee->title,
+            route('webhooks.marzpay'),
+            ['context' => 'tuition', 'context_id' => $fee->id]
+        );
+
+        if (! $result['ok']) {
+            return redirect()->route('student.FeePayment', $id)->with('error', $result['error'] ?: get_phrase('We could not start the MarzPay payment. Please try again.'));
+        }
+
+        $fee->update([
+            'status'            => 'processing',
+            'payment_method'    => 'marzpay',
+            'gateway_reference' => $result['transaction_uuid'] ?: $reference,
+        ]);
+
+        return view('student.payment.marzpay_pending', ['fee_details' => $fee->toArray(), 'context' => 'tuition']);
+    }
+
+    /** AJAX poll from the pending page — checks MarzPay directly and updates the row if MarzPay has already settled it. */
+    public function checkMarzpayTuitionStatus($id)
+    {
+        $fee = StudentFeeManager::where('id', $id)
+            ->where('student_id', auth()->id())
+            ->where('school_id', auth()->user()->school_id)
+            ->first();
+
+        if (! $fee) {
+            return response()->json(['status' => 'not_found']);
+        }
+
+        if ($fee->status === 'paid') {
+            return response()->json(['status' => 'paid']);
+        }
+
+        if (! $fee->gateway_reference) {
+            return response()->json(['status' => $fee->status]);
+        }
+
+        $verified = \App\Support\Payments\MarzPayService::getCollectionStatus($fee->gateway_reference, (int) $fee->school_id);
+        $verifiedStatus = $verified['transaction']['status'] ?? null;
+
+        if (in_array($verifiedStatus, ['successful', 'completed'], true)) {
+            $fee->update([
+                'status'          => 'paid',
+                'paid_amount'     => $verified['collection']['amount']['raw'] ?? $fee->total_amount,
+                'payment_method'  => 'marzpay',
+                'gateway_payload' => $verified,
+            ]);
+
+            return response()->json(['status' => 'paid']);
+        }
+
+        if (in_array($verifiedStatus, ['failed', 'cancelled'], true)) {
+            $fee->update(['status' => 'failed']);
+
+            return response()->json(['status' => 'failed']);
+        }
+
+        return response()->json(['status' => 'processing']);
+    }
+
     public function studentFeeinvoice(Request $request, $id)
     {
 
@@ -1080,6 +1168,92 @@ class StudentController extends Controller
 
         ]);
         return view('student.hostel.payment_gateway', compact('fee_details', 'user_info'));
+    }
+
+    public function startMarzpayHostelPayment(Request $request, $id)
+    {
+        $fee = HostelFee::where('id', $id)
+            ->where('student_id', auth()->id())
+            ->where('school_id', auth()->user()->school_id)
+            ->first();
+
+        if (! $fee || (string) $fee->status === '1') {
+            return redirect()->route('student.hostel_fee_manager.list')->with('error', get_phrase('Invoice not found or already paid.'));
+        }
+
+        $request->validate([
+            'phone_number' => 'required|string|min:9|max:15',
+        ]);
+
+        $reference = (string) \Illuminate\Support\Str::uuid();
+
+        $result = \App\Support\Payments\MarzPayService::initiateMobileMoneyCollection(
+            (int) $fee->school_id,
+            $request->phone_number,
+            (float) $fee->amount,
+            $reference,
+            'Hostel fee: ' . $fee->title,
+            route('webhooks.marzpay'),
+            ['context' => 'hostel', 'context_id' => $fee->id]
+        );
+
+        if (! $result['ok']) {
+            return redirect()->back()->with('error', $result['error'] ?: get_phrase('We could not start the MarzPay payment. Please try again.'));
+        }
+
+        $fee->update([
+            'payment_method'    => 'marzpay',
+            'gateway_reference' => $result['transaction_uuid'] ?: $reference,
+        ]);
+
+        return view('student.payment.marzpay_pending', ['fee_details' => $fee->toArray(), 'context' => 'hostel']);
+    }
+
+    public function checkMarzpayHostelStatus($id)
+    {
+        $fee = HostelFee::where('id', $id)
+            ->where('student_id', auth()->id())
+            ->where('school_id', auth()->user()->school_id)
+            ->first();
+
+        if (! $fee) {
+            return response()->json(['status' => 'not_found']);
+        }
+
+        if ((string) $fee->status === '1') {
+            return response()->json(['status' => 'paid']);
+        }
+
+        if ((string) $fee->status === '2') {
+            return response()->json(['status' => 'failed']);
+        }
+
+        if (! $fee->gateway_reference) {
+            return response()->json(['status' => 'processing']);
+        }
+
+        $verified = \App\Support\Payments\MarzPayService::getCollectionStatus($fee->gateway_reference, (int) $fee->school_id);
+        $verifiedStatus = $verified['transaction']['status'] ?? null;
+
+        if (in_array($verifiedStatus, ['successful', 'completed'], true)) {
+            $fee->update([
+                'status'          => 1,
+                'paid_amount'     => $verified['collection']['amount']['raw'] ?? $fee->amount,
+                'payment_method'  => 'marzpay',
+                'payment_date'    => now()->toDateString(),
+                'gateway_payload' => $verified,
+            ]);
+
+            return response()->json(['status' => 'paid']);
+        }
+
+        if (in_array($verifiedStatus, ['failed', 'cancelled'], true)) {
+            $fee->update(['status' => 2]);
+
+            return response()->json(['status' => 'failed']);
+        }
+
+        return response()->json(['status' => 'processing']);
     }
 
     public function offlinePaymentHostel(Request $request)

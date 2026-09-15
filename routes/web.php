@@ -55,6 +55,11 @@ Route::get('/clear-cache', function () {
     return 'Cache cleard';
 })->name('clear.cache');
 
+// MarzPay's server posts here directly — no login, no CSRF token (see
+// VerifyCsrfToken::$except). Shared across every payment flow; the payload's
+// metadata says which fee/subscription row it belongs to.
+Route::post('webhooks/marzpay', [\App\Http\Controllers\MarzPayWebhookController::class, 'handle'])->name('webhooks.marzpay');
+
 //Auth routes are here
 Auth::routes();
 
@@ -139,6 +144,7 @@ Route::middleware('applicant')->group(function () {
         Route::post('applicant/payment/{gateway}/start', 'startGateway')->name('applicant.payment.gateway.start');
         Route::get('applicant/payment/{gateway}/return/{payment}', 'gatewayReturn')->name('applicant.payment.gateway.return');
         Route::get('applicant/payment/{gateway}/cancel/{payment}', 'gatewayCancel')->name('applicant.payment.gateway.cancel');
+        Route::get('applicant/payment/marzpay/{payment}/status', 'checkMarzPayStatus')->name('applicant.payment.marzpay.status');
     });
 });
 
@@ -638,6 +644,8 @@ Route::controller(AdminController::class)->middleware('admin', 'auth')->group(fu
     Route::get('admin/subscription/purchase', 'subscriptionPurchase')->name('admin.subscription.purchase');
     Route::get('admin/subscription/payment/{package_id}', 'subscriptionPayment')->name('admin.subscription.payment');
     Route::post('admin/subscription/offline_payment/{id}', 'offlinePayment')->name('admin.subscription.offline_payment');
+    Route::post('admin/subscription/payment/{package_id}/marzpay/start', 'startMarzpaySubscriptionPayment')->name('admin.subscription.marzpay.start');
+    Route::get('admin/subscription/payment/marzpay/{id}/status', 'checkMarzpaySubscriptionStatus')->name('admin.subscription.marzpay.status');
 
     //Event routes
     Route::get('admin/events/list', 'eventList')->name('admin.events.list')->middleware('admin_permission');
@@ -882,6 +890,8 @@ Route::controller(ParentController::class)->middleware('parent', 'auth')->group(
     //Fee manager routes
     Route::get('parent/fee_manager', 'FeeManagerList')->name('parent.fee_manager.list');
     Route::get('parent/fee_manager/payment/{id}', 'FeePayment')->name('parent.FeePayment');
+    Route::post('parent/fee_manager/payment/{id}/marzpay/start', 'startMarzpayTuitionPayment')->name('parent.payment.marzpay.start');
+    Route::get('parent/fee_manager/payment/{id}/marzpay/status', 'checkMarzpayTuitionStatus')->name('parent.payment.marzpay.status');
     Route::get('parent/fee_manager/export/{date_from}/{date_to}/{selected_status}', 'feeManagerExport')->name('parent.fee_manager.export');
     Route::get('parent/student_fee/invoice/{id}', 'studentFeeinvoice')->name('parent.studentFeeinvoice');
 
@@ -987,6 +997,8 @@ Route::controller(StudentController::class)->middleware('student', 'auth')->grou
     //Fee manager routes
     Route::get('student/fee_manager', 'FeeManagerList')->name('student.fee_manager.list');
     Route::get('student/fee_manager/payment/{id}', 'FeePayment')->name('student.FeePayment');
+    Route::post('student/fee_manager/payment/{id}/marzpay/start', 'startMarzpayTuitionPayment')->name('student.payment.marzpay.start');
+    Route::get('student/fee_manager/payment/{id}/marzpay/status', 'checkMarzpayTuitionStatus')->name('student.payment.marzpay.status');
     Route::get('student/fee_manager/export/{date_from}/{date_to}/{selected_status}', 'feeManagerExport')->name('student.fee_manager.export');
     Route::get('student/payment/success/{user_data}/{response}', 'student_fee_success_payment_student')->name('student.student_fee_success_payment_student');
     Route::get('student/payment/fail/{user_data}/{response}', 'student_fee_fail_payment_student')->name('student.student_fee_fail_payment_student');
@@ -1021,6 +1033,8 @@ Route::controller(StudentController::class)->middleware('student', 'auth')->grou
     // Hostel Fee manager routes
     Route::get('student/hostel_fee_manager', 'hostelFeeManagerList')->name('student.hostel_fee_manager.list');
     Route::get('student/hostel_fee_payment', 'hostelFeePayment')->name('student.hostel_fee.payment');
+    Route::post('student/hostel_fee_payment/{id}/marzpay/start', 'startMarzpayHostelPayment')->name('student.hostel.payment.marzpay.start');
+    Route::get('student/hostel_fee_payment/{id}/marzpay/status', 'checkMarzpayHostelStatus')->name('student.hostel.payment.marzpay.status');
     Route::get('student/hostel_fee_manager/export/{date_from}/{date_to}/{selected_status}', 'hostelFeeManagerExport')->name('student.hostel_fee_manager.export');
     Route::get('student/hostel_payment/success/{user_data}/{response}', 'student_hostel_fee_success_payment_student')->name('student.student_hostel_fee_success_payment_student');
     Route::get('student/hostel_payment/fail/{user_data}/{response}', 'student_hostel_fee_fail_payment_student')->name('student.student_hostel_fee_fail_payment_student');
@@ -1343,7 +1357,10 @@ Route::controller(OnlineExamController::class)->middleware('auth', 'admin')->gro
     // Question Bank
     Route::get('admin/question-bank',                        'questionBank')->name('admin.question_bank.index');
     Route::get('admin/question-bank/modal',                  'bankModal')->name('admin.question_bank.modal');
+    Route::get('admin/question-bank/import/modal',            'bankImportModal')->name('admin.question_bank.import_modal');
     Route::post('admin/question-bank/store',                 'storeBankQuestion')->name('admin.question_bank.store');
+    Route::post('admin/question-bank/import',                'importBankQuestions')->name('admin.question_bank.import');
+    Route::get('admin/question-bank/import/template',        'downloadBankImportTemplate')->name('admin.question_bank.import_template');
     Route::get('admin/question-bank/delete/{id}',            'destroyBankQuestion')->name('admin.question_bank.delete');
     // Per-exam question modal
     Route::get('admin/online-exams/{id}/question_modal',     'questionModal')->name('admin.online_exams.question_modal');
@@ -1370,6 +1387,12 @@ Route::controller(OnlineExamController::class)->middleware('auth', 'teacher')->g
     Route::get('teacher/online-exams', 'teacherIndex')->name('teacher.online_exams.index');
     Route::get('teacher/online-exams/create', 'teacherCreate')->name('teacher.online_exams.create');
     Route::post('teacher/online-exams', 'teacherStore')->name('teacher.online_exams.store');
+    // Must stay above the teacher.online_exams.show {exam} route below — Laravel
+    // matches routes in declaration order, and {exam} would otherwise swallow
+    // this literal path first and 404 on model binding.
+    Route::get('teacher/online-exams/question-bank', 'teacherQuestionBank')->name('teacher.online_exams.question_bank');
+    Route::get('teacher/online-exams/marking/queue', 'teacherMarking')->name('teacher.online_exams.marking');
+    Route::get('teacher/online-exams/live-monitor', 'teacherLiveMonitor')->name('teacher.online_exams.live_monitor');
     Route::get('teacher/online-exams/{exam}', 'teacherShow')->name('teacher.online_exams.show');
     Route::get('teacher/online-exams/{exam}/edit', 'teacherEdit')->name('teacher.online_exams.edit');
     Route::put('teacher/online-exams/{exam}', 'teacherUpdate')->name('teacher.online_exams.update');
@@ -1387,12 +1410,18 @@ Route::controller(OnlineExamController::class)->middleware('auth', 'teacher')->g
     Route::delete('teacher/online-exams/questions/{question}', 'teacherDeleteQuestion')->name('teacher.online_exams.questions.destroy');
     Route::post('teacher/online-exams/{exam}/questions/reorder', 'teacherReorderQuestions')->name('teacher.online_exams.questions.reorder');
 
-    Route::get('teacher/online-exams/question-bank', 'teacherQuestionBank')->name('teacher.online_exams.question_bank');
     Route::post('teacher/online-exams/{exam}/question-bank/import', 'teacherImportQuestion')->name('teacher.online_exams.question_bank.import');
 
+    Route::get('teacher/online-exams/question-bank/modal', 'teacherBankModal')->name('teacher.online_exams.question_bank.modal');
+    Route::post('teacher/online-exams/question-bank/store', 'teacherStoreBankQuestion')->name('teacher.online_exams.question_bank.store');
+    Route::get('teacher/online-exams/question-bank/import/modal', 'teacherBankImportModal')->name('teacher.online_exams.question_bank.import_modal');
+    Route::post('teacher/online-exams/question-bank/upload', 'teacherImportBankQuestions')->name('teacher.online_exams.question_bank.upload');
+    Route::get('teacher/online-exams/question-bank/import/template', 'teacherDownloadBankImportTemplate')->name('teacher.online_exams.question_bank.import_template');
+    Route::get('teacher/online-exams/question-bank/delete/{id}', 'teacherDestroyBankQuestion')->name('teacher.online_exams.question_bank.delete');
+
     Route::get('teacher/online-exams/{exam}/attempts', 'teacherAttempts')->name('teacher.online_exams.attempts');
+    Route::get('teacher/online-exams/{exam}/proctoring/{submission_id}', 'teacherReviewProctoring')->name('teacher.online_exams.proctoring.review');
     Route::get('teacher/online-exams/{exam}/results', 'teacherResults')->name('teacher.online_exams.results');
-    Route::get('teacher/online-exams/marking/queue', 'teacherMarking')->name('teacher.online_exams.marking');
     Route::post('teacher/online-exams/answers/{answer}/mark', 'teacherMarkAnswer')->name('teacher.online_exams.answers.mark');
     Route::post('teacher/online-exams/results/{submission}/finalize', 'teacherFinalizeResult')->name('teacher.online_exams.results.finalize');
 });
@@ -1421,6 +1450,12 @@ Route::controller(LiveClassController::class)->middleware('auth', 'admin')->grou
     Route::get('admin/live-classes/create',            'create')->name('admin.live_classes.create');
     Route::post('admin/live-classes',                  'store')->name('admin.live_classes.store');
     Route::post('admin/live-classes/meet-now',         'meetNow')->name('admin.live_classes.meet_now');
+    // Must stay above the admin.live_classes.show {liveClass} route below —
+    // Laravel matches routes in declaration order, and {liveClass} would
+    // otherwise swallow this literal path first and 404 on model binding.
+    Route::get('admin/live-classes/meet-guests',           'meetGuests')->name('admin.live_classes.meet_guests');
+    Route::post('admin/live-classes/meet-guests',          'storeMeetGuest')->name('admin.live_classes.meet_guests.store');
+    Route::delete('admin/live-classes/meet-guests/{id}',   'destroyMeetGuest')->name('admin.live_classes.meet_guests.destroy');
     Route::get('admin/live-classes/{liveClass}',       'show')->name('admin.live_classes.show');
     Route::get('admin/live-classes/{liveClass}/edit',  'edit')->name('admin.live_classes.edit');
     Route::put('admin/live-classes/{liveClass}',       'update')->name('admin.live_classes.update');

@@ -29,8 +29,8 @@
                     </ul>
                 </div>
                 <div class="d-flex gap-2">
-                    <a href="javascript:;" class="eBtn eBtn-dark" onclick="rightModal('{{ route($routePrefix . '.live_classes.materials', $liveClass->id) }}', '{{ get_phrase('Class Materials') }}')">
-                        <i class="bi bi-paperclip"></i> {{ get_phrase('Materials') }}
+                    <a href="javascript:;" class="eBtn eBtn-dark" onclick="rightModal('{{ route($routePrefix . '.live_classes.materials', $liveClass->id) }}', '{{ get_phrase('Resources & Recordings') }}')">
+                        <i class="bi bi-paperclip"></i> {{ get_phrase('Resources & Recordings') }}
                     </a>
                     <a href="{{ route($routePrefix . '.live_classes.attendance', $liveClass->id) }}" class="eBtn eBtn-dark">
                         <i class="bi bi-people"></i> {{ get_phrase('Attendance') }}

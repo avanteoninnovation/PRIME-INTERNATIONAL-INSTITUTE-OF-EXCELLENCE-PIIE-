@@ -2,8 +2,10 @@
 use App\Models\PaymentMethods;
 use App\Models\School;
 $school_data = School::where('id', auth()->user()->school_id)->first();
-$active_payment_methods=PaymentMethods::where('school_id',auth()->user()->school_id)->orWhere('mode','offline')->get();
-$number_of_activated_payment_gateway=PaymentMethods::where('status',1)->where('school_id',auth()->user()->school_id)->orWhere('mode','offline')->get();
+// Only 'marzpay' has a real tab-pane below now — the old paypal/stripe/
+// razorpay/paytm/flutterwave rows are legacy and were never functional.
+$active_payment_methods=PaymentMethods::where('school_id',auth()->user()->school_id)->where('name','marzpay')->get();
+$number_of_activated_payment_gateway=PaymentMethods::where('status',1)->where('school_id',auth()->user()->school_id)->where('name','marzpay')->get();
 $off="";
 
 if(count($number_of_activated_payment_gateway)==1)
@@ -192,11 +194,7 @@ if(count($number_of_activated_payment_gateway)==1)
 
 
             @if(addon_status('payment_gateways')==1)
-                @include('parent.payment.paypal')
-                @include('parent.payment.stripe')
-                @include('parent.payment.razorpay')
-                @include('parent.payment.paytm')
-                @include('parent.payment.flutterwave')
+                @include('parent.payment.marzpay')
             @endif
 
 

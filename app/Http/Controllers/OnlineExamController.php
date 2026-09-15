@@ -30,6 +30,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 class OnlineExamController extends Controller
 {
@@ -393,6 +394,12 @@ class OnlineExamController extends Controller
         return view('admin.online_exam.bank_modal', compact('subjects'));
     }
 
+    public function bankImportModal()
+    {
+        $this->authorize('create', OnlineExam::class);
+        return view('admin.online_exam.bank_import_modal');
+    }
+
     public function destroyBankQuestion($id)
     {
         $this->authorize('create', OnlineExam::class);
@@ -450,6 +457,53 @@ class OnlineExamController extends Controller
         return redirect()->back()->with('success', get_phrase('Question added to bank'));
     }
 
+    public function importBankQuestions(Request $request)
+    {
+        $this->authorize('create', OnlineExam::class);
+
+        $validated = $request->validate([
+            'file' => ['required', 'file', 'mimes:csv,txt,xlsx,xls', 'max:10240'],
+        ]);
+
+        $result = \App\Support\OnlineExams\QuestionBankImporter::import(
+            $validated['file'],
+            $this->school_id,
+            Auth::id()
+        );
+
+        AuditLog::record('create', 'Online Exams', "Imported {$result['imported']} question(s) into the bank from a file.");
+
+        $summary = trans_choice(':count question imported.|:count questions imported.', $result['imported'], ['count' => $result['imported']]);
+
+        if ($result['errors']) {
+            $summary .= ' ' . count($result['errors']) . ' row(s) skipped.';
+        }
+
+        return redirect()->back()->with(
+            $result['imported'] > 0 ? 'success' : 'error',
+            $summary
+        )->with('import_errors', $result['errors'])->with('import_warnings', $result['warnings']);
+    }
+
+    public function downloadBankImportTemplate()
+    {
+        $this->authorize('create', OnlineExam::class);
+
+        $headers = \App\Support\OnlineExams\QuestionBankImporter::TEMPLATE_HEADERS;
+        $example = [
+            'What is the capital of Uganda?', 'mcq', 'Kampala', 'Nairobi', 'Kigali', 'Lagos', 'a', '2', 'easy', '',
+        ];
+
+        $csv = implode(',', $headers) . "\n" . implode(',', array_map(function ($v) {
+            return '"' . str_replace('"', '""', $v) . '"';
+        }, $example)) . "\n";
+
+        return response($csv, 200, [
+            'Content-Type'        => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="question_bank_import_template.csv"',
+        ]);
+    }
+
     // ── Teacher: online exams ─────────────────────────────────────────────
 
     public function teacherIndex(Request $request)
@@ -465,17 +519,9 @@ class OnlineExamController extends Controller
         $query = OnlineExam::forSchool($this->school_id)
             ->with(['subject', 'classRoom'])
             ->withCount('questions', 'submissions');
+        $this->applyTeacherOwnershipScope($query, $user, $assignedClassIds, $canEditAll);
 
-        if (!$canEditAll) {
-            $query->where(function ($q) use ($user, $assignedClassIds) {
-                $q->where('creator_id', $user->id)
-                    ->orWhere('created_by', $user->id);
-
-                if (!empty($assignedClassIds)) {
-                    $q->orWhereIn('class_id', $assignedClassIds);
-                }
-            });
-        }
+        $stats = $this->teacherExamLifecycleCounts($user, $assignedClassIds, $canEditAll);
 
         $search = trim((string) $request->input('title', ''));
         $subjectId = (int) $request->input('subject_id', 0);
@@ -537,12 +583,52 @@ class OnlineExamController extends Controller
             'dateFrom',
             'dateTo',
             'tab',
-            'canEditAll'
+            'canEditAll',
+            'stats'
         ))->with([
             'canPublish' => $permissionService->has($user, 'publish_online_exams'),
             'canCreate' => $permissionService->has($user, 'create_online_exams'),
             'canManageQuestions' => $permissionService->has($user, 'manage_exam_questions'),
             'canMark' => $permissionService->has($user, 'mark_exam_answers'),
+        ]);
+    }
+
+    /**
+     * "Ongoing" (published, currently within its start/end window) and
+     * "Upcoming" (published, not started yet) exams this teacher can act on
+     * — same ownership scoping as teacherIndex() — so a teacher can jump
+     * straight to attempts/proctoring for an exam that's live right now, or
+     * see what's coming up next, without wading through the full history
+     * list and its drafts/completed/cancelled noise.
+     */
+    public function teacherLiveMonitor()
+    {
+        $this->authorize('viewAny', OnlineExam::class);
+
+        $user = Auth::user();
+        $authorizer = app(OnlineExamAuthorizer::class);
+        $canEditAll = $authorizer->can($user, 'edit_all_online_exams');
+        $assignedClassIds = $this->teacherAssignedClassIds((int) $user->id);
+
+        $ongoingQuery = OnlineExam::forSchool($this->school_id)
+            ->with(['subject', 'classRoom'])
+            ->withCount(['submissions as in_progress_count' => function ($q) {
+                $q->where('status', OnlineExamSubmission::STATUS_IN_PROGRESS);
+            }])
+            ->active();
+        $this->applyTeacherOwnershipScope($ongoingQuery, $user, $assignedClassIds, $canEditAll);
+        $ongoingExams = $ongoingQuery->orderBy('start_datetime')->limit(50)->get();
+
+        $upcomingQuery = OnlineExam::forSchool($this->school_id)
+            ->with(['subject', 'classRoom'])
+            ->upcoming();
+        $this->applyTeacherOwnershipScope($upcomingQuery, $user, $assignedClassIds, $canEditAll);
+        $upcomingExams = $upcomingQuery->orderBy('start_datetime')->limit(50)->get();
+
+        return view('teacher.online_exam.live_monitor', [
+            'ongoingExams' => $ongoingExams,
+            'upcomingExams' => $upcomingExams,
+            'canReviewProctoring' => app(OnlineExamPermissionService::class)->has($user, 'review_exam_proctoring'),
         ]);
     }
 
@@ -1014,6 +1100,130 @@ class OnlineExamController extends Controller
         return redirect()->back()->with('success', get_phrase('Questions imported from bank.'));
     }
 
+    public function teacherBankModal()
+    {
+        $user = Auth::user();
+        abort_unless(app(OnlineExamPermissionService::class)->has($user, 'manage_exam_questions'), 403);
+
+        $assignedClassIds = $this->teacherAssignedClassIds((int) $user->id);
+        $subjects = $this->teacherAssignableSubjects((int) $user->id, $assignedClassIds);
+
+        return view('teacher.online_exam.bank_modal', compact('subjects'));
+    }
+
+    public function teacherStoreBankQuestion(Request $request)
+    {
+        $user = Auth::user();
+        abort_unless(app(OnlineExamPermissionService::class)->has($user, 'manage_exam_questions'), 403);
+
+        $assignedClassIds = $this->teacherAssignedClassIds((int) $user->id);
+        $allowedSubjectIds = $this->teacherAssignableSubjects((int) $user->id, $assignedClassIds)->pluck('id')->map(fn($id) => (int) $id)->all();
+
+        $validated = $request->validate([
+            'subject_id'  => ['nullable', 'integer', Rule::in($allowedSubjectIds)],
+            'question'    => 'required|string',
+            'type'        => 'required|in:mcq,true_false,short,essay',
+            'option_a'    => 'nullable|string',
+            'option_b'    => 'nullable|string',
+            'option_c'    => 'nullable|string',
+            'option_d'    => 'nullable|string',
+            'correct_ans' => 'nullable|string|max:5',
+            'marks'       => 'required|integer|min:1',
+            'difficulty'  => 'required|in:easy,medium,hard',
+        ]);
+
+        DB::transaction(function () use ($validated) {
+            QuestionBank::create([
+                'school_id' => $this->school_id,
+                'subject_id' => $validated['subject_id'] ?? null,
+                'question' => $validated['question'],
+                'type' => $validated['type'],
+                'option_a' => $validated['option_a'] ?? null,
+                'option_b' => $validated['option_b'] ?? null,
+                'option_c' => $validated['option_c'] ?? null,
+                'option_d' => $validated['option_d'] ?? null,
+                'correct_ans' => $validated['correct_ans'] ?? null,
+                'marks' => $validated['marks'],
+                'difficulty' => $validated['difficulty'],
+                'created_by' => Auth::id(),
+            ]);
+        });
+
+        AuditLog::record('create', 'Online Exams', 'Teacher added a question bank question');
+        return redirect()->back()->with('success', get_phrase('Question added to bank'));
+    }
+
+    public function teacherBankImportModal()
+    {
+        abort_unless(app(OnlineExamPermissionService::class)->has(Auth::user(), 'manage_exam_questions'), 403);
+
+        return view('teacher.online_exam.bank_import_modal');
+    }
+
+    public function teacherImportBankQuestions(Request $request)
+    {
+        abort_unless(app(OnlineExamPermissionService::class)->has(Auth::user(), 'manage_exam_questions'), 403);
+
+        $validated = $request->validate([
+            'file' => ['required', 'file', 'mimes:csv,txt,xlsx,xls', 'max:10240'],
+        ]);
+
+        $result = \App\Support\OnlineExams\QuestionBankImporter::import(
+            $validated['file'],
+            $this->school_id,
+            Auth::id()
+        );
+
+        AuditLog::record('create', 'Online Exams', "Teacher imported {$result['imported']} question(s) into the bank from a file.");
+
+        $summary = trans_choice(':count question imported.|:count questions imported.', $result['imported'], ['count' => $result['imported']]);
+
+        if ($result['errors']) {
+            $summary .= ' ' . count($result['errors']) . ' row(s) skipped.';
+        }
+
+        return redirect()->back()->with(
+            $result['imported'] > 0 ? 'success' : 'error',
+            $summary
+        )->with('import_errors', $result['errors'])->with('import_warnings', $result['warnings']);
+    }
+
+    public function teacherDownloadBankImportTemplate()
+    {
+        abort_unless(app(OnlineExamPermissionService::class)->has(Auth::user(), 'manage_exam_questions'), 403);
+
+        $headers = \App\Support\OnlineExams\QuestionBankImporter::TEMPLATE_HEADERS;
+        $example = [
+            'What is the capital of Uganda?', 'mcq', 'Kampala', 'Nairobi', 'Kigali', 'Lagos', 'a', '2', 'easy', '',
+        ];
+
+        $csv = implode(',', $headers) . "\n" . implode(',', array_map(function ($v) {
+            return '"' . str_replace('"', '""', $v) . '"';
+        }, $example)) . "\n";
+
+        return response($csv, 200, [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="question_bank_template.csv"',
+        ]);
+    }
+
+    public function teacherDestroyBankQuestion($id)
+    {
+        $user = Auth::user();
+        abort_unless(app(OnlineExamPermissionService::class)->has($user, 'manage_exam_questions'), 403);
+
+        $question = QuestionBank::where('school_id', $this->school_id)
+            ->where('created_by', $user->id)
+            ->findOrFail((int) $id);
+
+        DB::transaction(function () use ($question) {
+            $question->delete();
+        });
+
+        AuditLog::record('delete', 'Online Exams', "Teacher deleted question bank question #{$id}");
+        return redirect()->back()->with('success', get_phrase('Question deleted'));
+    }
+
     public function teacherAttempts(OnlineExam $exam)
     {
         $this->authorize('viewAttempts', $exam);
@@ -1026,7 +1236,28 @@ class OnlineExamController extends Controller
             ->orderByDesc('submitted_at')
             ->paginate(30);
 
-        return view('teacher.online_exam.attempts', compact('exam', 'submissions'));
+        $canReviewProctoring = app(OnlineExamPermissionService::class)->has(Auth::user(), 'review_exam_proctoring');
+
+        return view('teacher.online_exam.attempts', compact('exam', 'submissions', 'canReviewProctoring'));
+    }
+
+    public function teacherReviewProctoring(OnlineExam $exam, $submission_id)
+    {
+        $this->authorize('reviewProctoring', $exam);
+        abort_unless((int) $exam->school_id === (int) $this->school_id, 404);
+
+        $submission = OnlineExamSubmission::where('id', (int) $submission_id)
+            ->where('online_exam_id', $exam->id)
+            ->where('school_id', $this->school_id)
+            ->with('student')
+            ->firstOrFail();
+        $this->authorize('view', $submission);
+
+        $events = OnlineExamProctoringEvent::forSubmission($submission->id)
+            ->chronological()
+            ->paginate(100);
+
+        return view('teacher.online_exam.proctoring', compact('exam', 'submission', 'events'));
     }
 
     public function teacherResults(OnlineExam $exam)
@@ -1849,6 +2080,50 @@ class OnlineExamController extends Controller
             ->get();
     }
 
+    /**
+     * Restricts an OnlineExam query to exams this teacher is allowed to see
+     * in their own list/monitor pages: their own exams, plus any exam for a
+     * class they're assigned to teach — unless they hold edit_all_online_exams,
+     * in which case the whole school is visible. Shared by teacherIndex(),
+     * teacherLiveMonitor() and teacherExamLifecycleCounts() so the three
+     * "what can this teacher see" views can never drift out of sync.
+     */
+    private function applyTeacherOwnershipScope($query, $user, array $assignedClassIds, bool $canEditAll): void
+    {
+        if ($canEditAll) {
+            return;
+        }
+
+        $query->where(function ($q) use ($user, $assignedClassIds) {
+            $q->where('creator_id', $user->id)
+                ->orWhere('created_by', $user->id);
+
+            if (!empty($assignedClassIds)) {
+                $q->orWhereIn('class_id', $assignedClassIds);
+            }
+        });
+    }
+
+    /** @return array<string,int> counts per lifecycle bucket, for the summary cards on teacherIndex() */
+    private function teacherExamLifecycleCounts($user, array $assignedClassIds, bool $canEditAll): array
+    {
+        $base = function () use ($user, $assignedClassIds, $canEditAll) {
+            $query = OnlineExam::forSchool($this->school_id);
+            $this->applyTeacherOwnershipScope($query, $user, $assignedClassIds, $canEditAll);
+
+            return $query;
+        };
+
+        return [
+            'draft' => $base()->where('workflow_state', 'draft')->count(),
+            'pending_review' => $base()->where('workflow_state', 'pending_review')->count(),
+            'published' => $base()->upcoming()->count(),
+            'active' => $base()->active()->count(),
+            'completed' => $base()->ended()->count(),
+            'cancelled' => $base()->where('workflow_state', 'cancelled')->count(),
+        ];
+    }
+
     private function applyLifecycleFilter($query, string $lifecycleState): void
     {
         $now = now();
@@ -1890,6 +2165,11 @@ class OnlineExamController extends Controller
 
         if ($tab === 'published') {
             $query->where('workflow_state', 'published');
+            return;
+        }
+
+        if ($tab === 'upcoming') {
+            $query->upcoming();
             return;
         }
 

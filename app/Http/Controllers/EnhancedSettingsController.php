@@ -222,6 +222,10 @@ class EnhancedSettingsController extends Controller
             'live_class_platform_bigbluebutton' => GlobalSettings::where('key', 'live_class_platform_bigbluebutton')->value('value') === '1',
             'live_class_platform_custom' => GlobalSettings::where('key', 'live_class_platform_custom')->value('value') === '1',
             'live_class_jitsi_base_url' => GlobalSettings::where('key', 'live_class_jitsi_base_url')->value('value') ?: 'https://meet.jit.si',
+            // Status only — the credentials themselves live in .env
+            // (config/services.php), matching Zoom/Google Meet above, not
+            // this GlobalSettings table. See LIVE_CLASS_JITSI_JWT_SETUP.md.
+            'jitsi_jwt_configured' => \App\Support\LiveClasses\JitsiTokenService::isConfigured(),
         ];
     }
 

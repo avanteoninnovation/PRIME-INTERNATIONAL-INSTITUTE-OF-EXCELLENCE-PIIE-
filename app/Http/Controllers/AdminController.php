@@ -5273,6 +5273,8 @@ class AdminController extends Controller
         $flutterwave_keys = "";
         $paystack         = "";
         $paystack_keys    = "";
+        $marzpay          = "";
+        $marzpay_keys     = "";
 
         foreach ($payment_gateways as $single_gateway) {
 
@@ -5295,10 +5297,13 @@ class AdminController extends Controller
             } elseif ($single_gateway->name == "paystack") {
                 $paystack      = $single_gateway->toArray();
                 $paystack_keys = json_decode($paystack['payment_keys']);
+            } elseif ($single_gateway->name == "marzpay") {
+                $marzpay      = $single_gateway->toArray();
+                $marzpay_keys = json_decode($marzpay['payment_keys']);
             }
         }
 
-        return view('admin.payment_settings.key_settings', ['paytm' => $paytm, 'paytm_keys' => $paytm_keys, 'razorpay' => $razorpay, 'razorpay_keys' => $razorpay_keys, 'stripe' => $stripe, 'stripe_keys' => $stripe_keys, 'paypal' => $paypal, 'paypal_keys' => $paypal_keys, 'flutterwave' => $flutterwave, 'flutterwave_keys' => $flutterwave_keys, 'paystack' => $paystack, 'paystack_keys' => $paystack_keys, 'school_currency' => $school_currency, 'currencies' => $currencies]);
+        return view('admin.payment_settings.key_settings', ['paytm' => $paytm, 'paytm_keys' => $paytm_keys, 'razorpay' => $razorpay, 'razorpay_keys' => $razorpay_keys, 'stripe' => $stripe, 'stripe_keys' => $stripe_keys, 'paypal' => $paypal, 'paypal_keys' => $paypal_keys, 'flutterwave' => $flutterwave, 'flutterwave_keys' => $flutterwave_keys, 'paystack' => $paystack, 'paystack_keys' => $paystack_keys, 'marzpay' => $marzpay, 'marzpay_keys' => $marzpay_keys, 'school_currency' => $school_currency, 'currencies' => $currencies]);
     }
 
     public function install_paystack()
@@ -5436,6 +5441,19 @@ class AdminController extends Controller
             $paystack['payment_keys'] = json_encode($keys);
             $paystack['school_id']    = auth()->user()->school_id;
             $paystack->save();
+        } elseif ($method == 'marzpay') {
+            $keys                       = [];
+            $marzpay                    = PaymentMethods::find($update_id);
+            $marzpay['status']          = $data['status'];
+            $marzpay['mode']            = $data['mode'];
+            $keys['sandbox_api_key']    = $data['sandbox_api_key'];
+            $keys['sandbox_api_secret'] = $data['sandbox_api_secret'];
+            $keys['live_api_key']       = $data['live_api_key'];
+            $keys['live_api_secret']    = $data['live_api_secret'];
+            $keys['country']            = $data['country'] ?: 'UG';
+            $marzpay['payment_keys']    = json_encode($keys);
+            $marzpay['school_id']       = auth()->user()->school_id;
+            $marzpay->save();
         }
 
         return redirect()->route('admin.settings.payment')->with('message', 'key has been updated');
@@ -5557,6 +5575,29 @@ class AdminController extends Controller
             $paystack['school_id']    = auth()->user()->school_id;
             $paystack->save();
         }
+
+        $marzpay = PaymentMethods::where(['name' => 'marzpay', 'school_id' => auth()->user()->school_id])->first();
+
+        if (empty($marzpay)) {
+            $keys                      = [];
+            $marzpay                   = new PaymentMethods;
+            $marzpay['name']           = "marzpay";
+            $marzpay['image']          = "marzpay.png";
+            // Unlike the other gateways above, this starts disabled — those
+            // ship with obviously-fake placeholder keys but status=1 anyway,
+            // which is why their payment buttons show up broken on the fee
+            // page today. MarzPay stays off until real keys are saved.
+            $marzpay['status']         = 0;
+            $marzpay['mode']           = "test";
+            $keys['sandbox_api_key']    = "";
+            $keys['sandbox_api_secret'] = "";
+            $keys['live_api_key']       = "";
+            $keys['live_api_secret']    = "";
+            $keys['country']            = "UG";
+            $marzpay['payment_keys']   = json_encode($keys);
+            $marzpay['school_id']      = auth()->user()->school_id;
+            $marzpay->save();
+        }
     }
 
     public function subscriptionPayment($package_id)
@@ -5584,6 +5625,106 @@ class AdminController extends Controller
         }
 
         return view('admin.subscription.payment_gateway', ['selected_package' => $selected_package, 'user_info' => $user_info]);
+    }
+
+    /**
+     * Starts a MarzPay mobile-money collection for a subscription
+     * purchase/upgrade. The subscription itself is only activated once
+     * MarzPayWebhookController confirms the collection completed (see
+     * App\Support\Subscriptions\SubscriptionActivator) — same rule as
+     * every other MarzPay flow: never trust a redirect/click alone.
+     */
+    public function startMarzpaySubscriptionPayment(Request $request, $package_id)
+    {
+        $package = Package::find($package_id);
+
+        if (! $package) {
+            return redirect()->route('admin.subscription')->with('error', 'Selected package not found.');
+        }
+
+        $request->validate(['phone_number' => 'required|string|min:9|max:15']);
+
+        $schoolId = auth()->user()->school_id;
+        $subscription = Subscription::where('school_id', $schoolId)->orderBy('id', 'desc')->first();
+
+        $amount = (float) $package->price;
+        if ($subscription && (string) $subscription->active === '1') {
+            $amount = (float) $package->price - (float) $subscription->paid_amount;
+        }
+
+        $payment = new PaymentHistory;
+        $payment['payment_type']     = 'subscription';
+        $payment['user_id']          = auth()->user()->id;
+        $payment['package_id']       = $package_id;
+        $payment['amount']           = $amount;
+        $payment['school_id']        = $schoolId;
+        $payment['transaction_keys'] = '[]';
+        $payment['paid_by']          = 'marzpay';
+        $payment['status']           = 'pending';
+        $payment['timestamp']        = strtotime(date('Y-m-d H:i:s'));
+        $payment->save();
+
+        $reference = (string) \Illuminate\Support\Str::uuid();
+
+        $result = \App\Support\Payments\MarzPayService::initiateMobileMoneyCollection(
+            (int) $schoolId,
+            $request->phone_number,
+            $amount,
+            $reference,
+            'Subscription: ' . $package->name,
+            route('webhooks.marzpay'),
+            ['context' => 'subscription', 'context_id' => $payment->id]
+        );
+
+        if (! $result['ok']) {
+            $payment->delete();
+
+            return redirect()->back()->with('error', $result['error'] ?: get_phrase('We could not start the MarzPay payment. Please try again.'));
+        }
+
+        $payment->transaction_keys = json_encode(['gateway' => 'marzpay', 'reference' => $result['transaction_uuid'] ?: $reference]);
+        $payment->save();
+
+        return view('admin.subscription.marzpay_pending', ['payment' => $payment]);
+    }
+
+    public function checkMarzpaySubscriptionStatus($id)
+    {
+        $payment = PaymentHistory::where('id', $id)
+            ->where('school_id', auth()->user()->school_id)
+            ->first();
+
+        if (! $payment) {
+            return response()->json(['status' => 'not_found']);
+        }
+
+        if ($payment->status === 'approve') {
+            return response()->json(['status' => 'paid']);
+        }
+
+        $keys = json_decode((string) $payment->transaction_keys, true) ?: [];
+        $reference = $keys['reference'] ?? null;
+
+        if (! $reference) {
+            return response()->json(['status' => 'processing']);
+        }
+
+        $verified = \App\Support\Payments\MarzPayService::getCollectionStatus($reference, (int) $payment->school_id);
+        $verifiedStatus = $verified['transaction']['status'] ?? null;
+
+        if (in_array($verifiedStatus, ['successful', 'completed'], true)) {
+            \App\Support\Subscriptions\SubscriptionActivator::activate((int) $payment->id);
+
+            return response()->json(['status' => 'paid']);
+        }
+
+        if (in_array($verifiedStatus, ['failed', 'cancelled'], true)) {
+            PaymentHistory::where('id', $id)->update(['status' => 'failed']);
+
+            return response()->json(['status' => 'failed']);
+        }
+
+        return response()->json(['status' => 'processing']);
     }
 
     public function admin_free_subcription(Request $request)

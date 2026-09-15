@@ -12,8 +12,7 @@ class VerifyCsrfToken extends Middleware
      * @var array<int, string>
      */
     protected $except = [
-        '/paytm-callback*','/success/sent_to_success_url*','/fail/sent_to_fail_ur*'
-        //
-        
+        '/paytm-callback*','/success/sent_to_success_url*','/fail/sent_to_fail_ur*',
+        '/webhooks/marzpay',
     ];
 }

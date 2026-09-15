@@ -139,6 +139,88 @@ class ParentController extends Controller
         return view('parent.payment.payment_gateway', ['fee_details' => $fee_details, 'user_info' => $user_info]);
     }
 
+    public function startMarzpayTuitionPayment(Request $request, $id)
+    {
+        $fee = StudentFeeManager::where('id', $id)
+            ->where('parent_id', auth()->id())
+            ->where('school_id', auth()->user()->school_id)
+            ->first();
+
+        if (! $fee || $fee->status === 'paid') {
+            return redirect()->route('parent.FeePayment', $id)->with('error', get_phrase('Invoice not found or already paid.'));
+        }
+
+        $request->validate([
+            'phone_number' => 'required|string|min:9|max:15',
+        ]);
+
+        $reference = (string) \Illuminate\Support\Str::uuid();
+
+        $result = \App\Support\Payments\MarzPayService::initiateMobileMoneyCollection(
+            (int) $fee->school_id,
+            $request->phone_number,
+            (float) $fee->total_amount,
+            $reference,
+            'Tuition fee: ' . $fee->title,
+            route('webhooks.marzpay'),
+            ['context' => 'tuition', 'context_id' => $fee->id]
+        );
+
+        if (! $result['ok']) {
+            return redirect()->route('parent.FeePayment', $id)->with('error', $result['error'] ?: get_phrase('We could not start the MarzPay payment. Please try again.'));
+        }
+
+        $fee->update([
+            'status'            => 'processing',
+            'payment_method'    => 'marzpay',
+            'gateway_reference' => $result['transaction_uuid'] ?: $reference,
+        ]);
+
+        return view('parent.payment.marzpay_pending', ['fee_details' => $fee->toArray(), 'context' => 'tuition']);
+    }
+
+    public function checkMarzpayTuitionStatus($id)
+    {
+        $fee = StudentFeeManager::where('id', $id)
+            ->where('parent_id', auth()->id())
+            ->where('school_id', auth()->user()->school_id)
+            ->first();
+
+        if (! $fee) {
+            return response()->json(['status' => 'not_found']);
+        }
+
+        if ($fee->status === 'paid') {
+            return response()->json(['status' => 'paid']);
+        }
+
+        if (! $fee->gateway_reference) {
+            return response()->json(['status' => $fee->status]);
+        }
+
+        $verified = \App\Support\Payments\MarzPayService::getCollectionStatus($fee->gateway_reference, (int) $fee->school_id);
+        $verifiedStatus = $verified['transaction']['status'] ?? null;
+
+        if (in_array($verifiedStatus, ['successful', 'completed'], true)) {
+            $fee->update([
+                'status'          => 'paid',
+                'paid_amount'     => $verified['collection']['amount']['raw'] ?? $fee->total_amount,
+                'payment_method'  => 'marzpay',
+                'gateway_payload' => $verified,
+            ]);
+
+            return response()->json(['status' => 'paid']);
+        }
+
+        if (in_array($verifiedStatus, ['failed', 'cancelled'], true)) {
+            $fee->update(['status' => 'failed']);
+
+            return response()->json(['status' => 'failed']);
+        }
+
+        return response()->json(['status' => 'processing']);
+    }
+
     public function feeManagerExport($date_from = "", $date_to = "", $selected_status = "")
     {
 

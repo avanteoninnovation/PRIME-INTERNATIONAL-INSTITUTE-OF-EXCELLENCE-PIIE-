@@ -5,76 +5,124 @@
 <div class="eoff-form">
     <h6 class="mb-3">{{ $liveClass->title }}</h6>
 
-    @if($canManage)
-        <form method="POST" action="{{ route($routePrefix . '.live_classes.materials.store', $liveClass->id) }}" enctype="multipart/form-data" class="mb-4" id="materialForm">
-            @csrf
-            <div class="row g-2">
-                <div class="col-6">
-                    <label class="eForm-label">{{ get_phrase('Type') }}</label>
-                    <select name="type" class="form-control eForm-control" id="materialType">
-                        <option value="file">{{ get_phrase('File') }}</option>
-                        <option value="link">{{ get_phrase('Link') }}</option>
-                    </select>
-                </div>
-                <div class="col-6">
-                    <label class="eForm-label">{{ get_phrase('Title') }} *</label>
-                    <input type="text" name="title" class="form-control eForm-control" required maxlength="200">
-                </div>
-                <div class="col-12" id="materialFileWrap">
-                    <label class="eForm-label">{{ get_phrase('File') }} *</label>
-                    <input type="file" name="file" class="form-control eForm-control" accept=".{{ implode(',.', \App\Models\LiveClassMaterial::ALLOWED_EXTENSIONS) }}">
-                    <small class="text-muted">{{ get_phrase('PDF, PowerPoint, Word, Excel or image · max') }} {{ \App\Models\LiveClassMaterial::MAX_FILE_MB }}MB</small>
-                </div>
-                <div class="col-12 d-none" id="materialLinkWrap">
-                    <label class="eForm-label">{{ get_phrase('Link URL') }}</label>
-                    <input type="url" name="link_url" class="form-control eForm-control" placeholder="https://...">
-                </div>
-                <div class="col-12">
-                    <button type="submit" class="eBtn eBtn-primary">{{ get_phrase('Add Material') }}</button>
-                </div>
-            </div>
-        </form>
-    @endif
+    <ul class="nav nav-tabs mb-3" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#lcResourcesTab" type="button" role="tab">
+                {{ get_phrase('Resources') }} <span class="badge bg-secondary">{{ $resources->count() }}</span>
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#lcRecordingsTab" type="button" role="tab">
+                {{ get_phrase('Recordings') }} <span class="badge bg-secondary">{{ $recordings->count() }}</span>
+            </button>
+        </li>
+    </ul>
 
-    @forelse($materials as $material)
-        <div class="d-flex align-items-center gap-2 p-2 mb-2" style="border:1px solid #e7e9ee; border-radius:8px;">
-            <i class="bi {{ $material->isFile() ? 'bi-file-earmark-arrow-down' : 'bi-link-45deg' }}" style="font-size:20px;"></i>
-            <div class="flex-grow-1">
-                <div style="font-weight:600; font-size:14px;">{{ $material->title }}</div>
-                <small class="text-muted">
-                    @if($material->isFile())
-                        {{ $material->original_name }} · {{ $material->human_size }}
-                    @else
-                        {{ get_phrase('External link') }}
-                    @endif
-                </small>
-            </div>
-            <a href="{{ $material->url }}" target="_blank" class="eBtn eBtn-sm eBtn-dark">{{ get_phrase('Open') }}</a>
+    <div class="tab-content">
+        {{-- ── Resources: slides, readings, handouts ─────────────────────── --}}
+        <div class="tab-pane fade show active" id="lcResourcesTab" role="tabpanel">
             @if($canManage)
-                <form method="POST" action="{{ route($routePrefix . '.live_classes.materials.destroy', $material->id) }}" onsubmit="return confirm('{{ get_phrase('Remove this material?') }}')">
+                <form method="POST" action="{{ route($routePrefix . '.live_classes.materials.store', $liveClass->id) }}" enctype="multipart/form-data" class="mb-4" id="resourceForm">
                     @csrf
-                    @method('DELETE')
-                    <button type="submit" class="eBtn eBtn-sm eBtn-danger">{{ get_phrase('Remove') }}</button>
+                    <input type="hidden" name="category" value="resource">
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <label class="eForm-label">{{ get_phrase('Type') }}</label>
+                            <select name="type" class="form-control eForm-control" id="resourceType">
+                                <option value="file">{{ get_phrase('File') }}</option>
+                                <option value="link">{{ get_phrase('Link') }}</option>
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="eForm-label">{{ get_phrase('Title') }} *</label>
+                            <input type="text" name="title" class="form-control eForm-control" required maxlength="200">
+                        </div>
+                        <div class="col-12" id="resourceFileWrap">
+                            <label class="eForm-label">{{ get_phrase('File') }} *</label>
+                            <input type="file" name="file" class="form-control eForm-control" accept=".{{ implode(',.', \App\Models\LiveClassMaterial::ALLOWED_EXTENSIONS) }}">
+                            <small class="text-muted">{{ get_phrase('PDF, PowerPoint, Word, Excel or image · max') }} {{ \App\Models\LiveClassMaterial::MAX_FILE_MB }}MB</small>
+                        </div>
+                        <div class="col-12 d-none" id="resourceLinkWrap">
+                            <label class="eForm-label">{{ get_phrase('Link URL') }}</label>
+                            <input type="url" name="link_url" class="form-control eForm-control" placeholder="https://...">
+                        </div>
+                        <div class="col-12">
+                            <button type="submit" class="eBtn eBtn-primary">{{ get_phrase('Add Resource') }}</button>
+                        </div>
+                    </div>
                 </form>
             @endif
+
+            @forelse($resources as $material)
+                @include('admin.live_class._material_item', ['material' => $material, 'canManage' => $canManage, 'routePrefix' => $routePrefix])
+            @empty
+                <p class="text-muted text-center py-3">{{ get_phrase('No resources have been added yet.') }}</p>
+            @endforelse
         </div>
-    @empty
-        <p class="text-muted text-center py-3">{{ get_phrase('No materials have been added yet.') }}</p>
-    @endforelse
+
+        {{-- ── Recordings: the actual session, uploaded or linked ─────────── --}}
+        <div class="tab-pane fade" id="lcRecordingsTab" role="tabpanel">
+            @if($canManage)
+                <form method="POST" action="{{ route($routePrefix . '.live_classes.materials.store', $liveClass->id) }}" enctype="multipart/form-data" class="mb-4" id="recordingForm">
+                    @csrf
+                    <input type="hidden" name="category" value="recording">
+                    <div class="alert alert-info py-2 px-3 mb-3" style="font-size:13px;">
+                        {{ get_phrase('For a full-length recording, a link is usually more reliable than uploading.') }}
+                        {{ get_phrase('Upload is best kept for short clips only.') }}
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <label class="eForm-label">{{ get_phrase('Type') }}</label>
+                            <select name="type" class="form-control eForm-control" id="recordingType">
+                                <option value="link">{{ get_phrase('Link') }}</option>
+                                <option value="file">{{ get_phrase('File') }}</option>
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="eForm-label">{{ get_phrase('Title') }} *</label>
+                            <input type="text" name="title" class="form-control eForm-control" required maxlength="200">
+                        </div>
+                        <div class="col-12 d-none" id="recordingFileWrap">
+                            <label class="eForm-label">{{ get_phrase('File') }} *</label>
+                            <input type="file" name="file" class="form-control eForm-control" accept=".{{ implode(',.', \App\Models\LiveClassMaterial::ALLOWED_RECORDING_EXTENSIONS) }}">
+                            <small class="text-muted">{{ get_phrase('MP4, WebM, MOV, MKV, MP3 or M4A · max') }} {{ \App\Models\LiveClassMaterial::MAX_RECORDING_MB }}MB</small>
+                        </div>
+                        <div class="col-12" id="recordingLinkWrap">
+                            <label class="eForm-label">{{ get_phrase('Link URL') }}</label>
+                            <input type="url" name="link_url" class="form-control eForm-control" placeholder="https://...">
+                        </div>
+                        <div class="col-12">
+                            <button type="submit" class="eBtn eBtn-primary">{{ get_phrase('Add Recording') }}</button>
+                        </div>
+                    </div>
+                </form>
+            @endif
+
+            @forelse($recordings as $material)
+                @include('admin.live_class._material_item', ['material' => $material, 'canManage' => $canManage, 'routePrefix' => $routePrefix])
+            @empty
+                <p class="text-muted text-center py-3">{{ get_phrase('No recordings have been added yet.') }}</p>
+            @endforelse
+        </div>
+    </div>
 </div>
 
 <script>
 (function () {
-    var typeSelect = document.getElementById('materialType');
-    var fileWrap = document.getElementById('materialFileWrap');
-    var linkWrap = document.getElementById('materialLinkWrap');
+    function wireTypeToggle(selectId, fileWrapId, linkWrapId) {
+        var typeSelect = document.getElementById(selectId);
+        var fileWrap = document.getElementById(fileWrapId);
+        var linkWrap = document.getElementById(linkWrapId);
+        if (!typeSelect) return;
 
-    if (typeSelect) {
         typeSelect.addEventListener('change', function () {
             var isLink = typeSelect.value === 'link';
             fileWrap.classList.toggle('d-none', isLink);
             linkWrap.classList.toggle('d-none', !isLink);
         });
     }
+
+    wireTypeToggle('resourceType', 'resourceFileWrap', 'resourceLinkWrap');
+    wireTypeToggle('recordingType', 'recordingFileWrap', 'recordingLinkWrap');
 })();
 </script>

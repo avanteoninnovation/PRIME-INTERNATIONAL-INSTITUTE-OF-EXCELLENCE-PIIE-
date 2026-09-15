@@ -33,54 +33,97 @@
 <div class="row">
     <div class="col-12">
         <div class="eSection-wrap p-3">
-            <div class="alert alert-info mb-3">
-                {{ get_phrase('This Jitsi meeting is auto-created by the system. No separate Google Meet creation is required.') }}
-            </div>
-            <div style="height: calc(100vh - 260px); min-height: 520px; border-radius: 8px; overflow: hidden; background: #111;">
-                <iframe
-                    src="{{ $meetingUrl }}"
-                    title="{{ $liveClass->title }}"
-                    width="100%"
-                    height="100%"
-                    allow="camera; microphone; fullscreen; display-capture"
-                    referrerpolicy="strict-origin-when-cross-origin"
-                    style="border: 0;"
-                ></iframe>
-            </div>
+            @if($jitsiConfigured)
+                <div class="alert alert-success mb-3">
+                    {{ get_phrase('Signed moderator token active') }} — {{ get_phrase('the host has full moderator rights here.') }}
+                </div>
+            @else
+                <div class="alert alert-warning mb-3">
+                    <strong>{{ get_phrase('If you see "Waiting for a moderator"') }}:</strong>
+                    {{ get_phrase('this meeting has no moderator token configured yet.') }}
+                    {{ get_phrase('Click "I am the host" and sign in when Jitsi prompts you.') }}
+                    {{ get_phrase('For a permanent fix, see LIVE_CLASS_JITSI_JWT_SETUP.md.') }}
+                </div>
+            @endif
+
+            <div id="jitsi-meet-container" style="height: calc(100vh - 260px); min-height: 520px; border-radius: 8px; overflow: hidden; background: #111;"></div>
+            <noscript>
+                <div class="alert alert-danger mt-3">{{ get_phrase('JavaScript is required to join this meeting. You can also') }} <a href="{{ $meetingUrl }}" target="_blank" rel="noopener">{{ get_phrase('open it in a new tab') }}</a>.</div>
+            </noscript>
         </div>
     </div>
 </div>
 
-@if(!empty($attendanceId))
+<script src="https://{{ $jitsiDomain }}/external_api.js"></script>
 <script>
 (function () {
-    // Fires when this attendee actually leaves the embedded room — the only
-    // platform this app can observe a departure from at all (Zoom/Google
-    // Meet/BigBlueButton open in a separate tab this app never hears from
-    // again). Fired on both pagehide and visibility-hidden since browsers
-    // are inconsistent about which one runs on a tab close; the server side
-    // only acts on the first of the two (see LiveClassController::attendanceLeave()).
-    var attendanceId = @json($attendanceId);
-    var leaveUrl = "{{ route($routePrefix . '.live_classes.attendance_leave', $liveClass->id) }}";
-    var csrfToken = "{{ csrf_token() }}";
-
-    function sendLeaveBeacon() {
-        var data = new FormData();
-        data.append('_token', csrfToken);
-        data.append('attendance_id', attendanceId);
-
-        if (navigator.sendBeacon) {
-            navigator.sendBeacon(leaveUrl, data);
-        } else {
-            fetch(leaveUrl, { method: 'POST', body: data, keepalive: true });
-        }
+    var container = document.getElementById('jitsi-meet-container');
+    if (!container) {
+        return;
+    }
+    if (typeof JitsiMeetExternalAPI === 'undefined') {
+        container.innerHTML = '<div class="alert alert-danger m-3">{{ get_phrase('Could not load the meeting. Try "Open External" above instead.') }}</div>';
+        return;
     }
 
-    window.addEventListener('pagehide', sendLeaveBeacon);
-    document.addEventListener('visibilitychange', function () {
-        if (document.visibilityState === 'hidden') sendLeaveBeacon();
-    });
+    var options = {
+        roomName: @json($jitsiRoomPath),
+        parentNode: container,
+        width: '100%',
+        height: '100%',
+        userInfo: {
+            displayName: @json($displayName)
+        },
+        configOverwrite: {
+            prejoinPageEnabled: false,
+            startWithAudioMuted: {{ $isModerator ? 'false' : 'true' }},
+            disableDeepLinking: true
+        },
+        interfaceConfigOverwrite: {
+            MOBILE_APP_PROMO: false
+        }
+    };
+
+    @if($jitsiJwt)
+        options.jwt = @json($jitsiJwt);
+    @endif
+
+    var api = new JitsiMeetExternalAPI(@json($jitsiDomain), options);
+
+    @if(!empty($attendanceId))
+        // Fires when this attendee actually leaves the embedded room — the
+        // only platform this app can observe a departure from at all
+        // (Zoom/Google Meet/BigBlueButton open in a separate tab this app
+        // never hears from again). The IFrame API's own leave events fire
+        // immediately; pagehide/visibilitychange stay as a fallback for
+        // tab closes the API sometimes misses.
+        var attendanceId = @json($attendanceId);
+        var leaveUrl = "{{ route($routePrefix . '.live_classes.attendance_leave', $liveClass->id) }}";
+        var csrfToken = "{{ csrf_token() }}";
+        var leaveSent = false;
+
+        function sendLeaveBeacon() {
+            if (leaveSent) return;
+            leaveSent = true;
+
+            var data = new FormData();
+            data.append('_token', csrfToken);
+            data.append('attendance_id', attendanceId);
+
+            if (navigator.sendBeacon) {
+                navigator.sendBeacon(leaveUrl, data);
+            } else {
+                fetch(leaveUrl, { method: 'POST', body: data, keepalive: true });
+            }
+        }
+
+        api.addEventListener('videoConferenceLeft', sendLeaveBeacon);
+        api.addEventListener('readyToClose', sendLeaveBeacon);
+        window.addEventListener('pagehide', sendLeaveBeacon);
+        document.addEventListener('visibilitychange', function () {
+            if (document.visibilityState === 'hidden') sendLeaveBeacon();
+        });
+    @endif
 })();
 </script>
-@endif
 @endsection

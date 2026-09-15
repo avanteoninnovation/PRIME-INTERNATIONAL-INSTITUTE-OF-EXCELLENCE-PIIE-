@@ -273,6 +273,99 @@ class LiveClassAttendanceMaterialsRemindersTest extends TestCase
         $this->assertFileDoesNotExist($destination . '/' . $storedName);
     }
 
+    // ── Recordings ───────────────────────────────────────────────────────
+
+    public function test_staff_can_upload_a_recording_file(): void
+    {
+        $schoolId = $this->makeSchool();
+        $admin = $this->makeStaffUser($schoolId, 2);
+        $liveClass = $this->makeLiveClass($schoolId);
+
+        $response = $this->actingAs($admin)->post(route('admin.live_classes.materials.store', $liveClass->id), [
+            'category' => 'recording',
+            'type' => 'file',
+            'title' => 'Session Recording',
+            'file' => UploadedFile::fake()->create('session.mp4', 2048, 'video/mp4'),
+        ]);
+
+        $response->assertSessionHasNoErrors();
+
+        $material = LiveClassMaterial::first();
+        $this->assertNotNull($material);
+        $this->assertTrue($material->isRecording());
+        $this->assertTrue($material->isFile());
+        $this->assertStringContainsString('live_class_recordings', $material->url);
+
+        @unlink($material->absolute_path);
+    }
+
+    public function test_staff_can_add_a_recording_link(): void
+    {
+        $schoolId = $this->makeSchool();
+        $admin = $this->makeStaffUser($schoolId, 2);
+        $liveClass = $this->makeLiveClass($schoolId);
+
+        $this->actingAs($admin)->post(route('admin.live_classes.materials.store', $liveClass->id), [
+            'category' => 'recording',
+            'type' => 'link',
+            'title' => 'Full Lecture',
+            'link_url' => 'https://example.test/recording',
+        ]);
+
+        $material = LiveClassMaterial::first();
+        $this->assertNotNull($material);
+        $this->assertTrue($material->isRecording());
+        $this->assertSame('https://example.test/recording', $material->link_url);
+    }
+
+    public function test_a_recording_upload_rejects_a_document_extension(): void
+    {
+        $schoolId = $this->makeSchool();
+        $admin = $this->makeStaffUser($schoolId, 2);
+        $liveClass = $this->makeLiveClass($schoolId);
+
+        $response = $this->actingAs($admin)->post(route('admin.live_classes.materials.store', $liveClass->id), [
+            'category' => 'recording',
+            'type' => 'file',
+            'title' => 'Not A Video',
+            'file' => UploadedFile::fake()->create('notes.pdf', 100, 'application/pdf'),
+        ]);
+
+        $response->assertSessionHasErrors('file');
+        $this->assertNull(LiveClassMaterial::first());
+    }
+
+    public function test_resources_and_recordings_are_kept_in_separate_lists(): void
+    {
+        $schoolId = $this->makeSchool();
+        $admin = $this->makeStaffUser($schoolId, 2);
+        $liveClass = $this->makeLiveClass($schoolId, ['is_published' => 1]);
+
+        LiveClassMaterial::create([
+            'school_id' => $schoolId,
+            'live_class_id' => $liveClass->id,
+            'type' => 'link',
+            'category' => 'resource',
+            'title' => 'Slides Link',
+            'link_url' => 'https://example.test/slides',
+        ]);
+
+        LiveClassMaterial::create([
+            'school_id' => $schoolId,
+            'live_class_id' => $liveClass->id,
+            'type' => 'link',
+            'category' => 'recording',
+            'title' => 'Recording Link',
+            'link_url' => 'https://example.test/recording',
+        ]);
+
+        $response = $this->actingAs($admin)->get(route('admin.live_classes.materials', $liveClass->id));
+
+        $response->assertStatus(200);
+        $response->assertSee('Slides Link');
+        $response->assertSee('Recording Link');
+    }
+
     // ── Eligibility + reminders ──────────────────────────────────────────
 
     public function test_eligibility_resolves_students_enrolled_in_the_classs_class(): void

@@ -26,6 +26,9 @@
             <ul class="d-flex align-items-center eBreadcrumb-2"><li><a href="{{ route($routePrefix === 'teacher' ? 'teacher.dashboard' : 'admin.dashboard') }}">{{ get_phrase('Home') }}</a></li><li><a href="#">{{ get_phrase('Live Classes') }}</a></li></ul>
         </div>
         <div class="d-flex gap-2">
+            @if($routePrefix === 'admin')
+                <a href="{{ route('admin.live_classes.meet_guests') }}" class="eBtn eBtn-secondary">{{ get_phrase('Meet Guests') }}</a>
+            @endif
             <a href="{{ route($routePrefix . '.live_classes.create') }}" class="eBtn eBtn-primary">{{ get_phrase('Schedule Class') }}</a>
             <form method="POST" action="{{ route($routePrefix . '.live_classes.meet_now') }}" target="_blank" class="d-flex align-items-center gap-2 flex-wrap justify-content-end">
                 @csrf
@@ -109,7 +112,7 @@
                             <th>{{ get_phrase('Date') }}</th>
                             <th>{{ get_phrase('Time') }}</th>
                             <th>{{ get_phrase('Status') }}</th>
-                            <th>{{ get_phrase('Actions') }}</th>
+                            <th class="text-end">{{ get_phrase('Actions') }}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -136,33 +139,45 @@
                                     {{ ucfirst($lc->computed_status) }}
                                 </span>
                             </td>
-                            <td class="d-flex flex-wrap gap-1">
-                                <a href="{{ route($routePrefix . '.live_classes.show', $lc->id) }}" class="eBtn eBtn-sm eBtn-dark">{{ get_phrase('View') }}</a>
-                                <a href="{{ route($routePrefix . '.live_classes.edit', $lc->id) }}" class="eBtn eBtn-sm eBtn-warning">{{ get_phrase('Edit') }}</a>
-                                @if($lc->can_join)
-                                    <a href="{{ route($routePrefix . '.live_classes.join', $lc->id) }}" target="_blank" class="eBtn eBtn-sm join-now-btn">
-                                        <i class="bi bi-camera-video-fill"></i> {{ $lc->computed_status === 'live' ? get_phrase('Join Now') : get_phrase('Join') }}
-                                    </a>
-                                @endif
-                                @if($lc->safe_recording_url)
-                                    <a href="{{ $lc->safe_recording_url }}" target="_blank" class="eBtn eBtn-sm eBtn-dark">{{ get_phrase('Recording') }}</a>
-                                @endif
-                                <a href="javascript:;" class="eBtn eBtn-sm eBtn-dark" title="{{ get_phrase('Materials') }}" onclick="rightModal('{{ route($routePrefix . '.live_classes.materials', $lc->id) }}', '{{ get_phrase('Class Materials') }}')">
-                                    <i class="bi bi-paperclip"></i>
-                                </a>
-                                <a href="{{ route($routePrefix . '.live_classes.attendance', $lc->id) }}" class="eBtn eBtn-sm eBtn-dark" title="{{ get_phrase('Attendance') }}">
-                                    <i class="bi bi-people"></i>
-                                </a>
-                                @if($lc->computed_status !== \App\Models\LiveClass::STATUS_CANCELLED)
-                                    <form method="POST" action="{{ route($routePrefix . '.live_classes.cancel', $lc->id) }}" onsubmit="return confirm('{{ get_phrase('Cancel this class?') }}')">
-                                        @csrf
-                                        <button type="submit" class="eBtn eBtn-sm eBtn-danger">{{ get_phrase('Cancel') }}</button>
-                                    </form>
-                                @endif
-                                <form method="POST" action="{{ route($routePrefix . '.live_classes.publish', $lc->id) }}">
-                                    @csrf
-                                    <button type="submit" class="eBtn eBtn-sm eBtn-primary">{{ $lc->is_published ? get_phrase('Unpublish') : get_phrase('Publish') }}</button>
-                                </form>
+                            <td>
+                                <div class="d-flex justify-content-end align-items-center gap-1 flex-nowrap">
+                                    @if($lc->can_join)
+                                        <a href="{{ route($routePrefix . '.live_classes.join', $lc->id) }}" target="_blank" class="eBtn eBtn-sm join-now-btn text-nowrap">
+                                            <i class="bi bi-camera-video-fill"></i> {{ $lc->computed_status === 'live' ? get_phrase('Join Now') : get_phrase('Join') }}
+                                        </a>
+                                    @endif
+                                    <div class="adminTable-action">
+                                        <button type="button" class="eBtn eBtn-black dropdown-toggle table-action-btn-2 live-class-action-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                                            {{ get_phrase('Actions') }}
+                                        </button>
+                                        <ul class="dropdown-menu dropdown-menu-end eDropdown-menu-2 eDropdown-table-action">
+                                            <li><a class="dropdown-item" href="{{ route($routePrefix . '.live_classes.show', $lc->id) }}">{{ get_phrase('View') }}</a></li>
+                                            <li><a class="dropdown-item" href="{{ route($routePrefix . '.live_classes.edit', $lc->id) }}">{{ get_phrase('Edit') }}</a></li>
+                                            <li><a class="dropdown-item" href="{{ route($routePrefix . '.live_classes.attendance', $lc->id) }}">{{ get_phrase('Attendance') }}</a></li>
+                                            <li>
+                                                <a class="dropdown-item" href="javascript:;" onclick="rightModal('{{ route($routePrefix . '.live_classes.materials', $lc->id) }}', '{{ get_phrase('Resources & Recordings') }}')">{{ get_phrase('Resources & Recordings') }}</a>
+                                            </li>
+                                            @if($lc->safe_recording_url)
+                                                <li><a class="dropdown-item" href="{{ $lc->safe_recording_url }}" target="_blank">{{ get_phrase('Recording') }}</a></li>
+                                            @endif
+                                            <li><hr class="dropdown-divider"></li>
+                                            <li>
+                                                <form method="POST" action="{{ route($routePrefix . '.live_classes.publish', $lc->id) }}">
+                                                    @csrf
+                                                    <button type="submit" class="dropdown-item">{{ $lc->is_published ? get_phrase('Unpublish') : get_phrase('Publish') }}</button>
+                                                </form>
+                                            </li>
+                                            @if($lc->computed_status !== \App\Models\LiveClass::STATUS_CANCELLED)
+                                                <li>
+                                                    <form method="POST" action="{{ route($routePrefix . '.live_classes.cancel', $lc->id) }}" onsubmit="return confirm('{{ get_phrase('Cancel this class?') }}')">
+                                                        @csrf
+                                                        <button type="submit" class="dropdown-item text-danger">{{ get_phrase('Cancel') }}</button>
+                                                    </form>
+                                                </li>
+                                            @endif
+                                        </ul>
+                                    </div>
+                                </div>
                             </td>
                         </tr>
                     @empty
@@ -175,4 +190,16 @@
         </div>
     </div>
 </div>
+
+<script>
+    // See resources/views/teacher/online_exam/index.blade.php for why this is
+    // needed: .table-responsive's overflow-x: auto forces overflow-y to clip
+    // too, so a dropdown opening near the bottom of the table gets cut off
+    // unless it's detached from that ancestor with a fixed Popper strategy.
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('.live-class-action-toggle').forEach(function (toggle) {
+            new bootstrap.Dropdown(toggle, { popperConfig: { strategy: 'fixed' } });
+        });
+    });
+</script>
 @endsection

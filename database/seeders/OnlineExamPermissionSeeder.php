@@ -102,10 +102,12 @@ class OnlineExamPermissionSeeder extends Seeder
                 'view_online_exams',
                 'create_online_exams',
                 'edit_own_online_exams',
+                'delete_online_exams',
                 'manage_exam_questions',
                 'view_exam_attempts',
                 'mark_exam_answers',
                 'view_exam_results',
+                'review_exam_proctoring',
             ];
         }
 

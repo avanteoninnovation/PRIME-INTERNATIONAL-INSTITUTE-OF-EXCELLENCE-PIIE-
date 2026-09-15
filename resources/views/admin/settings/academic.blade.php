@@ -94,6 +94,14 @@
             <div class="col-md-8">
                 <label class="eForm-label">{{ get_phrase('Jitsi Base URL') }}</label>
                 <input type="url" class="form-control eForm-control" name="live_class_jitsi_base_url" value="{{ $platform_settings['live_class_jitsi_base_url'] }}" placeholder="https://meet.jit.si">
+                <small class="d-block mt-1">
+                    {{ get_phrase('Moderator token (JWT)') }}:
+                    @if($platform_settings['jitsi_jwt_configured'])
+                        <span class="text-success"><i class="bi bi-check-circle-fill"></i> {{ get_phrase('Configured — hosts get real moderator rights.') }}</span>
+                    @else
+                        <span class="text-danger"><i class="bi bi-exclamation-triangle-fill"></i> {{ get_phrase('Not configured — see LIVE_CLASS_JITSI_JWT_SETUP.md.') }}</span>
+                    @endif
+                </small>
             </div>
         </div>
 

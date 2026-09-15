@@ -20,8 +20,14 @@ class UpdateOnlineExamRequest extends FormRequest
             return false;
         }
 
-        $id = (int) ($this->route('id') ?? $this->route('exam') ?? 0);
-        $this->exam = OnlineExam::find($id);
+        $examParam = $this->route('exam');
+        if ($examParam instanceof OnlineExam) {
+            $this->exam = $examParam;
+        } else {
+            $id = (int) ($this->route('id') ?? $examParam ?? 0);
+            $this->exam = OnlineExam::find($id);
+        }
+
         if (!$this->exam) {
             return false;
         }

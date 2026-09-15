@@ -35,6 +35,9 @@
                 <td>
                     <a class="eBtn eBtn-sm eBtn-secondary" href="{{ route('teacher.online_exams.results', $exam->id) }}">{{ get_phrase('Result') }}</a>
                     <a class="eBtn eBtn-sm eBtn-info" href="{{ route('teacher.online_exams.marking') }}">{{ get_phrase('Marking') }}</a>
+                    @if($canReviewProctoring)
+                        <a class="eBtn eBtn-sm eBtn-warning" href="{{ route('teacher.online_exams.proctoring.review', ['exam' => $exam->id, 'submission_id' => $submission->id]) }}">{{ get_phrase('Proctor') }}</a>
+                    @endif
                 </td>
             </tr>
         @empty
