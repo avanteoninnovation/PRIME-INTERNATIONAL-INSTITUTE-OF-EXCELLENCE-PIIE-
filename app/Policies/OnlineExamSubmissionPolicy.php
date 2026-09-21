@@ -23,7 +23,14 @@ class OnlineExamSubmissionPolicy
     {
         return (int) $user->role_id === 7
             && app(OnlineExamAuthorizer::class)->canAccessSubmission($user, $submission)
-            && $submission->status === OnlineExamSubmission::STATUS_IN_PROGRESS;
+            && in_array($submission->status, [
+                OnlineExamSubmission::STATUS_IN_PROGRESS,
+                OnlineExamSubmission::STATUS_SUBMITTED,
+                OnlineExamSubmission::STATUS_TIMED_OUT,
+                OnlineExamSubmission::STATUS_PENDING_MANUAL,
+                OnlineExamSubmission::STATUS_FINALIZED,
+                OnlineExamSubmission::STATUS_RESULT_PUBLISHED,
+            ], true);
     }
 
     public function forceSubmit(User $user, OnlineExamSubmission $submission): bool

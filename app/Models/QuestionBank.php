@@ -12,21 +12,37 @@ class QuestionBank extends Model
     protected $table = 'question_banks';
 
     protected $fillable = [
-        'school_id', 'subject_id', 'question', 'type',
+        'school_id', 'subject_id', 'programme_id', 'session_id', 'topic_id', 'subtopic_id', 'question', 'type',
         'option_a', 'option_b', 'option_c', 'option_d',
-        'correct_ans', 'marks', 'difficulty', 'created_by'
+        'correct_ans', 'question_schema_version', 'question_config', 'marking_config',
+        'marks', 'difficulty', 'topic', 'subtopic', 'bloom_level', 'status', 'created_by'
     ];
 
     protected $appends = ['normalized_type', 'correct_answer'];
 
     protected $casts = [
         'marks' => 'integer',
+        'question_schema_version' => 'integer',
     ];
 
     public function subject()
     {
         return $this->belongsTo(Subject::class, 'subject_id');
     }
+
+    public function programme()
+    {
+        return $this->belongsTo(Programme::class, 'programme_id');
+    }
+
+    public function session()
+    {
+        return $this->belongsTo(Session::class, 'session_id');
+    }
+
+    public function topic() { return $this->belongsTo(QuestionTopic::class, 'topic_id'); }
+    public function subtopic() { return $this->belongsTo(QuestionTopic::class, 'subtopic_id'); }
+    public function tags() { return $this->belongsToMany(QuestionTag::class, 'question_bank_tag'); }
 
     public function creator()
     {
@@ -49,6 +65,9 @@ class QuestionBank extends Model
 
     public function getNormalizedTypeAttribute(): string
     {
+        if ($this->question_schema_version !== null) {
+            return \App\Support\OnlineExams\QuestionContract::normalize($this)['type'];
+        }
         $map = [
             'mcq' => 'multiple_choice',
             'true_false' => 'true_false',

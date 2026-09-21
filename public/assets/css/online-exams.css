@@ -1,0 +1,111 @@
+/* Online Exams UI visibility and responsive state presentation. */
+.online-exam-table,.online-exam-marking-table,.online-exam-attempts-table,.online-exam-results-table { width:100%; }
+.online-exam-table th,.online-exam-table td,.online-exam-marking-table th,.online-exam-marking-table td,.online-exam-attempts-table th,.online-exam-attempts-table td,.online-exam-results-table th,.online-exam-results-table td { vertical-align:middle; }
+.online-exam-table .badge,.online-exam-marking-table .badge,.online-exam-attempts-table .badge,.online-exam-results-table .badge,.online-exam-card .badge { display:inline-flex; align-items:center; gap:.25rem; min-height:1.5rem; padding:.3rem .55rem; line-height:1.2; white-space:normal; text-align:left; }
+.online-exam-table th,.online-exam-marking-table th,.online-exam-attempts-table th,.online-exam-results-table th { white-space:nowrap; }
+.online-exam-table td,.online-exam-marking-table td,.online-exam-attempts-table td,.online-exam-results-table td { overflow-wrap:anywhere; }
+.online-exam-actions,.online-exam-marking-actions,.online-exam-attempts-actions,.online-exam-results-actions { min-width:250px; display:flex; align-items:center; flex-wrap:wrap; gap:.35rem; }
+.online-exam-table td,.online-exam-marking-table td,.online-exam-attempts-table td,.online-exam-results-table td { position:static; }
+.online-exam-workflow-status { position:static !important; float:none !important; vertical-align:middle; font-weight:600; }
+.online-exam-table .online-exam-actions { min-width:300px; }
+.online-exam-table .online-exam-actions form { margin:0; }
+.online-exam-table .online-exam-actions .eBtn { flex:0 0 auto; }
+/* The base theme defines primary/warning/danger buttons but leaves the
+   secondary and info variants transparent.  In Online Exams that made
+   white labels disappear against the page background. */
+.online-exam-table .eBtn-secondary,
+.online-exam-marking-table .eBtn-secondary,
+.online-exam-attempts-table .eBtn-secondary,
+.online-exam-results-table .eBtn-secondary,
+.online-exam-card .eBtn-secondary,
+.online-exam-admin-results-table .eBtn-secondary { background:#475569 !important; border-color:#475569 !important; color:#fff !important; }
+.online-exam-table .eBtn-secondary:hover,
+.online-exam-table .eBtn-secondary:focus,
+.online-exam-table .eBtn-secondary:active,
+.online-exam-marking-table .eBtn-secondary:hover,
+.online-exam-marking-table .eBtn-secondary:focus,
+.online-exam-marking-table .eBtn-secondary:active,
+.online-exam-attempts-table .eBtn-secondary:hover,
+.online-exam-attempts-table .eBtn-secondary:focus,
+.online-exam-attempts-table .eBtn-secondary:active,
+.online-exam-results-table .eBtn-secondary:hover,
+.online-exam-results-table .eBtn-secondary:focus,
+.online-exam-results-table .eBtn-secondary:active,
+.online-exam-card .eBtn-secondary:hover,
+.online-exam-card .eBtn-secondary:focus,
+.online-exam-card .eBtn-secondary:active,
+.online-exam-admin-results-table .eBtn-secondary:hover,
+.online-exam-admin-results-table .eBtn-secondary:focus,
+.online-exam-admin-results-table .eBtn-secondary:active { background:#334155 !important; border-color:#334155 !important; color:#fff !important; }
+.online-exam-table .eBtn-info,
+.online-exam-marking-table .eBtn-info,
+.online-exam-attempts-table .eBtn-info,
+.online-exam-results-table .eBtn-info,
+.online-exam-card .eBtn-info,
+.online-exam-admin-results-table .eBtn-info { background:#0369a1 !important; border-color:#0369a1 !important; color:#fff !important; }
+.online-exam-table .eBtn-info:hover,
+.online-exam-table .eBtn-info:focus,
+.online-exam-table .eBtn-info:active,
+.online-exam-marking-table .eBtn-info:hover,
+.online-exam-marking-table .eBtn-info:focus,
+.online-exam-marking-table .eBtn-info:active,
+.online-exam-attempts-table .eBtn-info:hover,
+.online-exam-attempts-table .eBtn-info:focus,
+.online-exam-attempts-table .eBtn-info:active,
+.online-exam-results-table .eBtn-info:hover,
+.online-exam-results-table .eBtn-info:focus,
+.online-exam-results-table .eBtn-info:active,
+.online-exam-card .eBtn-info:hover,
+.online-exam-card .eBtn-info:focus,
+.online-exam-card .eBtn-info:active,
+.online-exam-admin-results-table .eBtn-info:hover,
+.online-exam-admin-results-table .eBtn-info:focus,
+.online-exam-admin-results-table .eBtn-info:active { background:#075985 !important; border-color:#075985 !important; color:#fff !important; }
+.online-exam-status-draft { background:#e5e7eb !important; color:#1f2937 !important; }
+.online-exam-status-review { background:#fef3c7 !important; color:#78350f !important; }
+.online-exam-status-published { background:#d1fae5 !important; color:#065f46 !important; }
+.online-exam-status-cancelled { background:#e5e7eb !important; color:#374151 !important; }
+.online-exam-status-info { background:#dbeafe !important; color:#1e3a8a !important; }
+.online-exam-table .badge,.online-exam-marking-table .badge,.online-exam-attempts-table .badge,.online-exam-results-table .badge { position:static !important; float:none !important; }
+.online-exam-marking-table .online-exam-summary { background:#f1f5f9; color:#1f2937; }
+.online-exam-marking-table .online-exam-summary .badge.bg-light { background:#e2e8f0 !important; color:#1f2937 !important; }
+.online-exam-card .alert { min-height:2.5rem; color:#1f2937; }
+.online-exam-card .eBtn { white-space:normal; }
+.online-exam-card .alert-success { color:#065f46; }
+.online-exam-card .alert-info { color:#1e3a8a; }
+.online-exam-card .alert-warning { color:#78350f; }
+.online-exam-card .alert-secondary { background:#e5e7eb; border-color:#cbd5e1; color:#374151; }
+.online-exam-card h6 { overflow-wrap:anywhere; }
+.online-exam-card .alert-success { background:#d1fae5; border-color:#86efac; }
+.online-exam-card .alert-info { background:#dbeafe; border-color:#93c5fd; }
+.online-exam-card .alert-warning { background:#fef3c7; border-color:#fcd34d; }
+.online-exam-notification-menu .dropdown-menu { background:#fff; color:#1f2937; border-color:#cbd5e1; }
+.online-exam-notification-menu .dropdown-item { color:#1f2937; }
+.online-exam-notification-menu .dropdown-item:hover,
+.online-exam-notification-menu .dropdown-item:focus { background:#e0f2fe; color:#0c4a6e; }
+.online-exam-notification-menu .dropdown-item.bg-light { background:#eff6ff !important; }
+.online-exam-notification-menu .dropdown-item small,
+.online-exam-notification-menu .dropdown-item .text-muted { color:#475569 !important; }
+/* The base theme targets .eBtn:disabled and .eBtn.disabled later with light
+   text. Keep this selector more specific so Online Exams controls remain
+   readable even when either convention is used. */
+table.online-exam-table button:disabled,
+table.online-exam-table button.eBtn.disabled,
+table.online-exam-table .eBtn.disabled,
+table.online-exam-table a.eBtn.disabled,
+.online-exam-card button:disabled,
+.online-exam-start-page button:disabled,
+#examTakeRoot button:disabled { opacity:1 !important; color:#374151 !important; background:#e5e7eb !important; border:1px solid #9ca3af !important; cursor:not-allowed !important; pointer-events:none; }
+table.online-exam-table button:disabled:hover,
+table.online-exam-table button.eBtn.disabled:hover,
+table.online-exam-table .eBtn.disabled:hover,
+table.online-exam-table a.eBtn.disabled:hover { color:#374151 !important; background:#e5e7eb !important; border-color:#9ca3af !important; }
+.online-exam-start-page .alert-info { background:#dbeafe; border-color:#93c5fd; color:#1e3a8a; }
+.online-exam-start-page .alert-warning { background:#fef3c7; border-color:#fcd34d; color:#78350f; }
+.online-exam-start-page .alert-danger { background:#fee2e2; border-color:#fca5a5; color:#7f1d1d; }
+#examTakeRoot p .badge,.online-exam-question-card .badge { position:static; vertical-align:middle; margin-top:.25rem; }
+.online-exam-table .eBtn,.online-exam-marking-table .eBtn,.online-exam-attempts-table .eBtn,.online-exam-results-table .eBtn { white-space:normal; text-align:center; }
+.online-exam-table .eBtn:focus-visible,.online-exam-marking-table .eBtn:focus-visible,.online-exam-attempts-table .eBtn:focus-visible,.online-exam-results-table .eBtn:focus-visible,.online-exam-card .eBtn:focus-visible { outline:3px solid #1d4ed8; outline-offset:2px; }
+.online-exam-table .eBtn-danger,.online-exam-marking-table .eBtn-danger,.online-exam-attempts-table .eBtn-danger,.online-exam-results-table .eBtn-danger { border-color:#b91c1c; }
+.online-exam-table .eBtn-primary,.online-exam-marking-table .eBtn-primary,.online-exam-attempts-table .eBtn-primary,.online-exam-results-table .eBtn-primary { font-weight:600; }
+@media (max-width:900px) { .online-exam-table,.online-exam-marking-table,.online-exam-attempts-table,.online-exam-results-table { min-width:980px; } .online-exam-table-wrap,.online-exam-marking-wrap,.online-exam-attempts-wrap,.online-exam-results-wrap { overflow-x:auto; -webkit-overflow-scrolling:touch; } .online-exam-table .online-exam-actions { min-width:240px; } }

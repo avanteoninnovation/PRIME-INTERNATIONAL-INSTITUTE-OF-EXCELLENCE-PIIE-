@@ -13,7 +13,8 @@ class OnlineExamQuestion extends Model
     protected $fillable = [
         'online_exam_id', 'question_bank_id', 'question', 'type',
         'option_a', 'option_b', 'option_c', 'option_d',
-        'correct_ans', 'marks', 'sort_order'
+        'correct_ans', 'question_schema_version', 'question_config', 'marking_config',
+        'marks', 'sort_order'
     ];
 
     protected $appends = ['normalized_type', 'correct_answer'];
@@ -21,6 +22,7 @@ class OnlineExamQuestion extends Model
     protected $casts = [
         'marks' => 'integer',
         'sort_order' => 'integer',
+        'question_schema_version' => 'integer',
     ];
 
     public function exam()
@@ -50,6 +52,9 @@ class OnlineExamQuestion extends Model
 
     public function getNormalizedTypeAttribute(): string
     {
+        if ($this->question_schema_version !== null) {
+            return \App\Support\OnlineExams\QuestionContract::normalize($this)['type'];
+        }
         $map = [
             'mcq' => 'multiple_choice',
             'true_false' => 'true_false',

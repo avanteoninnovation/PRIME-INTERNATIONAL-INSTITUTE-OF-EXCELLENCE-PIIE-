@@ -36,7 +36,7 @@ class OnlineExamResultNotifier
             return false;
         }
 
-        if ($submission->status !== OnlineExamSubmission::STATUS_FINALIZED) {
+        if (!in_array($submission->status, [OnlineExamSubmission::STATUS_FINALIZED, OnlineExamSubmission::STATUS_RESULT_PUBLISHED], true)) {
             return false;
         }
 

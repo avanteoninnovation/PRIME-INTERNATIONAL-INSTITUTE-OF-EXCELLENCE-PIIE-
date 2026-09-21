@@ -38,7 +38,7 @@
                     <tr>
                         <td><input type="checkbox" name="question_bank_ids[]" value="{{ $b->id }}"></td>
                         <td>{{ $b->question }}</td>
-                        <td>{{ strtoupper($b->type) }}</td>
+                        <td>{{ strtoupper(str_replace('_', ' ', $b->normalized_type)) }}</td>
                         <td>{{ $b->marks }}</td>
                     </tr>
                 @empty
@@ -54,20 +54,20 @@
 
 <div class="eSection-wrap">
     <h6>{{ get_phrase('Exam Questions') }}</h6>
-    <form method="POST" action="{{ route('teacher.online_exams.questions.reorder', $exam->id) }}">
-        @csrf
-        <div class="table-responsive">
+    <form id="reorderQuestionsForm" method="POST" action="{{ route('teacher.online_exams.questions.reorder', $exam->id) }}">@csrf</form>
+    <div>
+                <div class="table-responsive online-exam-table-wrap">
             <table class="table eTable">
                 <thead><tr><th>{{ get_phrase('Order') }}</th><th>{{ get_phrase('Question') }}</th><th>{{ get_phrase('Type') }}</th><th>{{ get_phrase('Marks') }}</th><th>{{ get_phrase('Actions') }}</th></tr></thead>
                 <tbody>
                 @forelse($questions as $question)
                     <tr>
                         <td>
-                            <input type="hidden" name="question_ids[]" value="{{ $question->id }}">
+                            <input form="reorderQuestionsForm" type="hidden" name="question_ids[]" value="{{ $question->id }}">
                             {{ $question->sort_order }}
                         </td>
                         <td>{{ $question->question }}</td>
-                        <td>{{ strtoupper($question->type) }}</td>
+                        <td>{{ strtoupper(str_replace('_', ' ', $question->normalized_type)) }}</td>
                         <td>{{ $question->marks }}</td>
                         <td>
                             @if(!$structureLocked)
@@ -87,21 +87,41 @@
                                 @csrf
                                 @method('PUT')
                                 <div class="col-md-4"><input class="form-control eForm-control" name="question" value="{{ $question->question }}" required></div>
+                                @php($structuredConfig = $question->question_schema_version ? json_decode($question->question_config, true) : [])
+                                @php($structuredMarking = $question->question_schema_version ? json_decode($question->marking_config, true) : [])
                                 <div class="col-md-2">
                                     <select class="form-select eForm-select" name="type">
-                                        @foreach(['multiple_choice' => 'MCQ', 'true_false' => 'True/False', 'fill_blank' => 'Fill Blank', 'short_answer' => 'Short Answer', 'essay' => 'Essay'] as $typeValue => $label)
+                                        @foreach(['multiple_choice' => 'MCQ', 'multiple_select' => 'Multiple Select', 'numeric' => 'Numerical Answer', 'matching' => 'Matching', 'ordering' => 'Ordering / Sequencing', 'true_false' => 'True/False', 'fill_blank' => 'Fill Blank', 'short_answer' => 'Short Answer', 'essay' => 'Essay'] as $typeValue => $label)
                                             <option value="{{ $typeValue }}" {{ $question->normalized_type === str_replace('multiple_choice', 'multiple_choice', $typeValue) ? 'selected' : '' }}>{{ $label }}</option>
                                         @endforeach
                                     </select>
                                 </div>
-                                <div class="col-md-1"><input class="form-control eForm-control" name="marks" value="{{ $question->marks }}" type="number" min="0.1" step="0.1" required></div>
-                                <div class="col-md-1"><input class="form-control eForm-control" name="correct_ans" value="{{ $question->correct_ans }}" placeholder="Correct"></div>
+                                <div class="col-md-1"><input class="form-control eForm-control" name="marks" value="{{ $question->marks }}" type="number" min="1" max="127" step="1" required></div>
+                                @php($questionKey = \App\Support\OnlineExams\AnswerKey::forQuestion($question))
+                                <div class="col-md-2">
+                                    <select class="form-select eForm-select" name="correct_ans" data-edit-correct="mcq">
+                                        <option value="">Correct option</option>
+                                        @foreach(['a','b','c','d'] as $opt)<option value="{{ $opt }}" @selected($questionKey === $opt)>Option {{ strtoupper($opt) }}</option>@endforeach
+                                    </select>
+                                    <select class="form-select eForm-select" name="correct_answer_tf" data-edit-correct="true_false">
+                                        <option value="">Correct answer</option><option value="true" @selected($questionKey === 'true')>True</option><option value="false" @selected($questionKey === 'false')>False</option>
+                                    </select>
+                                    <input class="form-control eForm-control" name="correct_ans" data-edit-correct="text" value="{{ $question->correct_ans }}" placeholder="Correct answer">
+                                </div>
                                 <div class="col-md-1"><input class="form-control eForm-control" name="option_a" value="{{ $question->option_a }}" placeholder="A"></div>
                                 <div class="col-md-1"><input class="form-control eForm-control" name="option_b" value="{{ $question->option_b }}" placeholder="B"></div>
                                 <div class="col-md-1"><input class="form-control eForm-control" name="option_c" value="{{ $question->option_c }}" placeholder="C"></div>
                                 <div class="col-md-1"><input class="form-control eForm-control" name="option_d" value="{{ $question->option_d }}" placeholder="D"></div>
+                                <div class="col-md-12" data-edit-structured="multiple_select" style="display:none"><div class="row g-2">@foreach(['a','b','c','d','e','f','g','h'] as $opt)<div class="col-md-6"><div class="input-group"><span class="input-group-text"><input type="checkbox" name="correct_option_ids[]" value="{{ $opt }}" @checked(in_array($opt, (array)($structuredMarking['correct_option_ids'] ?? []), true))></span><input class="form-control" name="structured_options[{{ $loop->index }}][id]" value="{{ data_get($structuredConfig, 'options.'.$loop->index.'.id', $opt) }}" readonly><input class="form-control" name="structured_options[{{ $loop->index }}][label]" value="{{ data_get($structuredConfig, 'options.'.$loop->index.'.label') }}" placeholder="Option {{ strtoupper($opt) }}"></div></div>@endforeach</div><small class="text-muted">Select at least two correct options.</small></div>
+                                <div class="col-md-6" data-edit-structured="numeric" style="display:none"><input class="form-control eForm-control" name="numeric_target" value="{{ $structuredMarking['target'] ?? '' }}" placeholder="Target numerical answer"><input class="form-control eForm-control mt-1" name="numeric_tolerance" value="{{ $structuredMarking['tolerance'] ?? 0 }}" placeholder="Absolute tolerance"></div>
+                                <div class="col-12" data-edit-structured="fill_blank" style="display:none"><small class="text-muted">Use [[blank_id]] placeholders in the prompt. Accepted answers are comma-separated.</small><div class="row g-2 mt-1">@foreach(range(1,4) as $blankNumber)@php($blankId = data_get($structuredConfig, 'blanks.'.($blankNumber-1).'.id', 'blank_'.$blankNumber))<div class="col-md-6"><input class="form-control" name="structured_blanks[{{ $blankNumber-1 }}][id]" value="{{ $blankId }}" readonly><input class="form-control mt-1" name="structured_blanks[{{ $blankNumber-1 }}][accepted_answers][]" value="{{ implode(',', (array) data_get($structuredMarking, 'blanks.'.$blankId.'.accepted_answers', [])) }}" placeholder="Accepted answers, comma-separated"></div>@endforeach</div><label class="form-check mt-2"><input type="checkbox" class="form-check-input" name="case_sensitive" value="1" @checked(($structuredMarking['case_sensitive'] ?? false))> Case-sensitive marking</label><input type="hidden" name="trim_whitespace" value="1"></div>
+                                <div class="col-12" data-edit-structured="matching" style="display:none"><div class="row g-2">@foreach(($structuredConfig['left_items'] ?? []) as $idx => $left)<div class="col-md-6"><div class="input-group"><input class="form-control" name="structured_pairs[{{ $idx }}][left_id]" value="{{ $left['id'] }}" readonly><input class="form-control" name="structured_pairs[{{ $idx }}][left_text]" value="{{ $left['text'] }}"><input class="form-control" name="structured_pairs[{{ $idx }}][right_id]" value="{{ data_get($structuredConfig,'right_items.'.$idx.'.id') }}" readonly><input class="form-control" name="structured_pairs[{{ $idx }}][right_text]" value="{{ data_get($structuredConfig,'right_items.'.$idx.'.text') }}"></div></div>@endforeach</div><small class="text-muted">Existing IDs are preserved while text is edited.</small></div>
+                                <div class="col-12" data-edit-structured="ordering" style="display:none"><div class="row g-2">@foreach(($structuredConfig['items'] ?? []) as $idx => $item)<div class="col-md-6"><div class="input-group"><span class="input-group-text">{{ $idx+1 }}</span><input class="form-control" name="structured_order_items[{{ $idx }}][id]" value="{{ $item['id'] }}" readonly><input class="form-control" name="structured_order_items[{{ $idx }}][text]" value="{{ $item['text'] }}"></div></div>@endforeach</div><small class="text-muted">Enter items in the correct sequence; IDs remain stable.</small></div>
                                 <div class="col-md-12"><button class="eBtn eBtn-sm eBtn-primary" type="submit">{{ get_phrase('Save') }}</button></div>
                             </form>
+                            <script>
+                            (function(){var f=document.currentScript.previousElementSibling,t=f.querySelector('[name=type]'),cs=f.querySelectorAll('[data-edit-correct]'),ss=f.querySelectorAll('[data-edit-structured]');function s(){var v=t.value==='multiple_choice'?'mcq':(t.value==='true_false'?'true_false':(t.value==='multiple_select'?'multiple_select':(t.value==='numeric'?'numeric':(t.value==='matching'?'matching':(t.value==='ordering'?'ordering':'text')))));cs.forEach(function(c){var on=c.dataset.editCorrect===v;c.style.display=on?'block':'none';c.disabled=!on;});ss.forEach(function(c){var on=c.dataset.editStructured===v;c.style.display=on?'block':'none';c.querySelectorAll('input').forEach(function(i){i.disabled=!on;});});}t.addEventListener('change',s);s();})();
+                            </script>
                         </td>
                     </tr>
                     @endif
@@ -112,8 +132,8 @@
             </table>
         </div>
         @if(!$structureLocked && $questions->count() > 1)
-            <button class="eBtn eBtn-secondary" type="submit">{{ get_phrase('Save Current Order') }}</button>
+            <button form="reorderQuestionsForm" class="eBtn eBtn-secondary" type="submit">{{ get_phrase('Save Current Order') }}</button>
         @endif
-    </form>
+    </div>
 </div>
 @endsection

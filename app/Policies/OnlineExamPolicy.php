@@ -100,14 +100,14 @@ class OnlineExamPolicy
     {
         $authorizer = app(OnlineExamAuthorizer::class);
         return $authorizer->can($user, 'view_exam_attempts')
-            && $authorizer->canManageExam($user, $exam);
+            && $authorizer->canAccessExamAttempts($user, $exam);
     }
 
     public function markAnswers(User $user, OnlineExam $exam): bool
     {
         $authorizer = app(OnlineExamAuthorizer::class);
         return $authorizer->can($user, 'mark_exam_answers')
-            && $authorizer->canManageExam($user, $exam);
+            && $authorizer->canAccessExamAttempts($user, $exam);
     }
 
     public function reviewProctoring(User $user, OnlineExam $exam): bool

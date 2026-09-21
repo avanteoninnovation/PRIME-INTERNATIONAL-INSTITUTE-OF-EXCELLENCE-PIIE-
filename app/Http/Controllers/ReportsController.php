@@ -227,15 +227,15 @@ class ReportsController extends Controller
                         ->orderByDesc('created_at')
                         ->get()
                         ->each(function ($sub, $i) use ($out) {
-                            $pct = $sub->total_marks > 0 ? round($sub->score / $sub->total_marks * 100, 1) : 0;
+                            $pct = $sub->result_total_marks > 0 ? round($sub->score / $sub->result_total_marks * 100, 1) : 0;
                             fputcsv($out, [
                                 $i+1,
                                 optional($sub->student)->name ?? '—',
                                 optional($sub->exam)->title ?? '—',
                                 $sub->score,
-                                $sub->total_marks,
+                                $sub->result_total_marks,
                                 $pct,
-                                $sub->passed ? 'Pass' : 'Fail',
+                                is_null($sub->passed) ? 'Pending' : ($sub->passed ? 'Pass' : 'Fail'),
                                 $sub->created_at?->format('Y-m-d H:i'),
                             ]);
                         });

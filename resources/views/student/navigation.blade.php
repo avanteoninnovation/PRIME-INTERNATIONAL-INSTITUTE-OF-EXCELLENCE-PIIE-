@@ -37,6 +37,7 @@
 
     <!--Main Jquery-->
     <script src="{{ asset('assets/vendors/jquery/jquery-3.6.0.min.js') }}"></script>
+    <link rel="stylesheet" href="{{ asset('assets/css/online-exams.css') }}?v=20260920-3">
 </head>
 
 <body>
@@ -476,6 +477,7 @@
                     </div>
 
                     <div class="col-auto d-flex">
+                        @include('online_exam.notifications')
                         <div class="message">
                             @php
                                 $last_message = DB::table('message_thrades')
@@ -779,6 +781,10 @@
             });
         });
     </script>
+
+    {{-- Page-specific scripts pushed by student views (for example the
+         Online Exams instructions and exam-taking screens). --}}
+    @stack('scripts')
 
 </body>
 

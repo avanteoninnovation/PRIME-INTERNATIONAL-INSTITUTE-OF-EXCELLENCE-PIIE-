@@ -40,7 +40,7 @@
                 <tr class="{{ $flagged ? 'table-warning' : '' }}">
                     <td>{{ $events->firstItem() + $i }}</td>
                     <td>
-                        <span class="badge bg-{{ $flagged ? 'danger' : 'secondary' }}">{{ ucwords(str_replace('_',' ',$event->event_type)) }}</span>
+                        <span class="badge bg-{{ $flagged ? 'danger' : 'secondary' }}">{{ $event->event_type ? ucwords(str_replace('_',' ', $event->event_type)) : get_phrase('Event type not recorded') }}</span>
                     </td>
                     <td>{{ $event->event_time?->format('d M Y H:i:s') }}</td>
                     <td>{{ !empty($event->metadata) ? json_encode($event->metadata) : '—' }}</td>

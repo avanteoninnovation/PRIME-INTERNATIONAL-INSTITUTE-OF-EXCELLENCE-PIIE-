@@ -1,4 +1,4 @@
-@extends('admin.navigation')
+@extends('student.navigation')
 @section('content')
 <div class="mainSection-title"><div class="row"><div class="col-12">
     <div class="d-flex justify-content-between align-items-center flex-wrap gr-15">
@@ -12,7 +12,7 @@
     </div>
 </div></div></div>
 
-<div class="row justify-content-center">
+<div class="row justify-content-center online-exam-start-page">
     <div class="col-lg-8">
         <div class="eSection-wrap">
             <div id="startError" class="alert alert-danger d-none"></div>
@@ -207,6 +207,7 @@
                 camera_consent_accepted: cameraConsented,
                 camera_ready: cameraReady,
                 fullscreen_ready: fullscreenReady,
+                instructions_acknowledged: declareCheckbox.checked,
                 browser_session_token: browserToken,
             }),
         })
