@@ -1,6 +1,7 @@
 <?php
 namespace App\Http\Middleware;
 
+use App\Support\Permissions\PortalAccessDenial;
 use Closure;
 use Illuminate\Http\Request;
 
@@ -17,11 +18,10 @@ class WardenMiddleware
     {
         $user = auth()->user();
 
-        if ($user->role_id == '10' && $user->account_status != 'disable' && !$user->isStaffPortalBlocked()) {
+        if ($user && $user->role_id == '10' && $user->account_status != 'disable' && !$user->isStaffPortalBlocked()) {
             return $next($request);
-
-        } else {
-            return redirect()->route('warden.account_disable')->with('error', 'Access denied or your account is disabled.');
         }
+
+        return PortalAccessDenial::redirect($user, 'warden.account_disable');
     }
 }

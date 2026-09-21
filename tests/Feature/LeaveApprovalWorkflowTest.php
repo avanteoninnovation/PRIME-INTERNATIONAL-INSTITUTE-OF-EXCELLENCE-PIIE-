@@ -129,9 +129,13 @@ class LeaveApprovalWorkflowTest extends TestCase
         $returnResponse  = $this->actingAs($teacher)->post(route('admin.leave.return', $leaveId), ['comment' => 'x']);
         $rejectResponse  = $this->actingAs($teacher)->post(route('admin.leave.reject', $leaveId), ['comment' => 'x']);
 
-        $approveResponse->assertRedirect(route('login'));
-        $returnResponse->assertRedirect(route('login'));
-        $rejectResponse->assertRedirect(route('login'));
+        // Wrong role for this area, not an unauthenticated/disabled account
+        // — the middleware fix (App\Support\Permissions\PortalAccessDenial)
+        // sends an active user back to their own dashboard rather than to
+        // the login page, since they're still logged in perfectly fine.
+        $approveResponse->assertRedirect(route('teacher.dashboard'));
+        $returnResponse->assertRedirect(route('teacher.dashboard'));
+        $rejectResponse->assertRedirect(route('teacher.dashboard'));
 
         $leave = Leavelist::find($leaveId);
         $this->assertSame('pending', $leave->status);
@@ -302,8 +306,10 @@ class LeaveApprovalWorkflowTest extends TestCase
             'reason' => 'Should not work',
         ]);
 
-        $indexResponse->assertRedirect(route('login'));
-        $storeResponse->assertRedirect(route('login'));
+        // Wrong role for this area, not an unauthenticated/disabled account
+        // — see the comment in test_unauthorized_staff_cannot_approve_return_or_deny().
+        $indexResponse->assertRedirect(route('student.dashboard'));
+        $storeResponse->assertRedirect(route('student.dashboard'));
         $this->assertDatabaseCount('leavelists', 0);
     }
 }

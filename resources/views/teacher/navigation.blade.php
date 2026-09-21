@@ -480,6 +480,7 @@
             </div>
             
             <div class="col-auto d-flex ">
+              @include('notifications._bell')
               <div class="message">
                 @php
                 $last_message = DB::table('message_thrades')

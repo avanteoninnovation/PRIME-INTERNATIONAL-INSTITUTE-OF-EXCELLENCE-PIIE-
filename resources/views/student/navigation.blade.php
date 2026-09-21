@@ -89,26 +89,38 @@
                     </a>
                 </div>
             </li>
-            <!-- Sidebar menu -->
-
-            <li class="nav-links-li {{ request()->is('student/teacher*') ? 'showMenu' : '' }}">
+            <li class="nav-links-li {{ request()->is('student/profile*') ? 'showMenu' : '' }}">
                 <div class="iocn-link">
-                    <a class="{{ request()->is('student/teacher*') ? 'active' : '' }}"
-                        href="{{ route('student.teacher') }}">
+                    <a href="{{ route('student.profile') }}">
                         <div class="sidebar_icon">
-                            <svg xmlns="http://www.w3.org/2000/svg" id="Layer_1" data-name="Layer 1"
-                                viewBox="0 0 24 24" width="48" height="48">
-                                <path
-                                    d="M16.5,24a1.5,1.5,0,0,1-1.489-1.335,3.031,3.031,0,0,0-6.018,0,1.5,1.5,0,0,1-2.982-.33,6.031,6.031,0,0,1,11.982,0,1.5,1.5,0,0,1-1.326,1.656A1.557,1.557,0,0,1,16.5,24Zm6.167-9.009a1.5,1.5,0,0,0,1.326-1.656A5.815,5.815,0,0,0,18.5,8a1.5,1.5,0,0,0,0,3,2.835,2.835,0,0,1,2.509,2.665A1.5,1.5,0,0,0,22.5,15,1.557,1.557,0,0,0,22.665,14.991ZM2.991,13.665A2.835,2.835,0,0,1,5.5,11a1.5,1.5,0,0,0,0-3A5.815,5.815,0,0,0,.009,13.335a1.5,1.5,0,0,0,1.326,1.656A1.557,1.557,0,0,0,1.5,15,1.5,1.5,0,0,0,2.991,13.665ZM12.077,16a3.5,3.5,0,1,0-3.5-3.5A3.5,3.5,0,0,0,12.077,16Zm6-9a3.5,3.5,0,1,0-3.5-3.5A3.5,3.5,0,0,0,18.077,7Zm-12,0a3.5,3.5,0,1,0-3.5-3.5A3.5,3.5,0,0,0,6.077,7Z" />
+                            <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+                                version="1.1" id="Capa_1" x="0px" y="0px" viewBox="0 0 512 512"
+                                style="enable-background:new 0 0 512 512;" xml:space="preserve" width="48"
+                                height="48">
+                                <g>
+                                    <path
+                                        d="M244.317,299.051c-90.917,8.218-160.183,85.041-158.976,176.32V480c0,17.673,14.327,32,32,32l0,0c17.673,0,32-14.327,32-32   v-5.909c-0.962-56.045,40.398-103.838,96-110.933c58.693-5.82,110.992,37.042,116.812,95.735c0.344,3.47,0.518,6.954,0.521,10.441   V480c0,17.673,14.327,32,32,32l0,0c17.673,0,32-14.327,32-32v-10.667c-0.104-94.363-76.685-170.774-171.047-170.67   C251.854,298.668,248.082,298.797,244.317,299.051z" />
+                                    <path
+                                        d="M256.008,256c70.692,0,128-57.308,128-128S326.7,0,256.008,0s-128,57.308-128,128   C128.078,198.663,185.345,255.929,256.008,256z M256.008,64c35.346,0,64,28.654,64,64s-28.654,64-64,64s-64-28.654-64-64   S220.662,64,256.008,64z" />
+                                </g>
                             </svg>
                         </div>
-                        <span class="link_name">{{ get_phrase('Teacher') }}</span>
+                        <span class="link_name">{{ get_phrase('Personal Information') }}</span>
                     </a>
                 </div>
             </li>
-
+            <li class="nav-links-li {{ request()->is('student/id-card*') ? 'showMenu' : '' }}">
+                <div class="iocn-link">
+                    <a href="{{ route('student.id_card') }}">
+                        <div class="sidebar_icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="48" height="48"><path d="M20,4H4C2.9,4,2,4.9,2,6v12c0,1.1,0.9,2,2,2h16c1.1,0,2-0.9,2-2V6C22,4.9,21.1,4,20,4z M9,10c1.1,0,2,0.9,2,2s-0.9,2-2,2 s-2-0.9-2-2S7.9,10,9,10z M13,17H5v-0.75C5,14.9,6.79,14,9,14s4,0.9,4,2.25V17z M20,16h-5v-1.5h5V16z M20,13h-5v-1.5h5V13z M20,10 h-5V8.5h5V10z"/></svg>
+                        </div>
+                        <span class="link_name">{{ get_phrase('My ID Card') }}</span>
+                    </a>
+                </div>
+            </li>
             <li
-                class="nav-links-li {{ request()->is('student/attendance*') || request()->is('student/routine*') || request()->is('student/subject*') || request()->is('student/syllabus*') ? 'showMenu' : '' }}">
+                class="nav-links-li {{ request()->is('student/attendance*') || request()->is('student/routine*') || request()->is('student/subject*') || request()->is('student/syllabus*') || request()->is('student/transfers*') ? 'showMenu' : '' }}">
                 <div class="iocn-link">
                     <a href="#">
                         <div class="sidebar_icon">
@@ -118,7 +130,7 @@
                                     d="M7.5,4.5c.151-5.935,8.85-5.934,9,0-.151,5.935-8.85,5.934-9,0ZM24,15.5v1.793c0,2.659-1.899,4.935-4.516,5.411l-5.763,1.139c-1.142,.207-2.285,.21-3.421,.004l-5.807-1.147c-2.595-.472-4.494-2.748-4.494-5.407v-1.793c-.083-3.331,3.222-6.087,6.483-5.411l3.36,.702c.824,.15,1.564,.527,2.16,1.062,.601-.537,1.351-.916,2.191-1.069l3.282-.688c1.653-.301,3.293,.134,4.548,1.181,1.256,1.048,1.976,2.587,1.976,4.223Zm-13.5-.289c0-.726-.518-1.346-1.231-1.476l-3.36-.702c-.707-.126-1.439,.075-2.01,.548-.571,.477-.898,1.176-.898,1.919v1.793c0,1.209,.863,2.243,2.053,2.46l5.447,1.076v-5.618Zm10.5,.289c0-.744-.327-1.443-.897-1.919-.57-.476-1.318-.674-2.05-.54l-3.282,.687c-.753,.137-1.271,.758-1.271,1.483v5.618l5.425-1.072c1.212-.221,2.075-1.255,2.075-2.464v-1.793Z" />
                             </svg>
                         </div>
-                        <span class="link_name">{{ get_phrase('Academic') }}</span>
+                        <span class="link_name">{{ get_phrase('Studentship') }}</span>
                     </a>
                     <span class="arrow">
                         <svg xmlns="http://www.w3.org/2000/svg" width="4.743" height="7.773" viewBox="0 0 4.743 7.773">
@@ -140,11 +152,42 @@
                     </li>
                     <li><a class="{{ request()->is('student/syllabus*') ? 'active' : '' }}"
                             href="{{ route('student.syllabus') }}"><span>{{ get_phrase('Syllabus') }}</span></a></li>
+                    <li><a class="{{ request()->is('student/transfers*') ? 'active' : '' }}"
+                            href="{{ route('student.transfers.index') }}"><span>{{ get_phrase('My Transfers') }}</span></a></li>
                 </ul>
             </li>
-
+            <li class="nav-links-li {{ request()->is('student/requests*') ? 'showMenu' : '' }}">
+                <div class="iocn-link">
+                    <a href="{{ route('student.requests.index') }}">
+                        <div class="sidebar_icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="48" height="48"><path d="M12,2C6.48,2,2,6.48,2,12s4.48,10,10,10s10-4.48,10-10S17.52,2,12,2z M13,17h-2v-2h2V17z M13,13h-2V7h2V13z"/></svg>
+                        </div>
+                        <span class="link_name">{{ get_phrase('Student Affairs') }}</span>
+                    </a>
+                </div>
+            </li>
+            <li class="nav-links-li {{ request()->is('student/my-courses*') ? 'showMenu' : '' }}">
+                <div class="iocn-link">
+                    <a href="{{ route('student.my_courses') }}">
+                        <div class="sidebar_icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="48" height="48"><path d="M4,19V6.2C4,5.08,4.94,4.15,6.11,4.15h11.32c1.06,0,1.93,0.83,1.93,1.85V19c0,0.55-0.47,1-1.05,1H5.05C4.47,20,4,19.55,4,19z M6,17h11.36V7H6V17z M8,9h7v1.5H8V9z M8,12h7v1.5H8V12z"/></svg>
+                        </div>
+                        <span class="link_name">{{ get_phrase('My Courses') }}</span>
+                    </a>
+                </div>
+            </li>
+            <li class="nav-links-li {{ request()->is('student/elections*') ? 'showMenu' : '' }}">
+                <div class="iocn-link">
+                    <a href="{{ route('student.elections.index') }}">
+                        <div class="sidebar_icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="48" height="48"><path d="M12,2L1,7l4,2v8l7,3l7-3v-8l2-1v6h2V7L12,2z M12,4.15L18.5,7L12,9.85L5.5,7L12,4.15z M17,15.5l-5,2.15l-5-2.15V10.15l5,2.15l5-2.15V15.5z"/></svg>
+                        </div>
+                        <span class="link_name">{{ get_phrase('Elections') }}</span>
+                    </a>
+                </div>
+            </li>
             <li
-                class="nav-links-li {{ request()->is('student/marks') || request()->is('student/grade') ? 'showMenu' : '' }}">
+                class="nav-links-li {{ request()->is('student/marks') || request()->is('student/grade') || request()->is('student/exam-results*') ? 'showMenu' : '' }}">
                 <div class="iocn-link">
                     <a href="#">
                         <div class="sidebar_icon">
@@ -182,9 +225,44 @@
                                 href="{{ route('student.online_exam.list') }}"><span>{{ get_phrase('Online Exams') }}</span></a>
                         </li>
                     @endif
+                    <li>
+                        <a class="{{ request()->is('student/exam-results*') ? 'active' : '' }}"
+                            href="{{ route('student.exam_results') }}"><span>{{ get_phrase('My Exam Results') }}</span></a>
+                    </li>
                 </ul>
             </li>
-
+            <li class="nav-links-li {{ request()->is('student/fee_manager*') ? 'showMenu' : '' }}">
+                <div class="iocn-link">
+                    <a class="{{ request()->is('student/fee_manager*') ? 'active' : '' }}"
+                        href="{{ route('student.fee_manager.list') }}">
+                        <div class="sidebar_icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" id="Layer_1" data-name="Layer 1"
+                                viewBox="0 0 24 24" width="48" height="48">
+                                <path
+                                    d="M16.5,10c-1.972-.034-1.971-2.967,0-3h1c1.972,.034,1.971,2.967,0,3h-1Zm-3.5,4.413c0-1.476-.885-2.783-2.255-3.331l-2.376-.95c-.591-.216-.411-1.15,.218-1.132h1.181c.181,0,.343,.094,.434,.251,.415,.717,1.334,.962,2.05,.547,.717-.415,.962-1.333,.548-2.049-.511-.883-1.381-1.492-2.363-1.684-.399-1.442-2.588-1.375-2.896,.091-3.161,.875-3.414,5.6-.285,6.762l2.376,.95c.591,.216,.411,1.15-.218,1.132h-1.181c-.181,0-.343-.094-.434-.25-.415-.717-1.334-.961-2.05-.547-.717,.415-.962,1.333-.548,2.049,.511,.883,1.381,1.491,2.363,1.683,.399,1.442,2.588,1.375,2.896-.091,1.469-.449,2.54-1.817,2.54-3.431ZM18.5,1H5.5C2.468,1,0,3.467,0,6.5v11c0,3.033,2.468,5.5,5.5,5.5h3c1.972-.034,1.971-2.967,0-3h-3c-1.379,0-2.5-1.122-2.5-2.5V6.5c0-1.378,1.121-2.5,2.5-2.5h13c1.379,0,2.5,1.122,2.5,2.5v2c.034,1.972,2.967,1.971,3,0v-2c0-3.033-2.468-5.5-5.5-5.5Zm-5.205,18.481c-.813,.813-1.269,1.915-1.269,3.064,.044,.422-.21,1.464,.5,1.455,1.446,.094,2.986-.171,4.019-1.269l6.715-6.715c2.194-2.202-.9-5.469-3.157-3.343l-6.808,6.808Z" />
+                            </svg>
+                        </div>
+                        <span class="link_name">
+                            {{ get_phrase('Student Fees') }}
+                        </span>
+                    </a>
+                </div>
+            </li>
+            <li class="nav-links-li {{ request()->is('student/teacher*') ? 'showMenu' : '' }}">
+                <div class="iocn-link">
+                    <a class="{{ request()->is('student/teacher*') ? 'active' : '' }}"
+                        href="{{ route('student.teacher') }}">
+                        <div class="sidebar_icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" id="Layer_1" data-name="Layer 1"
+                                viewBox="0 0 24 24" width="48" height="48">
+                                <path
+                                    d="M16.5,24a1.5,1.5,0,0,1-1.489-1.335,3.031,3.031,0,0,0-6.018,0,1.5,1.5,0,0,1-2.982-.33,6.031,6.031,0,0,1,11.982,0,1.5,1.5,0,0,1-1.326,1.656A1.557,1.557,0,0,1,16.5,24Zm6.167-9.009a1.5,1.5,0,0,0,1.326-1.656A5.815,5.815,0,0,0,18.5,8a1.5,1.5,0,0,0,0,3,2.835,2.835,0,0,1,2.509,2.665A1.5,1.5,0,0,0,22.5,15,1.557,1.557,0,0,0,22.665,14.991ZM2.991,13.665A2.835,2.835,0,0,1,5.5,11a1.5,1.5,0,0,0,0-3A5.815,5.815,0,0,0,.009,13.335a1.5,1.5,0,0,0,1.326,1.656A1.557,1.557,0,0,0,1.5,15,1.5,1.5,0,0,0,2.991,13.665ZM12.077,16a3.5,3.5,0,1,0-3.5-3.5A3.5,3.5,0,0,0,12.077,16Zm6-9a3.5,3.5,0,1,0-3.5-3.5A3.5,3.5,0,0,0,18.077,7Zm-12,0a3.5,3.5,0,1,0-3.5-3.5A3.5,3.5,0,0,0,6.077,7Z" />
+                            </svg>
+                        </div>
+                        <span class="link_name">{{ get_phrase('Teacher') }}</span>
+                    </a>
+                </div>
+            </li>
             <li class="nav-links-li {{ request()->is('student/live-classes*') ? 'showMenu' : '' }}">
                 <div class="iocn-link">
                     <a href="{{ route('student.live_classes.index') }}">
@@ -199,9 +277,6 @@
                     </a>
                 </div>
             </li>
-
-            <!-- Student log -->
-
             @if (addon_status('online_courses') == 1)
                 <li class="nav-links-li {{ request()->is('student/addons/courses*') ? 'showMenu' : '' }}">
                     <div class="iocn-link">
@@ -225,7 +300,6 @@
                     </div>
                 </li>
             @endif
-
             @if (addon_status('assignments') == 1)
                 <li class="nav-links-li {{ request()->is('student/my-assignments*') ? 'showMenu' : '' }}">
                     <div class="iocn-link">
@@ -253,25 +327,6 @@
                     </div>
                 </li>
             @endif
-
-            <li class="nav-links-li {{ request()->is('student/fee_manager*') ? 'showMenu' : '' }}">
-                <div class="iocn-link">
-                    <a class="{{ request()->is('student/fee_manager*') ? 'active' : '' }}"
-                        href="{{ route('student.fee_manager.list') }}">
-                        <div class="sidebar_icon">
-                            <svg xmlns="http://www.w3.org/2000/svg" id="Layer_1" data-name="Layer 1"
-                                viewBox="0 0 24 24" width="48" height="48">
-                                <path
-                                    d="M16.5,10c-1.972-.034-1.971-2.967,0-3h1c1.972,.034,1.971,2.967,0,3h-1Zm-3.5,4.413c0-1.476-.885-2.783-2.255-3.331l-2.376-.95c-.591-.216-.411-1.15,.218-1.132h1.181c.181,0,.343,.094,.434,.251,.415,.717,1.334,.962,2.05,.547,.717-.415,.962-1.333,.548-2.049-.511-.883-1.381-1.492-2.363-1.684-.399-1.442-2.588-1.375-2.896,.091-3.161,.875-3.414,5.6-.285,6.762l2.376,.95c.591,.216,.411,1.15-.218,1.132h-1.181c-.181,0-.343-.094-.434-.25-.415-.717-1.334-.961-2.05-.547-.717,.415-.962,1.333-.548,2.049,.511,.883,1.381,1.491,2.363,1.683,.399,1.442,2.588,1.375,2.896-.091,1.469-.449,2.54-1.817,2.54-3.431ZM18.5,1H5.5C2.468,1,0,3.467,0,6.5v11c0,3.033,2.468,5.5,5.5,5.5h3c1.972-.034,1.971-2.967,0-3h-3c-1.379,0-2.5-1.122-2.5-2.5V6.5c0-1.378,1.121-2.5,2.5-2.5h13c1.379,0,2.5,1.122,2.5,2.5v2c.034,1.972,2.967,1.971,3,0v-2c0-3.033-2.468-5.5-5.5-5.5Zm-5.205,18.481c-.813,.813-1.269,1.915-1.269,3.064,.044,.422-.21,1.464,.5,1.455,1.446,.094,2.986-.171,4.019-1.269l6.715-6.715c2.194-2.202-.9-5.469-3.157-3.343l-6.808,6.808Z" />
-                            </svg>
-                        </div>
-                        <span class="link_name">
-                            {{ get_phrase('Fee Manager') }}
-                        </span>
-                    </a>
-                </div>
-            </li>
-
             <li
                 class="nav-links-li {{ request()->is('student/appraisal-list*') || request()->is('student/start-appraisal/*') ? 'showMenu' : '' }}">
                 <div class="iocn-link">
@@ -358,7 +413,6 @@
                     </li>
                 </ul>
             </li>
-
             <li
                 class="nav-links-li {{ request()->is('student/hostel_*') || request()->is('student/hostel-applications*') || request()->is('student/hostel_fee*') ? 'showMenu' : '' }}">
                 <div class="iocn-link">
@@ -417,28 +471,6 @@
                     @endif
                 </ul>
             </li>
-
-            <li class="nav-links-li {{ request()->is('student/profile*') ? 'showMenu' : '' }}">
-                <div class="iocn-link">
-                    <a href="{{ route('student.profile') }}">
-                        <div class="sidebar_icon">
-                            <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
-                                version="1.1" id="Capa_1" x="0px" y="0px" viewBox="0 0 512 512"
-                                style="enable-background:new 0 0 512 512;" xml:space="preserve" width="48"
-                                height="48">
-                                <g>
-                                    <path
-                                        d="M244.317,299.051c-90.917,8.218-160.183,85.041-158.976,176.32V480c0,17.673,14.327,32,32,32l0,0c17.673,0,32-14.327,32-32   v-5.909c-0.962-56.045,40.398-103.838,96-110.933c58.693-5.82,110.992,37.042,116.812,95.735c0.344,3.47,0.518,6.954,0.521,10.441   V480c0,17.673,14.327,32,32,32l0,0c17.673,0,32-14.327,32-32v-10.667c-0.104-94.363-76.685-170.774-171.047-170.67   C251.854,298.668,248.082,298.797,244.317,299.051z" />
-                                    <path
-                                        d="M256.008,256c70.692,0,128-57.308,128-128S326.7,0,256.008,0s-128,57.308-128,128   C128.078,198.663,185.345,255.929,256.008,256z M256.008,64c35.346,0,64,28.654,64,64s-28.654,64-64,64s-64-28.654-64-64   S220.662,64,256.008,64z" />
-                                </g>
-                            </svg>
-                        </div>
-                        <span class="link_name">{{ get_phrase('Profile') }}</span>
-                    </a>
-                </div>
-            </li>
-        </ul>
     </div>
 
     <section class="home-section">
@@ -476,6 +508,7 @@
                     </div>
 
                     <div class="col-auto d-flex">
+                        @include('notifications._bell')
                         <div class="message">
                             @php
                                 $last_message = DB::table('message_thrades')

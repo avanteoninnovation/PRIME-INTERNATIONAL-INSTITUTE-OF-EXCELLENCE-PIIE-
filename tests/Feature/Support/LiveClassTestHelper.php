@@ -225,6 +225,18 @@ trait LiveClassTestHelper
             $table->dateTime('created_at')->nullable();
         });
 
+        Schema::create('user_notifications', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('user_id')->index();
+            $table->unsignedBigInteger('school_id')->index();
+            $table->string('type', 40)->default('general');
+            $table->string('title', 191);
+            $table->text('body')->nullable();
+            $table->string('url', 500)->nullable();
+            $table->timestamp('read_at')->nullable();
+            $table->timestamps();
+        });
+
         Schema::create('noticeboard', function (Blueprint $table) {
             $table->id();
             $table->longText('notice_title');

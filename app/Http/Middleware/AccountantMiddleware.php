@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Support\Permissions\PortalAccessDenial;
 use Closure;
 use Illuminate\Http\Request;
 
@@ -17,12 +18,11 @@ class AccountantMiddleware
     public function handle(Request $request, Closure $next)
     {
         $user = auth()->user();
-       
-        if ($user->role_id == '4' && $user->account_status != 'disable' && !$user->isStaffPortalBlocked()) {
-            return $next($request);
 
-        }else{
-            return redirect()->route('accountant.account_disable')->with('error', 'Access denied or your account is disabled.');
+        if ($user && $user->role_id == '4' && $user->account_status != 'disable' && !$user->isStaffPortalBlocked()) {
+            return $next($request);
         }
+
+        return PortalAccessDenial::redirect($user, 'accountant.account_disable');
     }
 }

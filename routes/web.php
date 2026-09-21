@@ -212,6 +212,13 @@ Route::get('student/account-disable', function () {
     return view('student.account_disable');
 })->name('student.account_disable');
 
+// Was referenced by WardenMiddleware's redirect but never actually
+// registered — any request that hit that branch threw a hard
+// RouteNotFoundException instead of showing a message.
+Route::get('warden/account-disable', function () {
+    return view('warden.account_disable');
+})->name('warden.account_disable');
+
 //Superadmin routes are here
 Route::controller(SuperAdminController::class)->middleware('auth', 'superAdmin')->group(function () {
 
@@ -955,6 +962,16 @@ Route::controller(ParentController::class)->middleware('parent', 'auth')->group(
 Route::controller(StudentController::class)->middleware('student', 'auth')->group(function () {
 
     Route::get('student/dashboard', 'studentDashboard')->name('student.dashboard')->middleware('role_id');
+    Route::get('student/id-card', 'idCardGenerate')->name('student.id_card');
+    Route::get('student/id-card/pdf', 'idCardPdf')->name('student.id_card.pdf');
+    Route::get('student/my-courses', 'myCourses')->name('student.my_courses');
+    Route::post('student/my-courses/register', 'registerCourses')->name('student.my_courses.register');
+    Route::post('student/my-courses/{id}/confirm', 'confirmCourse')->name('student.my_courses.confirm');
+    Route::post('student/my-courses/{id}/drop', 'dropCourse')->name('student.my_courses.drop');
+    Route::get('student/requests', 'requestsIndex')->name('student.requests.index');
+    Route::post('student/requests', 'storeRequest')->name('student.requests.store');
+    Route::get('student/transfers', 'transfersIndex')->name('student.transfers.index');
+    Route::post('student/transfers', 'storeTransfer')->name('student.transfers.store');
 
     //User routes
     Route::get('student/teacher', 'teacherList')->name('student.teacher');
@@ -1052,6 +1069,23 @@ Route::controller(StudentController::class)->middleware('student', 'auth')->grou
 });
 //Student routes end here
 
+// Self-service Exam Results / Transcript (TranscriptController — see its
+// studentShow()/studentDownloadPdf(), reusing the exact same
+// buildTranscriptViewData()/PDF template the admin-facing transcript uses).
+Route::controller(\App\Http\Controllers\TranscriptController::class)->middleware('student', 'auth')->group(function () {
+    Route::get('student/exam-results', 'studentShow')->name('student.exam_results');
+    Route::get('student/exam-results/pdf', 'studentDownloadPdf')->name('student.exam_results.pdf');
+});
+
+// Student Elections / Voting
+Route::controller(\App\Http\Controllers\ElectionController::class)->middleware('student', 'auth')->group(function () {
+    Route::get('student/elections', 'studentIndex')->name('student.elections.index');
+    Route::get('student/elections/{id}', 'studentShow')->name('student.elections.show');
+    Route::post('student/elections/{id}/verify', 'verifyIdentity')->name('student.elections.verify');
+    Route::post('student/elections/{id}/vote', 'castVote')->name('student.elections.vote');
+    Route::get('student/elections/{id}/results', 'studentResults')->name('student.elections.results');
+});
+
 //Common routes are here
 Route::controller(CommonController::class)->middleware('auth')->group(function () {
 
@@ -1069,6 +1103,20 @@ Route::controller(CommonController::class)->middleware('auth')->group(function (
     Route::get('user/{id}', 'idWiseUserName')->name('id_wise_user_name');
 });
 //Common routes end here
+
+// Notifications — a per-user inbox shared across every role (student,
+// teacher, parent, admin, ...), same "Common routes, middleware('auth')
+// only" pattern as the CommonController block just above. See
+// NotificationController's own docblock: nothing here is role-scoped,
+// only auth()->user()->id-scoped.
+Route::controller(\App\Http\Controllers\NotificationController::class)->middleware('auth')->group(function () {
+    Route::get('notifications', 'index')->name('notifications.index');
+    Route::get('notifications/dropdown', 'dropdown')->name('notifications.dropdown');
+    Route::get('notifications/unread-count', 'unreadCount')->name('notifications.unread_count');
+    Route::post('notifications/{id}/read', 'markRead')->name('notifications.read');
+    Route::post('notifications/read-all', 'markAllRead')->name('notifications.read_all');
+});
+//Notification routes end here
 
 //Accountant routes are here
 Route::controller(AccountantController::class)->middleware('accountant', 'auth')->group(function () {
@@ -1595,6 +1643,23 @@ Route::middleware(['auth', 'admin'])->controller(\App\Http\Controllers\Transcrip
     Route::get('admin/transcripts/search',       'search')->name('admin.transcripts.search');
     Route::get('admin/transcripts/{id}/view',    'show')->name('admin.transcripts.show');
     Route::get('admin/transcripts/{id}/pdf',     'downloadPdf')->name('admin.transcripts.pdf');
+});
+
+// ── Student Affairs (requests review) ──────────────────────────
+Route::middleware(['auth', 'admin'])->controller(\App\Http\Controllers\StudentRequestController::class)->group(function () {
+    Route::get('admin/student-requests',          'index')->name('admin.student_requests.index');
+    Route::post('admin/student-requests/{id}',    'update')->name('admin.student_requests.update');
+});
+
+// ── Elections / Voting ──────────────────────────────────────────
+Route::middleware(['auth', 'admin'])->controller(\App\Http\Controllers\ElectionController::class)->group(function () {
+    Route::get('admin/elections',                       'index')->name('admin.elections.index');
+    Route::get('admin/elections/create',                'create')->name('admin.elections.create');
+    Route::post('admin/elections',                      'store')->name('admin.elections.store');
+    Route::get('admin/elections/{id}',                  'show')->name('admin.elections.show');
+    Route::post('admin/elections/{electionId}/positions', 'storePosition')->name('admin.elections.positions.store');
+    Route::post('admin/election-positions/{positionId}/candidates', 'storeCandidate')->name('admin.elections.candidates.store');
+    Route::post('admin/elections/{id}/publish-results', 'publishResults')->name('admin.elections.publish_results');
 });
 
 // ── Reports & Analytics ───────────────────────────────────────

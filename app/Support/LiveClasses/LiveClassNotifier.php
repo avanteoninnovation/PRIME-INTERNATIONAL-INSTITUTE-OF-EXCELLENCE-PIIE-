@@ -7,6 +7,7 @@ use App\Models\LiveClass;
 use App\Models\Noticeboard;
 use App\Models\Session;
 use App\Models\User;
+use App\Support\Notifications\NotificationService;
 use Illuminate\Support\Facades\Mail;
 
 /**
@@ -44,11 +45,20 @@ class LiveClassNotifier
 
         self::createNotice($liveClass, $windowLabel);
 
+        $joinUrl = route('student.live_classes.join', $liveClass->id);
+
+        NotificationService::notifyMany(
+            $studentIds,
+            $liveClass->school_id,
+            get_phrase('Live Class Reminder') . ': ' . $liveClass->title,
+            $liveClass->title . ' ' . $windowLabel . '.',
+            $joinUrl,
+            'live_class_reminder'
+        );
+
         if ($studentIds->isEmpty() || !self::isMailConfigured()) {
             return 0;
         }
-
-        $joinUrl = route('student.live_classes.join', $liveClass->id);
         $sent = 0;
 
         User::whereIn('id', $studentIds)

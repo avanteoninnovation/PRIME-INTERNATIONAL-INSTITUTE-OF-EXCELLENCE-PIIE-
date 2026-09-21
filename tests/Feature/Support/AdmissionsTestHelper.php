@@ -453,6 +453,54 @@ trait AdmissionsTestHelper
             $table->timestamps();
         });
 
+        Schema::create('addons', function (Blueprint $table) {
+            $table->id();
+            $table->string('unique_identifier')->unique();
+            $table->string('status')->default('0');
+            $table->timestamps();
+        });
+
+        Schema::create('hostel_applications', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('student_id')->nullable();
+            $table->unsignedBigInteger('hostel_id')->nullable();
+            $table->unsignedBigInteger('room_id')->nullable();
+            $table->tinyInteger('status')->default(0);
+            $table->text('note')->nullable();
+            $table->timestamp('accepted_at')->nullable();
+            $table->unsignedBigInteger('school_id')->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('hostel_fees', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('school_id')->nullable();
+            $table->unsignedBigInteger('hostel_id')->nullable();
+            $table->unsignedBigInteger('room_id')->nullable();
+            $table->unsignedBigInteger('student_id')->nullable();
+            $table->string('title')->nullable();
+            $table->decimal('amount', 10, 2)->nullable();
+            $table->decimal('paid_amount', 10, 2)->nullable();
+            $table->date('fee_payment_date')->nullable();
+            $table->dateTime('payment_date')->nullable();
+            $table->string('payment_method')->nullable();
+            $table->string('gateway_reference', 191)->nullable();
+            $table->text('gateway_payload')->nullable();
+            $table->unsignedInteger('status')->default(0);
+            $table->timestamps();
+        });
+
+        Schema::create('teacher_permissions', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('class_id')->nullable();
+            $table->unsignedBigInteger('section_id')->nullable();
+            $table->unsignedBigInteger('school_id')->nullable();
+            $table->unsignedBigInteger('teacher_id')->nullable();
+            $table->tinyInteger('marks')->default(0);
+            $table->tinyInteger('attendance')->default(0);
+            $table->dateTime('updated_at')->nullable();
+        });
+
         Schema::create('sections', function (Blueprint $table) {
             $table->id();
             $table->string('name');
@@ -463,6 +511,9 @@ trait AdmissionsTestHelper
         Schema::create('subjects', function (Blueprint $table) {
             $table->id();
             $table->string('name');
+            $table->string('code', 30)->nullable();
+            $table->unsignedTinyInteger('credits')->nullable();
+            $table->string('course_type', 20)->nullable();
             $table->unsignedBigInteger('class_id')->nullable();
             $table->unsignedBigInteger('programme_id')->nullable();
             $table->unsignedBigInteger('school_id');
@@ -521,6 +572,18 @@ trait AdmissionsTestHelper
             $table->unsignedBigInteger('school_id');
             $table->unsignedBigInteger('session_id');
             $table->integer('timestamp');
+            $table->timestamps();
+        });
+
+        Schema::create('user_notifications', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('user_id')->index();
+            $table->unsignedBigInteger('school_id')->index();
+            $table->string('type', 40)->default('general');
+            $table->string('title', 191);
+            $table->text('body')->nullable();
+            $table->string('url', 500)->nullable();
+            $table->timestamp('read_at')->nullable();
             $table->timestamps();
         });
 

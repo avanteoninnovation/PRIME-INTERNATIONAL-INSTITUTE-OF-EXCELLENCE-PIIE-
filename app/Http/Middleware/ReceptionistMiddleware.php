@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Support\Permissions\PortalAccessDenial;
 use Closure;
 use Illuminate\Http\Request;
 
@@ -13,6 +14,6 @@ class ReceptionistMiddleware
         if ($user && in_array($user->role_id, [2, 18]) && $user->account_status != 'disable') {
             return $next($request);
         }
-        return redirect()->route('login')->with('error', 'Access denied.');
+        return PortalAccessDenial::redirect($user);
     }
 }

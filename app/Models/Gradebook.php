@@ -18,4 +18,9 @@ class Gradebook extends Model
         'class_id', 'section_id', 'student_id', 'exam_category_id', 'marks', 'comment', 'school_id', 'session_id', 'timestamp',
         'programme_id', 'intake_session_id',
     ];
+
+    public function examCategory()
+    {
+        return $this->belongsTo(ExamCategory::class, 'exam_category_id');
+    }
 }

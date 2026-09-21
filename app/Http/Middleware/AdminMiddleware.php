@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Support\Permissions\PortalAccessDenial;
 use Closure;
 use Illuminate\Http\Request;
 
@@ -27,6 +28,6 @@ class AdminMiddleware
             return $next($request);
         }
 
-        return redirect()->route('admin.account_disableview')->with('error', 'Access denied or your account is disabled.');
+        return PortalAccessDenial::redirect($user, 'admin.account_disableview');
     }
 }

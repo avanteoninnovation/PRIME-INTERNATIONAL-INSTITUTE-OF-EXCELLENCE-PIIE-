@@ -7,6 +7,7 @@ use App\Models\Noticeboard;
 use App\Models\OnlineExam;
 use App\Models\Session;
 use App\Models\User;
+use App\Support\Notifications\NotificationService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 
@@ -36,12 +37,23 @@ class OnlineExamAnnouncementNotifier
 
     public static function examPublished(OnlineExam $exam): int
     {
+        $students = self::eligibleStudents($exam);
+
+        NotificationService::notifyMany(
+            $students->pluck('id'),
+            $exam->school_id,
+            get_phrase('New Exam Available') . ': ' . $exam->title,
+            get_phrase('A new exam has been scheduled for you. Please review the details below.'),
+            route('student.online_exam.list'),
+            'online_exam_published'
+        );
+
         if (!self::isConfigured()) {
             return 0;
         }
 
         $sent = 0;
-        foreach (self::eligibleStudents($exam) as $student) {
+        foreach ($students as $student) {
             if (self::send($student, $exam, [
                 'subject'  => get_phrase('New Exam Available') . ': ' . $exam->title,
                 'heading'  => get_phrase('New Exam Available'),
@@ -72,12 +84,23 @@ class OnlineExamAnnouncementNotifier
     {
         self::createNotice($exam, $windowLabel);
 
+        $students = self::eligibleStudents($exam);
+
+        NotificationService::notifyMany(
+            $students->pluck('id'),
+            $exam->school_id,
+            get_phrase('Exam Reminder') . ': ' . $exam->title,
+            $exam->title . ' ' . $windowLabel . '. ' . get_phrase('Make sure you are ready before it begins.'),
+            route('student.online_exam.list'),
+            'online_exam_reminder'
+        );
+
         if (!self::isConfigured()) {
             return 0;
         }
 
         $sent = 0;
-        foreach (self::eligibleStudents($exam) as $student) {
+        foreach ($students as $student) {
             if (self::send($student, $exam, [
                 'subject'  => get_phrase('Exam Reminder') . ': ' . $exam->title,
                 'heading'  => get_phrase('Your Exam Is Starting Soon'),

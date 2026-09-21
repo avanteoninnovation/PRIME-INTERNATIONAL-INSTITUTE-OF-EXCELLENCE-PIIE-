@@ -13,11 +13,13 @@ use App\Models\Classes;
 use App\Models\Club;
 use App\Models\ClubMember;
 use App\Models\ClubNotice;
+use App\Models\CourseRegistration;
 use App\Models\DailyAttendances;
 use App\Models\Enrollment;
 use App\Models\ExamCategory;
 use App\Models\FrontendEvent;
 use App\Models\Grade;
+use App\Models\Gradebook;
 use App\Models\Hostel;
 use App\Models\HostelApplication;
 use App\Models\HostelFee;
@@ -25,13 +27,20 @@ use App\Models\HostelRoom;
 use App\Models\HostelRoomAllocation;
 use App\Models\MessageThrade;
 use App\Models\Noticeboard;
+use App\Models\OnlineExam;
+use App\Models\Programme;
 use App\Models\Routine;
 use App\Models\Section;
 use App\Models\StudentFeeManager;
+use App\Models\StudentProfile;
+use App\Models\StudentRequest;
 use App\Models\Subject;
 use App\Models\Syllabus;
+use App\Models\TeacherPermission;
 use App\Models\User;
 use Carbon\Carbon;
+use Illuminate\Validation\Rule;
+use PDF;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -45,13 +54,383 @@ class StudentController extends Controller
      */
     public function studentDashboard()
     {
-
-        if (auth()->user()->role_id == 7) {
-            return view('student.dashboard');
-        } else {
-            redirect()->route('login')
-                ->with('error', 'You are not logged in.');
+        if (auth()->user()->role_id != 7) {
+            return redirect()->route('login')->with('error', 'You are not logged in.');
         }
+
+        $student = auth()->user();
+        $schoolId = $student->school_id;
+
+        $enrollment = Enrollment::where('user_id', $student->id)->where('school_id', $schoolId)->first();
+        // 0 is the "not class-based" sentinel (see EnrollmentDefaults) — a
+        // Programme-track student with no class assigned yet has an
+        // Enrollment row, but !empty(0) is false, so this correctly falls
+        // through to the Programme branch below instead of showing a
+        // nonexistent "class 0".
+        $classRoom = !empty($enrollment?->class_id) ? Classes::where('school_id', $schoolId)->find($enrollment->class_id) : null;
+        $section = !empty($enrollment?->section_id) ? Section::find($enrollment->section_id) : null;
+
+        $studentProfile = StudentProfile::where('user_id', $student->id)->first();
+        $programme = $studentProfile?->programme_id ? Programme::find($studentProfile->programme_id) : null;
+
+        // My Teachers — only meaningful once the student has a real class,
+        // same TeacherPermission source every gradebook/attendance roster
+        // already trusts, so this always agrees with what those screens show.
+        $myTeachers = collect();
+        if ($classRoom) {
+            $teacherIds = TeacherPermission::where('school_id', $schoolId)
+                ->where('class_id', $classRoom->id)
+                ->when($section, fn ($q) => $q->where('section_id', $section->id))
+                ->pluck('teacher_id')
+                ->unique();
+            $myTeachers = User::whereIn('id', $teacherIds)->where('role_id', 3)->get();
+        }
+
+        // My Fee Balance
+        $feeInvoices = StudentFeeManager::where('student_id', $student->id)->where('school_id', $schoolId)->get();
+        $totalDue = (float) $feeInvoices->sum(fn ($f) => max(0, (float) $f->total_amount - (float) $f->paid_amount));
+        $unpaidInvoiceCount = $feeInvoices->where('status', '!=', 'paid')->count();
+
+        // My Exams — reuses the same scopes the teacher Live Monitor and
+        // OnlineExam::scopeVisibleToStudent() already use, so this always
+        // agrees with what the student's own online-exam list shows.
+        $examClassId = $classRoom?->id;
+        $ongoingExamsCount = OnlineExam::visibleToStudent($schoolId, $examClassId)->active()->count();
+        $upcomingExamsCount = OnlineExam::visibleToStudent($schoolId, $examClassId)->upcoming()->count();
+
+        // My Attendance — this month, this student only. Was previously
+        // querying the empty, unused `enrollments` (plural) table for a
+        // school-wide chart; this student's own daily_attendances rows are
+        // the real source of truth (see TeacherController::attendanceTake()).
+        $monthStart = strtotime(date('Y-m-01'));
+        $monthEnd = strtotime(date('Y-m-t')) + 86399;
+        $attendanceRows = DailyAttendances::where('student_id', $student->id)
+            ->where('school_id', $schoolId)
+            ->whereBetween('timestamp', [$monthStart, $monthEnd])
+            ->get();
+        $presentDays = $attendanceRows->where('status', 1)->count();
+        $markedDays = $attendanceRows->count();
+
+        // My Courses widget — the same active-registration scope
+        // myCourses()/registerCourses() already use, so this widget always
+        // agrees with what the full "My Courses" page shows.
+        $myCourseRegistrations = CourseRegistration::forStudent($student->id)
+            ->where('school_id', $schoolId)
+            ->active()
+            ->with('subject')
+            ->latest('id')
+            ->take(5)
+            ->get();
+
+        // Announcements — reuses the same noticeboard table/scoping the
+        // "Back Office" sidebar's notice-count badge already trusts.
+        $announcements = Noticeboard::where('school_id', $schoolId)
+            ->where('status', 1)
+            ->orderByDesc('id')
+            ->take(5)
+            ->get();
+
+        // Course Progress / Overall Progress — both derived from the same
+        // marks-JSON-on-Gradebook shape the transcript already decodes,
+        // just aggregated across all of the student's gradebook rows.
+        $allGrades = Gradebook::where('student_id', $student->id)->where('school_id', $schoolId)->get();
+        $subjectPercentages = [];
+        foreach ($allGrades as $g) {
+            $marksData = is_string($g->marks) ? (json_decode($g->marks, true) ?: []) : [];
+            $obtained = 0;
+            $total = 0;
+            foreach ($marksData as $m) {
+                $obtained += (float) ($m['obtained'] ?? 0);
+                $total += (float) ($m['total'] ?? 0);
+            }
+            if ($total > 0) {
+                $subjectPercentages[] = $obtained / $total * 100;
+            }
+        }
+        $overallProgressPercent = count($subjectPercentages) > 0 ? round(array_sum($subjectPercentages) / count($subjectPercentages), 1) : null;
+
+        $totalSubjectsForCourse = $classRoom
+            ? Subject::where('school_id', $schoolId)->where('class_id', $classRoom->id)->count()
+            : ($programme ? Subject::where('school_id', $schoolId)->where('programme_id', $programme->id)->count() : 0);
+        $courseProgressPercent = $totalSubjectsForCourse > 0
+            ? round(min(count($subjectPercentages), $totalSubjectsForCourse) / $totalSubjectsForCourse * 100, 1)
+            : null;
+
+        // Exam Board — a short list (not just the counts) for the dashboard
+        // panel, same visibleToStudent() scope as the counts above.
+        $examBoardOngoing = OnlineExam::visibleToStudent($schoolId, $examClassId)->active()->take(3)->get();
+        $examBoardUpcoming = OnlineExam::visibleToStudent($schoolId, $examClassId)->upcoming()->take(3)->get();
+
+        return view('student.dashboard', compact(
+            'student',
+            'enrollment',
+            'classRoom',
+            'section',
+            'studentProfile',
+            'programme',
+            'myTeachers',
+            'totalDue',
+            'unpaidInvoiceCount',
+            'ongoingExamsCount',
+            'upcomingExamsCount',
+            'presentDays',
+            'markedDays',
+            'myCourseRegistrations',
+            'announcements',
+            'overallProgressPercent',
+            'courseProgressPercent',
+            'examBoardOngoing',
+            'examBoardUpcoming',
+            'feeInvoices'
+        ));
+    }
+
+    /**
+     * Self-service digital ID card — reuses the exact same
+     * CommonController::get_student_details_by_id() data source and
+     * id-card CSS classes as the existing admin/parent ID card views
+     * (App\Http\Controllers\AdminController::studentIdCardGenerate(),
+     * ParentController's own), just gated to the student themself and
+     * extended with Programme/Intake for a Programme-track (HEI) student —
+     * the existing card only ever showed Class/Section, which is blank for
+     * that track.
+     */
+    public function idCardGenerate()
+    {
+        $student = auth()->user();
+        $student_details = (new CommonController)->get_student_details_by_id($student->id);
+        $studentProfile = StudentProfile::where('user_id', $student->id)->first();
+        $programme = $studentProfile?->programme_id ? Programme::find($studentProfile->programme_id) : null;
+
+        return view('student.id_card', compact('student_details', 'programme'));
+    }
+
+    public function idCardPdf()
+    {
+        $student = auth()->user();
+        $student_details = (new CommonController)->get_student_details_by_id($student->id);
+        $studentProfile = StudentProfile::where('user_id', $student->id)->first();
+        $programme = $studentProfile?->programme_id ? Programme::find($studentProfile->programme_id) : null;
+
+        $pdf = PDF::loadView('student.id_card_pdf', compact('student_details', 'programme'));
+
+        return $pdf->download('ID_Card_' . preg_replace('/[^A-Za-z0-9_-]+/', '-', (string) ($student_details['code'] ?: $student->id)) . '.pdf');
+    }
+
+    /**
+     * My Courses — pick subjects from the student's own programme/class
+     * catalog for the current session, then confirm once fees are settled.
+     * Nothing before this let a student register for specific courses at
+     * all; Gradebook (marks) assumed the course list came from somewhere
+     * else, and Subject's credits/code/course_type columns (added earlier
+     * this session) had no student-facing consumer yet.
+     */
+    public function myCourses()
+    {
+        $student = auth()->user();
+        $schoolId = $student->school_id;
+
+        $enrollment = Enrollment::where('user_id', $student->id)->where('school_id', $schoolId)->first();
+        $studentProfile = StudentProfile::where('user_id', $student->id)->first();
+        $programme = $studentProfile?->programme_id ? Programme::find($studentProfile->programme_id) : null;
+        $classId = !empty($enrollment?->class_id) ? $enrollment->class_id : null;
+
+        $availableSubjects = $programme
+            ? Subject::where('programme_id', $programme->id)->where('school_id', $schoolId)->get()
+            : ($classId ? Subject::where('class_id', $classId)->where('school_id', $schoolId)->get() : collect());
+
+        $registrations = CourseRegistration::forStudent($student->id)
+            ->where('school_id', $schoolId)
+            ->active()
+            ->with('subject')
+            ->get();
+
+        $registeredSubjectIds = $registrations->pluck('subject_id');
+
+        $feeInvoices = StudentFeeManager::where('student_id', $student->id)->where('school_id', $schoolId)->get();
+        $totalDue = (float) $feeInvoices->sum(fn ($f) => max(0, (float) $f->total_amount - (float) $f->paid_amount));
+
+        return view('student.my_courses', compact(
+            'programme',
+            'availableSubjects',
+            'registrations',
+            'registeredSubjectIds',
+            'totalDue'
+        ));
+    }
+
+    public function registerCourses(Request $request)
+    {
+        $student = auth()->user();
+        $schoolId = $student->school_id;
+
+        $validated = $request->validate([
+            'subject_ids' => ['required', 'array', 'min:1'],
+            'subject_ids.*' => ['integer', 'exists:subjects,id'],
+        ]);
+
+        $sessionId = get_school_settings($schoolId)->value('running_session') ?: null;
+
+        foreach ($validated['subject_ids'] as $subjectId) {
+            CourseRegistration::firstOrCreate(
+                ['student_id' => $student->id, 'subject_id' => $subjectId, 'session_id' => $sessionId],
+                ['school_id' => $schoolId, 'status' => CourseRegistration::STATUS_REGISTERED]
+            );
+        }
+
+        return redirect()->back()->with('message', get_phrase('Courses registered. Confirm them once your fees are settled.'));
+    }
+
+    public function confirmCourse($id)
+    {
+        $student = auth()->user();
+        $registration = CourseRegistration::forStudent($student->id)->findOrFail((int) $id);
+
+        $feeInvoices = StudentFeeManager::where('student_id', $student->id)->where('school_id', $student->school_id)->get();
+        $totalDue = (float) $feeInvoices->sum(fn ($f) => max(0, (float) $f->total_amount - (float) $f->paid_amount));
+
+        if ($totalDue > 0) {
+            return redirect()->back()->with('error', get_phrase('You must clear your fee balance before confirming course registration.'));
+        }
+
+        $registration->update(['status' => CourseRegistration::STATUS_CONFIRMED]);
+
+        return redirect()->back()->with('message', get_phrase('Course confirmed.'));
+    }
+
+    public function dropCourse($id)
+    {
+        $student = auth()->user();
+        $registration = CourseRegistration::forStudent($student->id)->findOrFail((int) $id);
+        $registration->update(['status' => CourseRegistration::STATUS_DROPPED]);
+
+        return redirect()->back()->with('message', get_phrase('Course dropped.'));
+    }
+
+    /**
+     * Student Affairs — a formal channel for a student to submit a
+     * transfer application, complaint, or fee-discount appeal and track its
+     * status, reviewed by admin (see AdminController::studentRequestsIndex/
+     * studentRequestsUpdate). Nothing like this existed before: a student
+     * had no way to request anything through the system and get a tracked
+     * response — only informal, out-of-band channels.
+     */
+    public function requestsIndex()
+    {
+        $student = auth()->user();
+
+        $requests = StudentRequest::forStudent($student->id)
+            ->where('school_id', $student->school_id)
+            ->latest('id')
+            ->get();
+
+        return view('student.requests.index', [
+            'requests' => $requests,
+            'types' => StudentRequest::TYPES,
+        ]);
+    }
+
+    public function storeRequest(Request $request)
+    {
+        $student = auth()->user();
+
+        $validated = $request->validate([
+            'type' => ['required', Rule::in(array_keys(StudentRequest::TYPES))],
+            'subject' => ['required', 'string', 'max:191'],
+            'details' => ['required', 'string'],
+        ]);
+
+        StudentRequest::create([
+            'student_id' => $student->id,
+            'school_id' => $student->school_id,
+            'type' => $validated['type'],
+            'subject' => $validated['subject'],
+            'details' => $validated['details'],
+            'status' => StudentRequest::STATUS_PENDING,
+        ]);
+
+        return redirect()->route('student.requests.index')->with('message', get_phrase('Your request has been submitted.'));
+    }
+
+    /**
+     * "My Transfers" — a dedicated, structured Transfer Application form
+     * (current programme, transfer type, target programme, reason) rather
+     * than the generic free-text Student Affairs request, matching the
+     * reference HEI portal's own Studentship > Transfers screen. Still
+     * backed by StudentRequest (type=transfer) so it shows up in the same
+     * admin review queue as every other request type.
+     */
+    public function transfersIndex()
+    {
+        $student = auth()->user();
+
+        $transfers = StudentRequest::forStudent($student->id)
+            ->where('school_id', $student->school_id)
+            ->where('type', StudentRequest::TYPE_TRANSFER)
+            ->with('transferToProgramme')
+            ->latest('id')
+            ->get();
+
+        $studentProfile = StudentProfile::where('user_id', $student->id)->first();
+        $currentProgramme = $studentProfile?->programme_id ? Programme::find($studentProfile->programme_id) : null;
+        $programmes = Programme::where('school_id', $student->school_id)
+            ->where('is_active', 1)
+            ->when($currentProgramme, fn ($q) => $q->where('id', '!=', $currentProgramme->id))
+            ->orderBy('name')
+            ->get();
+        $userInfo = json_decode((string) $student->user_information);
+
+        return view('student.transfers.index', [
+            'transfers' => $transfers,
+            'currentProgramme' => $currentProgramme,
+            'programmes' => $programmes,
+            'transferTypes' => StudentRequest::TRANSFER_TYPES,
+            'transferReasons' => StudentRequest::TRANSFER_REASONS,
+            'defaultPhone' => $userInfo->phone ?? '',
+        ]);
+    }
+
+    public function storeTransfer(Request $request)
+    {
+        $student = auth()->user();
+
+        $validated = $request->validate([
+            'transfer_type' => ['required', Rule::in(array_keys(StudentRequest::TRANSFER_TYPES))],
+            'transfer_to_programme_id' => ['required', 'exists:programmes,id'],
+            'transfer_reason' => ['required', Rule::in(array_keys(StudentRequest::TRANSFER_REASONS))],
+            'phone_number' => ['nullable', 'string', 'max:30'],
+            'details' => ['nullable', 'string'],
+            'document' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
+        ]);
+
+        // users.phone isn't a real column — phone lives inside the
+        // user_information JSON blob, same as everywhere else this app
+        // reads a student's contact details (see CommonController).
+        $userInfo = json_decode((string) $student->user_information);
+        $defaultPhone = $userInfo->phone ?? null;
+
+        $documentPath = null;
+        if ($request->hasFile('document')) {
+            $fileName = time() . '_' . $request->file('document')->getClientOriginalName();
+            $request->file('document')->move(public_path('assets/uploads/student_transfers'), $fileName);
+            $documentPath = 'assets/uploads/student_transfers/' . $fileName;
+        }
+
+        StudentRequest::create([
+            'student_id' => $student->id,
+            'school_id' => $student->school_id,
+            'type' => StudentRequest::TYPE_TRANSFER,
+            'subject' => get_phrase('Inter/Intra Programme Transfer Application'),
+            'details' => $validated['details'] ?? '',
+            'status' => StudentRequest::STATUS_PENDING,
+            'transfer_type' => $validated['transfer_type'],
+            'transfer_to_programme_id' => $validated['transfer_to_programme_id'],
+            'transfer_reason' => $validated['transfer_reason'],
+            'phone_number' => $validated['phone_number'] ?? $defaultPhone,
+            'document_path' => $documentPath,
+        ]);
+
+        return redirect()->route('student.transfers.index')->with('message', get_phrase('Your transfer application has been submitted.'));
     }
 
     /**

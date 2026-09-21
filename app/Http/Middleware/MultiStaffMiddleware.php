@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Support\Permissions\PortalAccessDenial;
 use Closure;
 use Illuminate\Http\Request;
 
@@ -22,6 +23,6 @@ class MultiStaffMiddleware
         if ($user && in_array($user->role_id, self::STAFF_ROLES) && $user->account_status != 'disable' && !$user->isStaffPortalBlocked()) {
             return $next($request);
         }
-        return redirect()->route('login')->with('error', 'Access denied or your account is disabled.');
+        return PortalAccessDenial::redirect($user);
     }
 }

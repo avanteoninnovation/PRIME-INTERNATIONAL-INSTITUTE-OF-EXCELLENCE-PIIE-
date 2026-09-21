@@ -267,6 +267,30 @@
             </li>
             @endif
 
+            <!-- Student Affairs Requests -->
+            <li class="nav-links-li {{ request()->is('admin/student-requests*') ? 'showMenu' : '' }}">
+                <div class="iocn-link">
+                    <a href="{{ route('admin.student_requests.index') }}" class="{{ request()->is('admin/student-requests*') ? 'active' : '' }}">
+                        <div class="sidebar_icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="48" height="48"><path d="M12,2C6.48,2,2,6.48,2,12s4.48,10,10,10s10-4.48,10-10S17.52,2,12,2z M13,17h-2v-2h2V17z M13,13h-2V7h2V13z"/></svg>
+                        </div>
+                        <span class="link_name">{{ get_phrase('Student Affairs Requests') }}</span>
+                    </a>
+                </div>
+            </li>
+
+            <!-- Elections -->
+            <li class="nav-links-li {{ request()->is('admin/elections*') ? 'showMenu' : '' }}">
+                <div class="iocn-link">
+                    <a href="{{ route('admin.elections.index') }}" class="{{ request()->is('admin/elections*') ? 'active' : '' }}">
+                        <div class="sidebar_icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="48" height="48"><path d="M12,2L1,7l4,2v8l7,3l7-3v-8l2-1v6h2V7L12,2z M12,4.15L18.5,7L12,9.85L5.5,7L12,4.15z M17,15.5l-5,2.15l-5-2.15V10.15l5,2.15l5-2.15V15.5z"/></svg>
+                        </div>
+                        <span class="link_name">{{ get_phrase('Elections') }}</span>
+                    </a>
+                </div>
+            </li>
+
             <!-- Leave Types -->
             @if(empty($user->menu_permission) || in_array('admin.leave_types', $menu_permission))
             <li class="nav-links-li {{ request()->is('admin/leave-types*') ? 'showMenu' : '' }}">
@@ -908,6 +932,7 @@
                     </div>
 
                     <div class="col-auto d-flex ">
+                        @include('notifications._bell')
                         <div class="message">
                             @php
                                 $last_message = DB::table('message_thrades')

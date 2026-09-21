@@ -67,6 +67,27 @@ class TranscriptController extends Controller
         return $pdf->download('Transcript_' . trim($studentCode, '-') . '.pdf');
     }
 
+    /**
+     * Self-service: a student viewing/downloading their own results. Same
+     * buildTranscriptViewData()/PDF template as the admin-facing transcript
+     * — this was previously admin-only, so a student had no way to see
+     * their own grades in this app at all despite the data (Gradebook)
+     * having existed the whole time.
+     */
+    public function studentShow()
+    {
+        return view('student.exam_results', $this->buildTranscriptViewData(Auth::id()));
+    }
+
+    public function studentDownloadPdf()
+    {
+        $data = $this->buildTranscriptViewData(Auth::id());
+        $studentCode = preg_replace('/[^A-Za-z0-9_-]+/', '-', (string) ($data['student']->code ?: $data['student']->id));
+        $pdf = PDF::loadView('admin.transcripts.pdf', $data);
+
+        return $pdf->download('My_Transcript_' . trim($studentCode, '-') . '.pdf');
+    }
+
     private function buildTranscriptViewData($id): array
     {
         $student = User::where('school_id', $this->school_id)->findOrFail($id);
