@@ -3,8 +3,11 @@
 namespace App\Models;
 
 use Carbon\Carbon;
+use App\Support\OnlineExams\AnswerKey;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Models\Programme;
+use App\Models\Session;
 
 class OnlineExam extends Model
 {
@@ -14,6 +17,7 @@ class OnlineExam extends Model
 
     protected $fillable = [
         'school_id', 'title', 'subject_id', 'class_id', 'exam_type',
+        'programme_id', 'session_id',
         'start_datetime', 'end_datetime', 'duration_mins', 'total_marks',
         'pass_mark', 'instructions', 'is_published', 'auto_submit', 'created_by',
         'workflow_state', 'max_attempts', 'shuffle_questions', 'shuffle_options',
@@ -100,6 +104,56 @@ class OnlineExam extends Model
         return $query->where('workflow_state', 'published');
     }
 
+    public function programme()
+    {
+        return $this->belongsTo(Programme::class, 'programme_id');
+    }
+
+    public function academicSession()
+    {
+        return $this->belongsTo(Session::class, 'session_id');
+    }
+
+    /**
+     * Exam schedules are entered as local institutional times. Prefer the
+     * existing system timezone setting (for example Africa/Nairobi) when
+     * interpreting those database values; fall back to the application
+     * timezone for isolated tests and installations without that setting.
+     */
+    public function scheduleTimezone(): string
+    {
+        $timezone = function_exists('get_settings') ? get_settings('timezone') : null;
+        $timezone = $timezone ?: config('app.timezone', 'UTC');
+
+        return in_array($timezone, timezone_identifiers_list(), true)
+            ? $timezone
+            : config('app.timezone', 'UTC');
+    }
+
+    public function scheduledStartAt(): ?Carbon
+    {
+        $value = $this->getRawOriginal('start_datetime');
+
+        return $value ? Carbon::parse($value, $this->scheduleTimezone()) : null;
+    }
+
+    public function scheduledEndAt(): ?Carbon
+    {
+        $value = $this->getRawOriginal('end_datetime');
+
+        return $value ? Carbon::parse($value, $this->scheduleTimezone()) : null;
+    }
+
+    public function isWithinScheduledWindow(?Carbon $at = null): bool
+    {
+        $timezone = $this->scheduleTimezone();
+        $at = ($at ?: Carbon::now($timezone))->copy()->setTimezone($timezone);
+        $start = $this->scheduledStartAt();
+        $end = $this->scheduledEndAt();
+
+        return (!$start || $at->gte($start)) && (!$end || $at->lt($end));
+    }
+
     public function scopeActive($query, ?Carbon $at = null)
     {
         $at = $at ?: now();
@@ -131,7 +185,7 @@ class OnlineExam extends Model
             ->where('start_datetime', '>', $at);
     }
 
-    public function scopeVisibleToStudent($query, int $schoolId, ?int $classId)
+    public function scopeVisibleToStudent($query, int $schoolId, ?int $classId, ?int $programmeId = null, array $sessionIds = [])
     {
         return $query->forSchool($schoolId)
             ->published()
@@ -140,6 +194,14 @@ class OnlineExam extends Model
                 if ($classId) {
                     $q->orWhere('class_id', $classId);
                 }
+            })
+            ->where(function ($q) use ($programmeId) {
+                $q->whereNull('programme_id');
+                if ($programmeId) $q->orWhere('programme_id', $programmeId);
+            })
+            ->where(function ($q) use ($sessionIds) {
+                $q->whereNull('session_id');
+                if ($sessionIds) $q->orWhereIn('session_id', $sessionIds);
             });
     }
 
@@ -153,12 +215,14 @@ class OnlineExam extends Model
             return $this->workflow_state ?: 'draft';
         }
 
-        $now = now();
-        if ($this->start_datetime && $now->lt($this->start_datetime)) {
+        $now = Carbon::now($this->scheduleTimezone());
+        $start = $this->scheduledStartAt();
+        $end = $this->scheduledEndAt();
+        if ($start && $now->lt($start)) {
             return 'published';
         }
 
-        if ($this->end_datetime && $now->gt($this->end_datetime)) {
+        if ($end && $now->gte($end)) {
             return 'ended';
         }
 
@@ -225,7 +289,17 @@ class OnlineExam extends Model
         } else {
             $questionMarks = (int) $questions->sum('marks');
             if ($questionMarks !== (int) $this->total_marks) {
-                $errors[] = 'Total question marks must equal exam total marks.';
+                $errors[] = "Total question marks ({$questionMarks}) must equal exam total marks ({$this->total_marks}).";
+            }
+            foreach ($questions as $question) {
+                $type = $question->normalized_type;
+                $key = AnswerKey::forQuestion($question);
+                if ($type === 'true_false' && $key === null) {
+                    $errors[] = "Question {$question->id} has an invalid true/false answer key.";
+                }
+                if ($type === 'multiple_choice' && $key === null) {
+                    $errors[] = "Question {$question->id} has an invalid multiple-choice answer key.";
+                }
             }
         }
 
@@ -239,19 +313,29 @@ class OnlineExam extends Model
 
     public function isResultVisibleFor(OnlineExamSubmission $submission): bool
     {
-        $policy = $this->result_release_policy ?: 'immediate';
-        if ($policy === 'manual') {
-            return $submission->status === OnlineExamSubmission::STATUS_FINALIZED;
+        $reviewState = $submission->result_review_state;
+        // Rows created before governance metadata existed are readable using
+        // their persisted technical publication state; migrated rows always
+        // have an explicit result_review_state.
+        if ($reviewState === null && $submission->status === OnlineExamSubmission::STATUS_RESULT_PUBLISHED) {
+            $reviewState = 'published';
+        }
+        if (!$submission->isAttemptCompleted() || $submission->status !== OnlineExamSubmission::STATUS_RESULT_PUBLISHED || $reviewState !== 'published') {
+            return false;
         }
 
+        $policy = $this->result_release_policy ?: 'immediate';
         if ($policy === 'after_exam_end') {
-            if (empty($this->end_datetime)) {
+            $end = $this->scheduledEndAt();
+            if (!$end) {
                 return false;
             }
 
-            return now()->gte($this->end_datetime);
+            return Carbon::now($this->scheduleTimezone())->gte($end);
         }
 
+        // All release policies require the persisted Admin publication state.
+        // "immediate" controls when Admin may publish; it never auto-publishes.
         return true;
     }
 }

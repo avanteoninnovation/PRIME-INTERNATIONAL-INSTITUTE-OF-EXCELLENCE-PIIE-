@@ -63,6 +63,10 @@ Route::post('webhooks/marzpay', [\App\Http\Controllers\MarzPayWebhookController:
 //Auth routes are here
 Auth::routes();
 
+Route::get('online-exams/notifications/{notification}/read', [OnlineExamController::class, 'markPortalNotificationRead'])
+    ->middleware('auth')
+    ->name('online_exam.notifications.read');
+
 // Defensive fallback: some clients may hit logout with GET.
 Route::get('/logout', function (\Illuminate\Http\Request $request) {
     \Illuminate\Support\Facades\Auth::logout();
@@ -187,28 +191,54 @@ Route::controller(WebsiteManagementController::class)->middleware('auth', 'admin
 });
 
 // Account Disable Route
+//
+// Each of these renders one role's "your account has been disabled" page.
+// They carry no role middleware (a disabled/wrong-role user can't pass one
+// to get here in the first place), so without a guard a logged-in user of
+// ANY role could land on — or be linked to — another role's page directly.
+// \App\Support\Permissions\RoleAccountDisableRoute::name() sends a
+// logged-in user whose own role doesn't match this route back to their own
+// disabled-account page instead of rendering the wrong one for them.
 
 Route::get('admin/account-disable', function () {
+    if (($redirect = \App\Support\Permissions\RoleAccountDisableRoute::redirectIfMismatched(auth()->user(), 'admin.account_disableview'))) {
+        return $redirect;
+    }
     return view('admin.account_disableview');
 })->name('admin.account_disableview');
 
 Route::get('accountant/account-disable', function () {
+    if (($redirect = \App\Support\Permissions\RoleAccountDisableRoute::redirectIfMismatched(auth()->user(), 'accountant.account_disable'))) {
+        return $redirect;
+    }
     return view('accountant.account_disable');
 })->name('accountant.account_disable');
 
 Route::get('teacher/account-disable', function () {
+    if (($redirect = \App\Support\Permissions\RoleAccountDisableRoute::redirectIfMismatched(auth()->user(), 'teacher.account_disable'))) {
+        return $redirect;
+    }
     return view('teacher.account_disable');
 })->name('teacher.account_disable');
 
 Route::get('librarian/account-disable', function () {
+    if (($redirect = \App\Support\Permissions\RoleAccountDisableRoute::redirectIfMismatched(auth()->user(), 'librarian.account_disable'))) {
+        return $redirect;
+    }
     return view('librarian.account_disable');
 })->name('librarian.account_disable');
 
 Route::get('parent/account-disable', function () {
+    if (($redirect = \App\Support\Permissions\RoleAccountDisableRoute::redirectIfMismatched(auth()->user(), 'parent.account_disable'))) {
+        return $redirect;
+    }
     return view('parent.account_disable');
 })->name('parent.account_disable');
 
 Route::get('student/account-disable', function () {
+    if (($redirect = \App\Support\Permissions\RoleAccountDisableRoute::redirectIfMismatched(auth()->user(), 'student.account_disable'))) {
+        return $redirect;
+    }
     return view('student.account_disable');
 })->name('student.account_disable');
 
@@ -216,6 +246,9 @@ Route::get('student/account-disable', function () {
 // registered — any request that hit that branch threw a hard
 // RouteNotFoundException instead of showing a message.
 Route::get('warden/account-disable', function () {
+    if (($redirect = \App\Support\Permissions\RoleAccountDisableRoute::redirectIfMismatched(auth()->user(), 'warden.account_disable'))) {
+        return $redirect;
+    }
     return view('warden.account_disable');
 })->name('warden.account_disable');
 
@@ -1387,29 +1420,41 @@ Route::controller(OnlineExamController::class)->middleware('auth', 'admin')->gro
     Route::get('admin/online-exams/{id}/edit',               'edit')->name('admin.online_exams.edit');
     Route::post('admin/online-exams/store',                  'store')->name('admin.online_exams.store');
     Route::post('admin/online-exams/update/{id}',            'update')->name('admin.online_exams.update');
-    Route::get('admin/online-exams/publish/{id}',            'publish')->name('admin.online_exams.publish');
-    Route::get('admin/online-exams/unpublish/{id}',          'unpublish')->name('admin.online_exams.unpublish');
+    Route::post('admin/online-exams/publish/{id}',           'publish')->name('admin.online_exams.publish');
+    Route::post('admin/online-exams/unpublish/{id}',         'unpublish')->name('admin.online_exams.unpublish');
     Route::post('admin/online-exams/cancel/{id}',            'cancel')->name('admin.online_exams.cancel');
     Route::post('admin/online-exams/lock/{id}',              'lock')->name('admin.online_exams.lock');
-    Route::get('admin/online-exams/delete/{id}',             'destroy')->name('admin.online_exams.destroy');
+    Route::delete('admin/online-exams/delete/{id}',          'destroy')->name('admin.online_exams.destroy');
     Route::get('admin/online-exams/{id}/questions',          'questions')->name('admin.online_exams.questions');
     Route::post('admin/online-exams/{id}/questions/store',   'storeQuestion')->name('admin.online_exams.questions.store');
     Route::post('admin/online-exams/questions/update/{id}',  'updateQuestion')->name('admin.online_exams.questions.update');
     Route::post('admin/online-exams/questions/remove/{id}',  'deleteQuestion')->name('admin.online_exams.questions.remove');
-    Route::get('admin/online-exams/questions/delete/{id}',   'destroyQuestion')->name('admin.online_exams.questions.destroy');
+    Route::delete('admin/online-exams/questions/delete/{id}', 'destroyQuestion')->name('admin.online_exams.questions.destroy');
     Route::get('admin/online-exams/{id}/submissions',        'submissions')->name('admin.online_exams.submissions');
     Route::get('admin/online-exams/{id}/results',            'results')->name('admin.online_exams.results');
     Route::get('admin/online-exams/{id}/proctoring/{submission}', 'reviewProctoring')->name('admin.online_exams.proctoring.review');
     Route::post('admin/online-exams/answers/{answer}/manual-mark', 'manualMarking')->name('admin.online_exams.answers.manual_mark');
     Route::post('admin/online-exams/submissions/{submission}/finalize', 'finalizeResult')->name('admin.online_exams.submissions.finalize');
+    Route::post('admin/online-exams/submissions/{submission}/publish-result', 'publishResult')->name('admin.online_exams.submissions.publish_result');
+    Route::post('admin/online-exams/submissions/{submission}/return', 'returnResultForCorrection')->name('admin.online_exams.submissions.return');
     // Question Bank
     Route::get('admin/question-bank',                        'questionBank')->name('admin.question_bank.index');
+    Route::get('admin/question-bank/metadata',               'questionMetadata')->name('admin.question_bank.metadata');
+    Route::post('admin/question-bank/metadata/topics',       'storeQuestionTopic')->name('admin.question_bank.metadata.topics.store');
+    Route::post('admin/question-bank/metadata/subtopics',    'storeQuestionSubtopic')->name('admin.question_bank.metadata.subtopics.store');
+    Route::put('admin/question-bank/metadata/topics/{id}',   'updateQuestionTopic')->name('admin.question_bank.metadata.topics.update');
+    Route::post('admin/question-bank/metadata/topics/{id}/toggle', 'toggleQuestionTopic')->name('admin.question_bank.metadata.topics.toggle');
+    Route::post('admin/question-bank/metadata/tags',         'storeQuestionTag')->name('admin.question_bank.metadata.tags.store');
+    Route::put('admin/question-bank/metadata/tags/{id}',     'updateQuestionTag')->name('admin.question_bank.metadata.tags.update');
+    Route::post('admin/question-bank/metadata/tags/{id}/toggle', 'toggleQuestionTag')->name('admin.question_bank.metadata.tags.toggle');
     Route::get('admin/question-bank/modal',                  'bankModal')->name('admin.question_bank.modal');
     Route::get('admin/question-bank/import/modal',            'bankImportModal')->name('admin.question_bank.import_modal');
     Route::post('admin/question-bank/store',                 'storeBankQuestion')->name('admin.question_bank.store');
     Route::post('admin/question-bank/import',                'importBankQuestions')->name('admin.question_bank.import');
     Route::get('admin/question-bank/import/template',        'downloadBankImportTemplate')->name('admin.question_bank.import_template');
-    Route::get('admin/question-bank/delete/{id}',            'destroyBankQuestion')->name('admin.question_bank.delete');
+    Route::put('admin/question-bank/update/{id}',            'updateBankQuestion')->name('admin.question_bank.update');
+    Route::delete('admin/question-bank/delete/{id}',         'destroyBankQuestion')->name('admin.question_bank.delete');
+    Route::post('admin/online-exams/{exam}/question-bank/import', 'adminImportQuestion')->name('admin.online_exams.question_bank.import');
     // Per-exam question modal
     Route::get('admin/online-exams/{id}/question_modal',     'questionModal')->name('admin.online_exams.question_modal');
 });
@@ -1439,7 +1484,11 @@ Route::controller(OnlineExamController::class)->middleware('auth', 'teacher')->g
     // matches routes in declaration order, and {exam} would otherwise swallow
     // this literal path first and 404 on model binding.
     Route::get('teacher/online-exams/question-bank', 'teacherQuestionBank')->name('teacher.online_exams.question_bank');
+    Route::post('teacher/online-exams/question-bank', 'teacherStoreBankQuestion')->name('teacher.online_exams.question_bank.store');
     Route::get('teacher/online-exams/marking/queue', 'teacherMarking')->name('teacher.online_exams.marking');
+    // Live Monitor — teacher-facing real-time view of who's taking an exam
+    // right now; not present on the governed-workflow branch, so it must
+    // stay explicit here rather than being assumed to survive a merge.
     Route::get('teacher/online-exams/live-monitor', 'teacherLiveMonitor')->name('teacher.online_exams.live_monitor');
     Route::get('teacher/online-exams/{exam}', 'teacherShow')->name('teacher.online_exams.show');
     Route::get('teacher/online-exams/{exam}/edit', 'teacherEdit')->name('teacher.online_exams.edit');
@@ -1461,7 +1510,6 @@ Route::controller(OnlineExamController::class)->middleware('auth', 'teacher')->g
     Route::post('teacher/online-exams/{exam}/question-bank/import', 'teacherImportQuestion')->name('teacher.online_exams.question_bank.import');
 
     Route::get('teacher/online-exams/question-bank/modal', 'teacherBankModal')->name('teacher.online_exams.question_bank.modal');
-    Route::post('teacher/online-exams/question-bank/store', 'teacherStoreBankQuestion')->name('teacher.online_exams.question_bank.store');
     Route::get('teacher/online-exams/question-bank/import/modal', 'teacherBankImportModal')->name('teacher.online_exams.question_bank.import_modal');
     Route::post('teacher/online-exams/question-bank/upload', 'teacherImportBankQuestions')->name('teacher.online_exams.question_bank.upload');
     Route::get('teacher/online-exams/question-bank/import/template', 'teacherDownloadBankImportTemplate')->name('teacher.online_exams.question_bank.import_template');
@@ -1472,6 +1520,7 @@ Route::controller(OnlineExamController::class)->middleware('auth', 'teacher')->g
     Route::get('teacher/online-exams/{exam}/results', 'teacherResults')->name('teacher.online_exams.results');
     Route::post('teacher/online-exams/answers/{answer}/mark', 'teacherMarkAnswer')->name('teacher.online_exams.answers.mark');
     Route::post('teacher/online-exams/results/{submission}/finalize', 'teacherFinalizeResult')->name('teacher.online_exams.results.finalize');
+    Route::post('teacher/online-exams/results/{submission}/publish', 'publishResult')->name('teacher.online_exams.results.publish');
 });
 
 // ── Assignments (admin/teacher) ───────────────────────────────
@@ -1572,6 +1621,9 @@ Route::controller(AcademicCalendarController::class)->middleware('auth', 'admin'
     Route::get('admin/academic-calendar/delete/{id}',  'destroy')->name('admin.academic_calendar.destroy');
     Route::get('admin/academic-calendar/events.json',  'eventsJson')->name('admin.academic_calendar.events_json');
 });
+
+Route::get('calendar/events.json', [AcademicCalendarController::class, 'eventsJson'])
+    ->middleware('auth')->name('calendar.events_json');
 
 // ── Payroll ───────────────────────────────────────────────────
 Route::controller(PayrollController::class)->middleware('auth', 'admin')->group(function () {

@@ -1,4 +1,4 @@
-@extends('admin.navigation')
+@extends('student.navigation')
 @section('content')
 <style>
     /* Deterrent-level lockdown, not a security boundary — a determined
@@ -36,6 +36,8 @@
     .save-status.is-saving { color: #b58900; }
     .save-status.is-saved { color: #0f6e3d; }
     .save-status.is-dirty { color: #b42318; }
+    .save-status.is-retrying { color: #7a5af8; }
+    .save-status.is-failed { color: #b42318; }
     .question-nav-dot {
         width: 32px; height: 32px; border-radius: 6px;
         display: inline-flex; align-items: center; justify-content: center;
@@ -77,16 +79,55 @@
                 @php
                     $existing = $existingAnswers->get($q->id);
                     $options = $optionOrders->get($q->id, []);
+                    $publicQuestion = $q->public_question ?? null;
+                    $questionType = $q->normalized_type;
+                    $structuredOptions = is_array($publicQuestion) ? ($publicQuestion['options'] ?? []) : [];
+                    $matchingLeft = is_array($publicQuestion) ? ($publicQuestion['left_items'] ?? []) : [];
+                    $matchingRight = is_array($publicQuestion) ? ($publicQuestion['right_items'] ?? []) : [];
+                    $orderingItems = is_array($publicQuestion) ? ($publicQuestion['items'] ?? []) : [];
+                    $structuredPrompt = is_array($publicQuestion) ? ($publicQuestion['prompt'] ?? $q->question) : $q->question;
+                    $existingPayload = optional($existing)->answer_payload ? json_decode($existing->answer_payload, true) : null;
                 @endphp
-                <div class="card mb-3" data-question-id="{{ $q->id }}" id="question-block-{{ $q->id }}">
+                <div class="card mb-3 online-exam-question-card" data-question-id="{{ $q->id }}" id="question-block-{{ $q->id }}">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-start">
-                            <p class="mb-2"><strong>Q{{ $qi + 1 }}.</strong> {{ $q->question }}
+                            <p class="mb-2"><strong>Q{{ $qi + 1 }}.</strong> @if($questionType !== 'fill_blank' || $q->question_schema_version === null){{ $q->question }}@endif
                                <span class="badge bg-secondary ms-2">{{ $q->marks }} {{ get_phrase('mark(s)') }}</span></p>
                             <span class="save-status" id="save-status-{{ $q->id }}"></span>
                         </div>
 
-                        @if($q->type === 'mcq')
+                        @if($questionType === 'fill_blank' && $q->question_schema_version !== null)
+                            @foreach(preg_split('/(\[\[[a-z][a-z0-9_-]{0,31}\]\])/i', $structuredPrompt, -1, PREG_SPLIT_DELIM_CAPTURE) as $promptPart)
+                                @if(preg_match('/^\[\[([a-z][a-z0-9_-]{0,31})\]\]$/i', $promptPart, $blankMatch))
+                                    <input class="form-control d-inline-block exam-answer-input fill-blank-input" style="max-width:260px" type="text" data-question-id="{{ $q->id }}" data-answer-type="fill_blank" data-blank-id="{{ $blankMatch[1] }}" value="{{ data_get($existingPayload, 'blanks.'.$blankMatch[1], '') }}" aria-label="{{ get_phrase('Answer blank') }} {{ $blankMatch[1] }}">
+                                @else
+                                    {{ $promptPart }}
+                                @endif
+                            @endforeach
+                        @elseif($questionType === 'multiple_select')
+                            <div class="small text-muted mb-2">{{ get_phrase('Select all that apply.') }}</div>
+                            @foreach($structuredOptions as $option)
+                            <div class="form-check">
+                                <input class="form-check-input exam-answer-input" type="checkbox" value="{{ $option['id'] }}"
+                                       id="q{{ $q->id }}{{ $option['id'] }}" data-question-id="{{ $q->id }}" data-answer-type="multiple_select"
+                                       @checked(in_array($option['id'], (array) data_get($existingPayload, 'selected_option_ids', []), true))>
+                                <label class="form-check-label" for="q{{ $q->id }}{{ $option['id'] }}">{{ $option['label'] }}</label>
+                            </div>
+                            @endforeach
+                        @elseif($questionType === 'numeric')
+                            <input class="form-control eForm-control exam-answer-input" type="text" inputmode="decimal"
+                                   data-question-id="{{ $q->id }}" data-answer-type="numeric"
+                                   value="{{ data_get($existingPayload, 'value', optional($existing)->answer_text) }}"
+                                   placeholder="{{ get_phrase('Enter a numerical answer') }}">
+                        @elseif($questionType === 'matching')
+                            <div class="small text-muted mb-2">{{ get_phrase('Select the matching item for each row.') }}</div>
+                            @foreach($matchingLeft as $left)
+                            <div class="row align-items-center mb-2"><div class="col-md-5">{{ $left['text'] }}</div><div class="col-md-7"><select class="form-select exam-answer-input" data-question-id="{{ $q->id }}" data-answer-type="matching" data-left-id="{{ $left['id'] }}"><option value="">{{ get_phrase('Select a match') }}</option>@foreach($matchingRight as $right)<option value="{{ $right['id'] }}" @selected(data_get($existingPayload, 'pairs.'.$left['id']) === $right['id'])>{{ $right['text'] }}</option>@endforeach</select></div></div>
+                            @endforeach
+                        @elseif($questionType === 'ordering')
+                            <div class="small text-muted mb-2">{{ get_phrase('Arrange the items in the correct order.') }}</div>
+                            <ol class="ordering-list list-group" data-question-id="{{ $q->id }}">@foreach($orderingItems as $item)<li class="list-group-item d-flex justify-content-between align-items-center" data-order-id="{{ $item['id'] }}"><span>{{ $item['text'] }}</span><span><button type="button" class="btn btn-sm btn-outline-secondary order-up" aria-label="Move up">↑</button> <button type="button" class="btn btn-sm btn-outline-secondary order-down" aria-label="Move down">↓</button></span></li>@endforeach</ol>
+                        @elseif($q->type === 'mcq')
                             @foreach($options as $optKey => $optText)
                             <div class="form-check">
                                 <input class="form-check-input exam-answer-input" type="radio"
@@ -146,6 +187,7 @@
 </form>
 <form method="POST" action="{{ route('student.online_exam.submit', $exam->id) }}" id="finalSubmitForm" class="d-none">
     @csrf
+    <input type="hidden" name="submission_id" value="{{ $submission->id }}">
 </form>
 
 @endsection
@@ -161,6 +203,14 @@
     var saveAnswerUrl = "{{ route('student.online_exam.save_answer', $submission->id) }}";
     var heartbeatUrl = "{{ route('student.online_exam.heartbeat', $submission->id) }}";
     var proctoringUrl = "{{ route('student.online_exam.proctoring_event', $submission->id) }}";
+    var recoveryKey = 'piie.exam.recovery.v1.' + {{ (int) $submission->student_id }} + '.' + {{ (int) $exam->id }} + '.' + submissionId;
+    var serverAnswers = @json($serverAnswers ?? []);
+    var recoveryState = {};
+    var retryAttempts = {};
+    var retryTimers = {};
+    var tabLeaseKey = recoveryKey + '.tab';
+    var tabId = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()) + Math.random();
+    var tabConflict = false;
 
     // ── Navigation / copy-paste / print lockdown ───────────────────────
     document.addEventListener('contextmenu', function (e) { e.preventDefault(); });
@@ -172,6 +222,7 @@
     // (manual or timed-out) would trigger a confusing "leave site?" dialog
     // right as the form is navigating away on purpose.
     var isSubmitting = false;
+    var timeoutFinalizing = false;
     window.addEventListener('beforeunload', function (e) {
         if (isSubmitting) return;
         e.preventDefault();
@@ -181,6 +232,20 @@
     // ── Timer, seeded from the server, not restarted on refresh ────────
     var remainingSeconds = {{ (int) $remainingSeconds }};
     var timerEl = document.getElementById('timer');
+
+    function finalizeTimeout() {
+        if (timeoutFinalizing || isSubmitting) return;
+        timeoutFinalizing = true;
+        clearInterval(timerInterval);
+        flushPendingSaves().then(function (saved) {
+            if (!saved) {
+                Object.keys(dirtyQuestions).forEach(function (questionId) {
+                    if (dirtyQuestions[questionId]) setStatus(questionId, 'failed');
+                });
+            }
+            submitViaForm('timeoutForm');
+        });
+    }
 
     function renderTimer() {
         var m = Math.floor(Math.max(0, remainingSeconds) / 60);
@@ -194,7 +259,7 @@
         renderTimer();
         if (remainingSeconds <= 0) {
             clearInterval(timerInterval);
-            submitViaForm('timeoutForm');
+            finalizeTimeout();
         }
     }, 1000);
 
@@ -212,7 +277,7 @@
         .then(function (r) { return r.json(); })
         .then(function (data) {
             if (data.expired) {
-                submitViaForm('timeoutForm');
+                finalizeTimeout();
                 return;
             }
             if (data.expires_at) {
@@ -298,26 +363,180 @@
     // paths back to the one endpoint the server already trusts.
     var dirtyQuestions = {};
     var savingQuestions = {};
+    var answerRevisions = {};
+    var acknowledgedRevisions = {};
+    var revisionConflicts = {};
+    var lastWrittenRecovery = {};
+    Object.keys(serverAnswers).forEach(function (id) {
+        answerRevisions[id] = acknowledgedRevisions[id] = Number(serverAnswers[id].answer_revision || 0);
+    });
     var debounceTimers = {};
 
     function setStatus(questionId, state) {
         var el = document.getElementById('save-status-' + questionId);
         if (!el) return;
-        el.classList.remove('is-saving', 'is-saved', 'is-dirty');
+        el.classList.remove('is-saving', 'is-saved', 'is-dirty', 'is-retrying', 'is-failed');
         if (state === 'saving') { el.textContent = "{{ get_phrase('Saving…') }}"; el.classList.add('is-saving'); }
         else if (state === 'saved') { el.textContent = "{{ get_phrase('Saved') }}"; el.classList.add('is-saved'); }
         else if (state === 'dirty') { el.textContent = "{{ get_phrase('Unsaved') }}"; el.classList.add('is-dirty'); }
+        else if (state === 'retrying') { el.textContent = "{{ get_phrase('Offline / retrying') }}"; el.classList.add('is-retrying'); }
+        else if (state === 'failed') { el.textContent = "{{ get_phrase('Save failed') }}"; el.classList.add('is-failed'); }
         else { el.textContent = ''; }
     }
 
+    function setOverallStatus(state) {
+        var el = document.getElementById('overallSaveStatus');
+        if (!el) return;
+        el.className = 'save-status mt-1';
+        if (state === 'offline') { el.textContent = "{{ get_phrase('Offline — answers are kept on this device') }}"; el.classList.add('is-failed'); }
+        else if (state === 'connected') { el.textContent = "{{ get_phrase('Connected') }}"; el.classList.add('is-saved'); }
+        else if (state === 'retrying') { el.textContent = "{{ get_phrase('Retrying unsaved answers') }}"; el.classList.add('is-retrying'); }
+        else if (state === 'conflict') { el.textContent = "{{ get_phrase('Another exam tab is open — keep only one tab active') }}"; el.classList.add('is-failed'); }
+    }
+
+    function readRecovery() {
+        try {
+            var raw = window.localStorage.getItem(recoveryKey);
+            recoveryState = raw ? JSON.parse(raw) : {};
+            if (!recoveryState || typeof recoveryState !== 'object') recoveryState = {};
+            lastWrittenRecovery = JSON.parse(JSON.stringify(recoveryState));
+        } catch (e) { recoveryState = {}; }
+    }
+
+    function writeRecovery() {
+        try {
+            var stored = JSON.parse(window.localStorage.getItem(recoveryKey) || '{}');
+            if (!stored || typeof stored !== 'object') stored = {};
+            Object.keys(lastWrittenRecovery).forEach(function (id) {
+                // An acknowledgement in this tab must not erase another tab's draft.
+                if (!recoveryState[id] && JSON.stringify(stored[id]) === JSON.stringify(lastWrittenRecovery[id])) {
+                    delete stored[id];
+                }
+            });
+            Object.keys(recoveryState).forEach(function (id) {
+                if (JSON.stringify(recoveryState[id]) !== JSON.stringify(lastWrittenRecovery[id])) stored[id] = recoveryState[id];
+            });
+            if (Object.keys(stored).length === 0) window.localStorage.removeItem(recoveryKey);
+            else window.localStorage.setItem(recoveryKey, JSON.stringify(stored));
+            lastWrittenRecovery = JSON.parse(JSON.stringify(recoveryState));
+        } catch (e) { /* private browsing or quota limits: server autosave still applies */ }
+    }
+
+    function claimTabLease() {
+        try {
+            var nowMs = Date.now();
+            var current = JSON.parse(window.localStorage.getItem(tabLeaseKey) || 'null');
+            if (current && current.tabId !== tabId && nowMs - (current.lastSeen || 0) < 15000) {
+                tabConflict = true;
+                setOverallStatus('conflict');
+            }
+            window.localStorage.setItem(tabLeaseKey, JSON.stringify({ tabId: tabId, lastSeen: nowMs }));
+        } catch (e) {}
+    }
+
+    function refreshTabLease() {
+        try { window.localStorage.setItem(tabLeaseKey, JSON.stringify({ tabId: tabId, lastSeen: Date.now() })); } catch (e) {}
+    }
+
+    claimTabLease();
+    setInterval(refreshTabLease, 5000);
+    window.addEventListener('storage', function (event) {
+        if (event.key === tabLeaseKey && event.newValue) {
+            try {
+                var other = JSON.parse(event.newValue);
+                if (other.tabId !== tabId) {
+                    tabConflict = true;
+                    setOverallStatus('conflict');
+                }
+            } catch (e) {}
+        }
+    });
+    window.addEventListener('beforeunload', function () {
+        try {
+            var current = JSON.parse(window.localStorage.getItem(tabLeaseKey) || 'null');
+            if (current && current.tabId === tabId) window.localStorage.removeItem(tabLeaseKey);
+        } catch (e) {}
+    });
+
+    function rememberLocalAnswer(questionId, value) {
+        var previous = recoveryState[questionId];
+        recoveryState[questionId] = {
+            selected_option: value.selected_option,
+            answer_text: value.answer_text,
+            answer_payload: value.answer_payload || null,
+            revision: answerRevisions[questionId] || 0,
+            acknowledged_revision: acknowledgedRevisions[questionId] || 0,
+            server_updated_at: previous && Object.prototype.hasOwnProperty.call(previous, 'server_updated_at')
+                ? previous.server_updated_at
+                : ((serverAnswers[questionId] || {}).updated_at || null),
+        };
+        writeRecovery();
+    }
+
+    function applyRecoveredValue(questionId, value) {
+        var checked = document.querySelectorAll('input.exam-answer-input[data-question-id="' + questionId + '"]');
+        checked.forEach(function (input) {
+            if (input.dataset.answerType === 'multiple_select') {
+                input.checked = (value.answer_payload && Array.isArray(value.answer_payload.selected_option_ids))
+                    ? value.answer_payload.selected_option_ids.indexOf(input.value) !== -1 : false;
+            } else if (input.dataset.answerType === 'fill_blank') {
+                input.value = value.answer_payload && value.answer_payload.blanks ? (value.answer_payload.blanks[input.dataset.blankId] || '') : '';
+            } else if (input.dataset.answerType === 'matching') {
+                input.value = value.answer_payload && value.answer_payload.pairs ? (value.answer_payload.pairs[input.dataset.leftId] || '') : '';
+            } else input.checked = input.value === value.selected_option;
+        });
+        var textarea = document.querySelector('textarea.exam-answer-input[data-question-id="' + questionId + '"]');
+        if (textarea) textarea.value = value.answer_text || '';
+        var numeric = document.querySelector('input.exam-answer-input[data-answer-type="numeric"][data-question-id="' + questionId + '"]');
+        if (numeric && value.answer_payload) numeric.value = value.answer_payload.value ?? '';
+        var ordering = document.querySelector('.ordering-list[data-question-id="' + questionId + '"]');
+        if (ordering && value.answer_payload && Array.isArray(value.answer_payload.ordered_ids)) value.answer_payload.ordered_ids.forEach(function(id){ var item=ordering.querySelector('[data-order-id="'+id+'"]'); if(item) ordering.appendChild(item); });
+    }
+
+    function recoverLocalAnswers() {
+        readRecovery();
+        Object.keys(recoveryState).forEach(function (questionId) {
+            var local = recoveryState[questionId];
+            var server = serverAnswers[questionId] || {};
+            if (!local) return;
+            applyRecoveredValue(questionId, local);
+            answerRevisions[questionId] = Math.max(answerRevisions[questionId] || 0, local.revision || 1);
+            dirtyQuestions[questionId] = true;
+            // Old timestamp-only drafts require explicit reconciliation as well.
+            if (!Number.isInteger(local.acknowledged_revision)
+                || Number(server.answer_revision || 0) > local.acknowledged_revision) {
+                showRevisionConflict(questionId, server);
+                return;
+            }
+            setStatus(questionId, 'retrying');
+            markNavAnswered(questionId);
+        });
+        writeRecovery();
+        Object.keys(dirtyQuestions).forEach(function (questionId) { saveQuestion(questionId); });
+    }
+
     function currentValueFor(questionId) {
+        var fillBlanks = document.querySelectorAll('input.exam-answer-input[data-answer-type="fill_blank"][data-question-id="' + questionId + '"]');
+        if (fillBlanks.length) {
+            var blankValues = {};
+            fillBlanks.forEach(function (input) { if (input.value !== '') blankValues[input.dataset.blankId] = input.value; });
+            return { selected_option: null, answer_text: null, answer_payload: Object.keys(blankValues).length ? { type: 'fill_blank', blanks: blankValues } : null };
+        }
+        var multiple = document.querySelectorAll('input.exam-answer-input[data-answer-type="multiple_select"][data-question-id="' + questionId + '"]:checked');
+        if (multiple.length) return { selected_option: null, answer_text: null, answer_payload: { type: 'multiple_select', selected_option_ids: Array.from(multiple).map(function (input) { return input.value; }) } };
+        var numeric = document.querySelector('input.exam-answer-input[data-answer-type="numeric"][data-question-id="' + questionId + '"]');
+        if (numeric) return numeric.value.trim() === '' ? { selected_option: null, answer_text: null, answer_payload: null } : { selected_option: null, answer_text: null, answer_payload: { type: 'numeric', value: numeric.value.trim() } };
+        var matching = document.querySelectorAll('select.exam-answer-input[data-answer-type="matching"][data-question-id="' + questionId + '"]');
+        if (matching.length) { var pairs={}; matching.forEach(function(s){ if(s.value) pairs[s.dataset.leftId]=s.value; }); return {selected_option:null,answer_text:null,answer_payload:Object.keys(pairs).length?{type:'matching',pairs:pairs}:null}; }
+        var ordering = document.querySelector('.ordering-list[data-question-id="' + questionId + '"]');
+        if (ordering) return {selected_option:null,answer_text:null,answer_payload:{type:'ordering',ordered_ids:Array.from(ordering.querySelectorAll('[data-order-id]')).map(function(i){return i.dataset.orderId;})}};
         var checked = document.querySelector('input.exam-answer-input[data-question-id="' + questionId + '"]:checked');
         if (checked) {
-            return { selected_option: checked.value, answer_text: null };
+            return { selected_option: checked.value, answer_text: null, answer_payload: null };
         }
         var textarea = document.querySelector('textarea.exam-answer-input[data-question-id="' + questionId + '"]');
         if (textarea) {
-            return { selected_option: null, answer_text: textarea.value };
+            return { selected_option: null, answer_text: textarea.value, answer_payload: null };
         }
         return null;
     }
@@ -328,15 +547,21 @@
     }
 
     function saveQuestion(questionId) {
-        if (savingQuestions[questionId]) {
-            return; // a save is already in flight; the periodic sweep will retry if it's still dirty after
-        }
-
+        if (revisionConflicts[questionId]) return;
         var value = currentValueFor(questionId);
         if (!value) return;
 
+        var requestRevision = answerRevisions[questionId] || 0;
+        if (retryTimers[questionId]) return;
+        if (savingQuestions[questionId]) {
+            dirtyQuestions[questionId] = true;
+            setStatus(questionId, 'retrying');
+            return;
+        }
+
         savingQuestions[questionId] = true;
         setStatus(questionId, 'saving');
+        rememberLocalAnswer(questionId, value);
 
         fetch(saveAnswerUrl, {
             method: 'POST',
@@ -348,33 +573,112 @@
             body: JSON.stringify({
                 submission_id: submissionId,
                 question_id: questionId,
+                answer_revision: requestRevision,
                 selected_option: value.selected_option,
                 answer_text: value.answer_text,
+                answer_payload: value.answer_payload,
             }),
         })
-        .then(function (r) {
+        .then(async function (r) {
+            var data = await r.json();
             savingQuestions[questionId] = false;
+            if (r.status === 409) {
+                showRevisionConflict(questionId, data);
+                return;
+            }
             if (r.status === 422) {
                 // Expired or submission no longer active — stop trying and
                 // let the timer/heartbeat path handle finalising.
-                dirtyQuestions[questionId] = false;
-                setStatus(questionId, null);
+                dirtyQuestions[questionId] = true;
+                setStatus(questionId, 'failed');
                 return;
             }
             if (!r.ok) {
                 dirtyQuestions[questionId] = true;
-                setStatus(questionId, 'dirty');
+                scheduleRetry(questionId);
+                return;
+            }
+            acknowledgedRevisions[questionId] = Number(data.answer_revision);
+            serverAnswers[questionId] = {
+                selected_option: value.selected_option,
+                answer_text: value.answer_text,
+                answer_payload: value.answer_payload,
+                answer_revision: Number(data.answer_revision),
+                updated_at: data.answer_updated_at,
+            };
+            if ((answerRevisions[questionId] || 0) !== requestRevision) {
+                dirtyQuestions[questionId] = true;
+                setStatus(questionId, 'retrying');
+                saveQuestion(questionId);
                 return;
             }
             dirtyQuestions[questionId] = false;
+            retryAttempts[questionId] = 0;
+            delete recoveryState[questionId];
+            writeRecovery();
             setStatus(questionId, 'saved');
             markNavAnswered(questionId);
         })
         .catch(function () {
             savingQuestions[questionId] = false;
             dirtyQuestions[questionId] = true;
-            setStatus(questionId, 'dirty');
+            scheduleRetry(questionId);
         });
+    }
+
+    function showRevisionConflict(questionId, server) {
+        serverAnswers[questionId] = server;
+        revisionConflicts[questionId] = true;
+        dirtyQuestions[questionId] = true;
+        setStatus(questionId, 'failed');
+        var container = document.getElementById('save-status-' + questionId);
+        if (!container) return;
+        container.textContent = 'Answer conflict. Your draft is kept on this device. ';
+        function choice(label, keepLocal) {
+            var button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'btn btn-sm btn-outline-secondary ms-1';
+            button.textContent = label;
+            button.addEventListener('click', function () {
+                var revision = Number(server.answer_revision || 0);
+                acknowledgedRevisions[questionId] = revision;
+                answerRevisions[questionId] = Math.max(answerRevisions[questionId] || 0, revision);
+                delete revisionConflicts[questionId];
+                if (keepLocal) {
+                    if (answerRevisions[questionId] >= 4294967295) {
+                        showRevisionConflict(questionId, server);
+                        return;
+                    }
+                    answerRevisions[questionId]++;
+                    rememberLocalAnswer(questionId, currentValueFor(questionId));
+                    saveQuestion(questionId);
+                } else {
+                    applyRecoveredValue(questionId, server);
+                    answerRevisions[questionId] = revision;
+                    dirtyQuestions[questionId] = false;
+                    delete recoveryState[questionId];
+                    writeRecovery();
+                    setStatus(questionId, 'saved');
+                }
+            });
+            container.appendChild(button);
+        }
+        choice('Use server answer', false);
+        choice('Save my draft', true);
+    }
+
+    function scheduleRetry(questionId) {
+        if (revisionConflicts[questionId]) return;
+        if (retryTimers[questionId]) return;
+        var attempt = retryAttempts[questionId] || 0;
+        var delay = Math.min(30000, 1000 * Math.pow(2, attempt));
+        retryAttempts[questionId] = Math.min(attempt + 1, 5);
+        setStatus(questionId, 'retrying');
+        setOverallStatus('retrying');
+        retryTimers[questionId] = setTimeout(function () {
+            delete retryTimers[questionId];
+            if (dirtyQuestions[questionId] && navigator.onLine !== false) saveQuestion(questionId);
+        }, delay);
     }
 
     document.querySelectorAll('.exam-answer-input').forEach(function (input) {
@@ -382,8 +686,11 @@
 
         if (input.getAttribute('data-answer-type') === 'option') {
             input.addEventListener('change', function () {
+                answerRevisions[questionId] = (answerRevisions[questionId] || 0) + 1;
                 dirtyQuestions[questionId] = true;
+                rememberLocalAnswer(questionId, currentValueFor(questionId));
                 setStatus(questionId, 'dirty');
+                if (revisionConflicts[questionId]) showRevisionConflict(questionId, serverAnswers[questionId]);
                 saveQuestion(questionId);
             });
 
@@ -392,8 +699,11 @@
             }
         } else {
             input.addEventListener('input', function () {
+                answerRevisions[questionId] = (answerRevisions[questionId] || 0) + 1;
                 dirtyQuestions[questionId] = true;
+                rememberLocalAnswer(questionId, currentValueFor(questionId));
                 setStatus(questionId, 'dirty');
+                if (revisionConflicts[questionId]) showRevisionConflict(questionId, serverAnswers[questionId]);
 
                 clearTimeout(debounceTimers[questionId]);
                 debounceTimers[questionId] = setTimeout(function () {
@@ -407,6 +717,23 @@
         }
     });
 
+    document.querySelectorAll('select[data-answer-type="matching"]').forEach(function(select){
+        select.addEventListener('change', function(){ var q=select.dataset.questionId; answerRevisions[q]=(answerRevisions[q]||0)+1; dirtyQuestions[q]=true; setStatus(q,'dirty'); saveQuestion(q); });
+    });
+    document.querySelectorAll('.ordering-list').forEach(function(list){ list.addEventListener('click', function(e){ var b=e.target.closest('button'); if(!b)return; var item=b.closest('[data-order-id]'); if(b.classList.contains('order-up')&&item.previousElementSibling) list.insertBefore(item,item.previousElementSibling); if(b.classList.contains('order-down')&&item.nextElementSibling) list.insertBefore(item.nextElementSibling,item); var q=list.dataset.questionId; answerRevisions[q]=(answerRevisions[q]||0)+1; dirtyQuestions[q]=true; setStatus(q,'dirty'); saveQuestion(q); }); });
+
+    recoverLocalAnswers();
+
+    window.addEventListener('offline', function () { setOverallStatus('offline'); });
+    window.addEventListener('online', function () {
+        setOverallStatus('connected');
+        Object.keys(dirtyQuestions).forEach(function (questionId) {
+            if (dirtyQuestions[questionId]) scheduleRetry(questionId);
+        });
+    });
+    if (tabConflict) setOverallStatus('conflict');
+    else setOverallStatus(navigator.onLine === false ? 'offline' : 'connected');
+
     // The 10-second safety-net sweep the brief asked for explicitly —
     // catches anything the change/debounce paths above haven't gotten to
     // yet (e.g. a save that failed and needs retrying).
@@ -417,6 +744,22 @@
             }
         });
     }, 10000);
+
+    function flushPendingSaves() {
+        Object.keys(dirtyQuestions).forEach(function (questionId) {
+            if (dirtyQuestions[questionId]) saveQuestion(questionId);
+        });
+        return new Promise(function (resolve) {
+            var deadline = Date.now() + 5000;
+            (function waitForSaves() {
+                var pending = Object.keys(dirtyQuestions).some(function (id) {
+                    return dirtyQuestions[id] || savingQuestions[id];
+                });
+                if (!pending || Date.now() >= deadline) { resolve(!pending); return; }
+                setTimeout(waitForSaves, 100);
+            })();
+        });
+    }
 
     // ── Final submit ─────────────────────────────────────────────────────
     document.getElementById('finalSubmitBtn').addEventListener('click', function () {
@@ -430,8 +773,14 @@
             return;
         }
 
-        clearInterval(timerInterval);
-        submitViaForm('finalSubmitForm');
+        flushPendingSaves().then(function (saved) {
+            if (!saved) {
+                window.alert("{{ get_phrase('Some answers have not been saved. Please reconnect and try again.') }}");
+                return;
+            }
+            clearInterval(timerInterval);
+            submitViaForm('finalSubmitForm');
+        });
     });
 })();
 </script>

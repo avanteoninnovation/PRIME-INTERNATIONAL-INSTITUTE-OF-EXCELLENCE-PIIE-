@@ -11,6 +11,9 @@ class OnlineExamAnswer extends Model
     protected $fillable = [
         'submission_id',
         'question_id',
+        'answer_revision',
+        'answer_schema_version',
+        'answer_payload',
         'selected_option',
         'answer_text',
         'awarded_marks',
@@ -21,6 +24,8 @@ class OnlineExamAnswer extends Model
     ];
 
     protected $casts = [
+        'answer_revision' => 'integer',
+        'answer_schema_version' => 'integer',
         'awarded_marks' => 'decimal:2',
         'is_correct' => 'boolean',
         'marked_at' => 'datetime',

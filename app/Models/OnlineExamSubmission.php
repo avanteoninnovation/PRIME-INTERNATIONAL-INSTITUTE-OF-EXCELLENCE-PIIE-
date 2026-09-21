@@ -13,6 +13,7 @@ class OnlineExamSubmission extends Model
     public const STATUS_CANCELLED = 'cancelled';
     public const STATUS_PENDING_MANUAL = 'pending_manual_marking';
     public const STATUS_FINALIZED = 'finalized';
+    public const STATUS_RESULT_PUBLISHED = 'result_published';
 
     protected $table = 'online_exam_submissions';
 
@@ -24,7 +25,7 @@ class OnlineExamSubmission extends Model
         'manual_score', 'passed', 'result_email_sent_at', 'camera_consent_at',
         'camera_permission_granted', 'camera_ready_at',
         'fullscreen_started_at', 'browser_session_token',
-        'ip_address', 'user_agent',
+        'ip_address', 'user_agent', 'result_review_state',
     ];
 
     protected $casts = [
@@ -84,7 +85,39 @@ class OnlineExamSubmission extends Model
 
     public function scopeFinalized($query)
     {
-        return $query->where('status', self::STATUS_FINALIZED);
+        return $query->whereIn('status', [self::STATUS_FINALIZED, self::STATUS_RESULT_PUBLISHED]);
+    }
+
+    public function isAttemptCompleted(): bool
+    {
+        return in_array($this->status, [self::STATUS_SUBMITTED, self::STATUS_TIMED_OUT, self::STATUS_PENDING_MANUAL, self::STATUS_FINALIZED, self::STATUS_RESULT_PUBLISHED], true);
+    }
+
+    public function isResultPublished(): bool
+    {
+        return $this->status === self::STATUS_RESULT_PUBLISHED;
+    }
+
+    public function isFinalized(): bool
+    {
+        return in_array($this->status, [self::STATUS_FINALIZED, self::STATUS_RESULT_PUBLISHED], true);
+    }
+
+    public function getResultTotalMarksAttribute(): float
+    {
+        return (float) ($this->total_marks_snapshot ?? $this->exam?->total_marks ?? 0);
+    }
+
+    public function getMarkingStateLabelAttribute(): string
+    {
+        if ($this->isFinalized()) {
+            return $this->isResultVisible() ? 'Result published' : 'Finalized / not published';
+        }
+        if (!in_array($this->status, [self::STATUS_SUBMITTED, self::STATUS_TIMED_OUT, self::STATUS_PENDING_MANUAL], true)) {
+            return $this->status === self::STATUS_IN_PROGRESS ? 'In progress' : 'Cancelled';
+        }
+        return \App\Support\OnlineExams\OnlineExamMarking::summary($this)['pending']
+            ? 'Pending marking' : 'Ready to finalize';
     }
 
     public function computeExpiryAt(): ?Carbon

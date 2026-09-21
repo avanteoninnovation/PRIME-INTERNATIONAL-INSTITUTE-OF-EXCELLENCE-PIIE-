@@ -111,6 +111,12 @@
         'view_exam_results',
     ]);
     $canManageQuestionBankNav = $onlineExamPermissionService->has($user, 'manage_exam_questions');
+    // Online Exams still use class/enrollment eligibility in this installation,
+    // so administrators must be able to configure those records even when the
+    // school is otherwise classified as higher education.
+    if ($canViewOnlineExamsNav) {
+        $canSeeClasses = true;
+    }
 @endphp
 <!DOCTYPE html>
 <html lang="en">
@@ -138,6 +144,7 @@
     <link rel="stylesheet" type="text/css" href="{{ asset('assets/css/admin-sidebar.css') }}" />
     <script src="{{ asset('assets/vendors/jquery/jquery-3.6.0.min.js') }}"></script>
 
+    <link rel="stylesheet" href="{{ asset('assets/css/online-exams.css') }}?v=20260920-3">
 </head>
 
 <body>
@@ -933,6 +940,7 @@
 
                     <div class="col-auto d-flex ">
                         @include('notifications._bell')
+                        @include('online_exam.notifications')
                         <div class="message">
                             @php
                                 $last_message = DB::table('message_thrades')

@@ -6,6 +6,7 @@ use App\Models\Enrollment;
 use App\Models\OnlineExam;
 use App\Models\OnlineExamSubmission;
 use App\Support\Permissions\OnlineExamPermissionService;
+use Carbon\Carbon;
 use Illuminate\Foundation\Http\FormRequest;
 
 class StartOnlineExamRequest extends FormRequest
@@ -37,6 +38,7 @@ class StartOnlineExamRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'instructions_acknowledged' => ['required', 'accepted'],
             'camera_consent_accepted' => ['nullable', 'boolean'],
             'camera_ready' => ['nullable', 'boolean'],
             'fullscreen_ready' => ['nullable', 'boolean'],
@@ -66,12 +68,14 @@ class StartOnlineExamRequest extends FormRequest
                 $validator->errors()->add('exam', 'Exam has been cancelled.');
             }
 
-            $now = now();
-            if ($exam->start_datetime && $now->lt($exam->start_datetime)) {
+            $now = Carbon::now($exam->scheduleTimezone());
+            $start = $exam->scheduledStartAt();
+            $end = $exam->scheduledEndAt();
+            if ($start && $now->lt($start)) {
                 $validator->errors()->add('exam', 'Exam has not started yet.');
             }
 
-            if ($exam->end_datetime && $now->gt($exam->end_datetime)) {
+            if ($end && $now->gte($end)) {
                 $validator->errors()->add('exam', 'Exam has ended.');
             }
 

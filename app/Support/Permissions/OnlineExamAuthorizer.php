@@ -7,7 +7,10 @@ use App\Models\OnlineExamAnswer;
 use App\Models\OnlineExamProctoringEvent;
 use App\Models\OnlineExamQuestion;
 use App\Models\OnlineExamSubmission;
+use App\Models\TeacherPermission;
+use App\Models\TeacherProgrammeAssignment;
 use App\Models\User;
+use Illuminate\Support\Facades\Schema;
 
 class OnlineExamAuthorizer
 {
@@ -51,6 +54,49 @@ class OnlineExamAuthorizer
         return $this->can($user, 'edit_own_online_exams') && $this->ownsExam($user, $exam);
     }
 
+    /**
+     * Marking access follows the authoritative academic assignment, while
+     * authoring access remains owner/admin controlled.
+     */
+    public function canTeachExam(User $user, OnlineExam $exam): bool
+    {
+        if ((int) $user->role_id !== 3 || !$this->sameSchool($user, (int) $exam->school_id)) {
+            return false;
+        }
+
+        if ($exam->programme_id && (!Schema::hasTable('teacher_programme_assignments') || !TeacherProgrammeAssignment::where('teacher_id', $user->id)
+            ->where('school_id', $user->school_id)
+            ->where('programme_id', $exam->programme_id)->exists())) {
+            return false;
+        }
+
+        if (empty($exam->class_id)) {
+            $subject = $exam->subject;
+            return $subject && $this->teacherCanUseSubject($user, (int) $subject->id);
+        }
+
+        return TeacherPermission::where('teacher_id', $user->id)
+            ->where('school_id', $user->school_id)
+            ->where('class_id', $exam->class_id)
+            ->exists()
+            && $this->teacherCanUseSubject($user, (int) $exam->subject_id);
+    }
+
+    public function canAccessExamAttempts(User $user, OnlineExam $exam): bool
+    {
+        if (!$this->sameSchool($user, (int) $exam->school_id)) {
+            return false;
+        }
+
+        if ($this->can($user, 'edit_all_online_exams')) {
+            return true;
+        }
+
+        // The author may mark their own exam; other teachers require the
+        // authoritative class/course assignment.
+        return $this->ownsExam($user, $exam) || $this->canTeachExam($user, $exam);
+    }
+
     public function canManageQuestion(User $user, OnlineExamQuestion $question): bool
     {
         $exam = $question->exam;
@@ -80,7 +126,7 @@ class OnlineExamAuthorizer
             return false;
         }
 
-        if ($this->can($user, 'view_exam_attempts') && $this->canManageExam($user, $exam)) {
+        if ($this->can($user, 'view_exam_attempts') && $this->canAccessExamAttempts($user, $exam)) {
             return true;
         }
 

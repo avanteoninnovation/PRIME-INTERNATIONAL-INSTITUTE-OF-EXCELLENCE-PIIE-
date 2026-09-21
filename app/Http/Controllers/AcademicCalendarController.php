@@ -4,6 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Models\AcademicCalendar;
 use App\Models\AuditLog;
+use App\Models\Enrollment;
+use App\Models\OnlineExam;
+use App\Models\StudentProfile;
+use App\Models\TeacherPermission;
+use App\Support\Permissions\OnlineExamPermissionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -78,6 +83,7 @@ class AcademicCalendarController extends Controller
 
     public function eventsJson()
     {
+        $user = Auth::user();
         $events = AcademicCalendar::where('school_id', $this->school_id)->get()
             ->map(fn($e) => [
                 'id'    => $e->id,
@@ -87,6 +93,58 @@ class AcademicCalendarController extends Controller
                 'color' => $e->color,
                 'extendedProps' => ['type' => $e->event_type, 'description' => $e->description],
             ]);
+
+        $examQuery = OnlineExam::forSchool($this->school_id)
+            ->published()
+            ->whereNotNull('start_datetime');
+
+        if ((int) $user->role_id === 7) {
+            $enrollment = Enrollment::where('user_id', $user->id)
+                ->where('school_id', $this->school_id)->get();
+            $classId = $enrollment->pluck('class_id')->filter()->first();
+            $sessionIds = $enrollment->pluck('session_id')->filter()->map(fn($id) => (int) $id)->all();
+            $programmeId = (int) (StudentProfile::where('user_id', $user->id)
+                ->where('school_id', $this->school_id)->value('programme_id') ?? 0);
+            $examQuery = OnlineExam::visibleToStudent($this->school_id, $classId, $programmeId, $sessionIds)
+                ->whereNotNull('start_datetime');
+        } elseif ((int) $user->role_id === 3) {
+            $assignedClassIds = TeacherPermission::where('teacher_id', $user->id)
+                ->where('school_id', $this->school_id)
+                ->pluck('class_id')->filter()->unique()->values()->all();
+            $canEditAll = app(OnlineExamPermissionService::class)->has($user, 'edit_all_online_exams');
+            if (!$canEditAll) {
+                $examQuery->where(function ($query) use ($user, $assignedClassIds) {
+                    $query->where('creator_id', $user->id)->orWhere('created_by', $user->id);
+                    if ($assignedClassIds) {
+                        $query->orWhereIn('class_id', $assignedClassIds);
+                    }
+                });
+            }
+        }
+
+        $examEvents = $examQuery->get()->map(function (OnlineExam $exam) use ($user) {
+            $url = match ((int) $user->role_id) {
+                7 => route('student.online_exam.instructions', $exam->id),
+                3 => route('teacher.online_exams.show', $exam->id),
+                default => route('admin.online_exams.show', $exam->id),
+            };
+            return [
+                'id' => 'online-exam-' . $exam->id,
+                'title' => $exam->title,
+                'start' => $exam->start_datetime->toIso8601String(),
+                'end' => $exam->end_datetime?->toIso8601String(),
+                'url' => $url,
+                'color' => '#6f42c1',
+                'extendedProps' => [
+                    'type' => 'online_exam',
+                    'description' => get_phrase('Online Exam'),
+                    'exam_id' => $exam->id,
+                    'status' => $exam->lifecycle_status,
+                ],
+            ];
+        });
+
+        $events = $events->concat($examEvents)->values();
         return response()->json($events);
     }
 }

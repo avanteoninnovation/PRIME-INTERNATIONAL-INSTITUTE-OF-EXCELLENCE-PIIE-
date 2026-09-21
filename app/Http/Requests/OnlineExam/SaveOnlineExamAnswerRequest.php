@@ -4,6 +4,7 @@ namespace App\Http\Requests\OnlineExam;
 
 use App\Models\OnlineExamQuestion;
 use App\Models\OnlineExamSubmission;
+use App\Support\OnlineExams\AnswerContract;
 use Illuminate\Foundation\Http\FormRequest;
 
 class SaveOnlineExamAnswerRequest extends FormRequest
@@ -22,7 +23,9 @@ class SaveOnlineExamAnswerRequest extends FormRequest
 
         return $this->submission
             && (int) $this->submission->student_id === (int) $user->id
-            && (int) $this->submission->school_id === (int) $user->school_id;
+            && (int) $this->submission->school_id === (int) $user->school_id
+            && $this->submission->exam
+            && (int) $this->submission->exam->school_id === (int) $user->school_id;
     }
 
     public function rules(): array
@@ -30,11 +33,17 @@ class SaveOnlineExamAnswerRequest extends FormRequest
         return [
             'submission_id' => ['required', 'integer', 'exists:online_exam_submissions,id'],
             'question_id' => ['required', 'integer', 'exists:online_exam_questions,id'],
+            'answer_revision' => ['required', 'integer', 'min:0', 'max:4294967295'],
             'selected_option' => ['nullable', 'string', 'max:10'],
             'answer_text' => ['nullable', 'string'],
+            'answer_payload' => ['nullable'],
             'answers' => ['nullable', 'array'],
             'answers.*' => ['nullable'],
             'score' => ['prohibited'],
+            'awarded_marks' => ['prohibited'],
+            'is_correct' => ['prohibited'],
+            'marked_by' => ['prohibited'],
+            'marked_at' => ['prohibited'],
             'marks' => ['prohibited'],
             'correct_ans' => ['prohibited'],
             'correct_answer' => ['prohibited'],
@@ -47,6 +56,10 @@ class SaveOnlineExamAnswerRequest extends FormRequest
         $validator->after(function ($validator) {
             if (!$this->submission) {
                 return;
+            }
+
+            if ((int) $this->input('submission_id') !== (int) $this->submission->id) {
+                $validator->errors()->add('submission_id', 'Submission must match the route.');
             }
 
             if ($this->submission->status !== OnlineExamSubmission::STATUS_IN_PROGRESS) {
@@ -72,6 +85,20 @@ class SaveOnlineExamAnswerRequest extends FormRequest
             $type = $question->normalized_type;
             $selected = trim((string) $this->input('selected_option', ''));
             $answerText = trim((string) $this->input('answer_text', ''));
+            $hasPayload = $this->input('answer_payload') !== null && $this->input('answer_payload') !== '';
+
+            if (!$hasPayload && $selected === '' && $answerText === '') {
+                return;
+            }
+
+            if ($hasPayload) {
+                try {
+                    AnswerContract::fromRequest($this->all(), $question);
+                } catch (\InvalidArgumentException $e) {
+                    $validator->errors()->add('answer_payload', $e->getMessage());
+                }
+                return;
+            }
 
             if (in_array($type, ['multiple_choice', 'true_false'], true) && $selected === '') {
                 $validator->errors()->add('selected_option', 'Selected option is required for objective questions.');
@@ -79,6 +106,12 @@ class SaveOnlineExamAnswerRequest extends FormRequest
 
             if (in_array($type, ['short_answer', 'essay', 'fill_blank'], true) && $answerText === '') {
                 $validator->errors()->add('answer_text', 'Answer text is required for this question type.');
+            }
+
+            try {
+                AnswerContract::fromRequest($this->all(), $question);
+            } catch (\InvalidArgumentException $e) {
+                $validator->errors()->add('answer_payload', $e->getMessage());
             }
         });
     }

@@ -17,7 +17,7 @@ class ManualMarkAnswerRequest extends FormRequest
             return false;
         }
 
-        $answerParam = $this->route('answer');
+        $answerParam = $this->route('answer') ?? $this->route('answerId');
         $answerId = (int) ((is_object($answerParam) ? ($answerParam->id ?? 0) : $answerParam) ?? $this->input('answer_id') ?? 0);
         $this->answer = OnlineExamAnswer::with(['question', 'submission.exam'])->find($answerId);
 
@@ -28,9 +28,9 @@ class ManualMarkAnswerRequest extends FormRequest
     {
         return [
             'answer_id' => ['required', 'integer', 'exists:online_exam_answers,id'],
-            'awarded_marks' => ['required', 'numeric', 'min:0'],
+            'awarded_marks' => ['required', 'numeric', 'min:0', 'regex:/^\d+(\.\d{1,2})?$/'],
             'teacher_comment' => ['nullable', 'string'],
-            'allow_objective_override' => ['nullable', 'boolean'],
+            'allow_objective_override' => ['prohibited'],
         ];
     }
 
@@ -42,6 +42,10 @@ class ManualMarkAnswerRequest extends FormRequest
             }
 
             $question = $this->answer->question;
+            if ((int) $this->input('answer_id') !== (int) $this->answer->id
+                || (int) $question->online_exam_id !== (int) $this->answer->submission->online_exam_id) {
+                $validator->errors()->add('answer_id', 'Answer must belong to the route and submission exam.');
+            }
             $maxMarks = (float) $question->marks;
             $awarded = (float) $this->input('awarded_marks', 0);
 
@@ -49,10 +53,8 @@ class ManualMarkAnswerRequest extends FormRequest
                 $validator->errors()->add('awarded_marks', 'Awarded marks must be between 0 and question marks.');
             }
 
-            $objectiveTypes = ['multiple_choice', 'true_false'];
-            $normalizedType = $question->normalized_type;
-            if (in_array($normalizedType, $objectiveTypes, true) && !$this->boolean('allow_objective_override')) {
-                $validator->errors()->add('awarded_marks', 'Objective questions cannot be manually marked unless override is explicitly allowed.');
+            if (\App\Support\OnlineExams\OnlineExamMarking::isAutomatic($question)) {
+                $validator->errors()->add('awarded_marks', 'Automatically marked questions cannot be manually overridden.');
             }
         });
     }

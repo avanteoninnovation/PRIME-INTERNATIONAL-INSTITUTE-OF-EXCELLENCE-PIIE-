@@ -666,3 +666,117 @@ if (!function_exists('resolve_student_academic_context')) {
         return $context;
     }
 }
+
+if (!function_exists('academic_education_level')) {
+    /**
+     * Return the institution's configured education level for contextual
+     * academic language. education_level is preferred when present; the
+     * legacy school_type remains the structural fallback.
+     */
+    function academic_education_level(?int $schoolId = null): string
+    {
+        static $levels = [];
+        $schoolId = $schoolId ?: (int) (auth()->user()->school_id ?? 0);
+        if (isset($levels[$schoolId])) {
+            return $levels[$schoolId];
+        }
+
+        if (!$schoolId || !\Illuminate\Support\Facades\Schema::hasTable('schools')) {
+            return $levels[$schoolId] = 'secondary';
+        }
+
+        $columns = ['id'];
+        if (\Illuminate\Support\Facades\Schema::hasColumn('schools', 'education_level')) {
+            $columns[] = 'education_level';
+        }
+        if (\Illuminate\Support\Facades\Schema::hasColumn('schools', 'school_type')) {
+            $columns[] = 'school_type';
+        }
+        $school = \Illuminate\Support\Facades\DB::table('schools')->where('id', $schoolId)->first($columns);
+        $level = strtolower(trim((string) ($school->education_level ?? '')));
+        if (!in_array($level, ['primary', 'secondary', 'tertiary', 'vocational', 'mixed'], true)) {
+            $level = match (strtolower((string) ($school->school_type ?? 'k12'))) {
+                'higher_ed' => 'tertiary',
+                'mixed' => 'mixed',
+                default => 'secondary',
+            };
+        }
+
+        return $levels[$schoolId] = $level;
+    }
+}
+
+if (!function_exists('academic_term')) {
+    /**
+     * Resolve user-facing academic terminology without changing database
+     * names, routes, or model names.
+     */
+    function academic_term(string $term, ?int $schoolId = null): string
+    {
+        $level = academic_education_level($schoolId);
+        $matrix = [
+            'primary' => [
+                'teacher' => 'Teacher', 'teachers' => 'Teachers',
+                'class' => 'Class', 'classes' => 'Classes',
+                'section' => 'Section / Stream', 'sections' => 'Sections / Streams',
+                'subject' => 'Subject', 'subjects' => 'Subjects',
+                'programme' => 'Programme', 'programmes' => 'Programmes',
+                'department' => 'Department', 'departments' => 'Departments',
+                'session' => 'Academic Term', 'term' => 'Term',
+                'course' => 'Course', 'enrollment' => 'Enrollment',
+                'teacher_assignment' => 'Teacher Assignments', 'marks' => 'Marks',
+                'exam' => 'Exam', 'assignment' => 'Assignment',
+            ],
+            'secondary' => [
+                'teacher' => 'Teacher', 'teachers' => 'Teachers',
+                'class' => 'Class', 'classes' => 'Classes',
+                'section' => 'Section / Stream', 'sections' => 'Sections / Streams',
+                'subject' => 'Subject', 'subjects' => 'Subjects',
+                'programme' => 'Programme', 'programmes' => 'Programmes',
+                'department' => 'Department', 'departments' => 'Departments',
+                'session' => 'Academic Session', 'term' => 'Term',
+                'course' => 'Course', 'enrollment' => 'Enrollment',
+                'teacher_assignment' => 'Teacher Assignments', 'marks' => 'Marks',
+                'exam' => 'Exam', 'assignment' => 'Assignment',
+            ],
+            'tertiary' => [
+                'teacher' => 'Lecturer', 'teachers' => 'Lecturers',
+                'class' => 'Cohort', 'classes' => 'Cohorts',
+                'section' => 'Group', 'sections' => 'Groups',
+                'subject' => 'Course', 'subjects' => 'Courses',
+                'programme' => 'Programme', 'programmes' => 'Programmes',
+                'department' => 'Department', 'departments' => 'Departments',
+                'session' => 'Academic Semester', 'term' => 'Semester',
+                'course' => 'Course Unit', 'enrollment' => 'Enrollment',
+                'teacher_assignment' => 'Lecturer Assignments', 'marks' => 'Marks',
+                'exam' => 'Exam', 'assignment' => 'Assignment',
+            ],
+            'vocational' => [
+                'teacher' => 'Instructor', 'teachers' => 'Instructors',
+                'class' => 'Cohort', 'classes' => 'Cohorts',
+                'section' => 'Group', 'sections' => 'Groups',
+                'subject' => 'Course', 'subjects' => 'Courses',
+                'programme' => 'Programme', 'programmes' => 'Programmes',
+                'department' => 'Department', 'departments' => 'Departments',
+                'session' => 'Academic Term', 'term' => 'Term',
+                'course' => 'Course Unit', 'enrollment' => 'Enrollment',
+                'teacher_assignment' => 'Instructor Assignments', 'marks' => 'Marks',
+                'exam' => 'Exam', 'assignment' => 'Assignment',
+            ],
+            'mixed' => [
+                'teacher' => 'Teacher / Lecturer', 'teachers' => 'Teachers / Lecturers',
+                'class' => 'Class / Cohort', 'classes' => 'Classes / Cohorts',
+                'section' => 'Section / Group', 'sections' => 'Sections / Groups',
+                'subject' => 'Subject / Course', 'subjects' => 'Subjects / Courses',
+                'programme' => 'Programme', 'programmes' => 'Programmes',
+                'department' => 'Department', 'departments' => 'Departments',
+                'session' => 'Academic Session / Semester', 'term' => 'Term / Semester',
+                'course' => 'Course / Course Unit', 'enrollment' => 'Enrollment',
+                'teacher_assignment' => 'Teacher / Lecturer Assignments', 'marks' => 'Marks',
+                'exam' => 'Exam', 'assignment' => 'Assignment',
+            ],
+        ];
+
+        return get_phrase($matrix[$level][$term] ?? ucfirst(str_replace('_', ' ', $term)));
+    }
+}

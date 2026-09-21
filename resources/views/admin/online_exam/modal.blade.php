@@ -28,18 +28,18 @@
                     </select>
                     @if($structureLocked)<input type="hidden" name="exam_type" value="{{ $exam->exam_type }}">@endif
                 </div>
-                <div class="col-6 fpb-7"><label class="eForm-label">{{ get_phrase('Subject') }} *</label>
+                <div class="col-6 fpb-7"><label class="eForm-label">{{ academic_term('subject', auth()->user()->school_id) }} *</label>
                     <select class="form-control eForm-control" name="subject_id" required {{ $structureLocked ? 'disabled' : '' }}>
                         <option value="">{{ get_phrase('Select subject') }}</option>
                         @foreach($subjects as $s)
-                            <option value="{{ $s->id }}" {{ ($exam->subject_id ?? '') == $s->id ? 'selected' : '' }}>{{ $s->name }}</option>
+                            <option value="{{ $s->id }}" data-programme-id="{{ $s->programme_id ?? '' }}" {{ ($exam->subject_id ?? '') == $s->id ? 'selected' : '' }}>{{ $s->name }}</option>
                         @endforeach
                     </select>
                     @if($structureLocked)<input type="hidden" name="subject_id" value="{{ $exam->subject_id }}">@endif
                 </div>
             </div>
 
-            <div class="fpb-7 mt-2"><label class="eForm-label">{{ get_phrase('Class') }}</label>
+            <div class="fpb-7 mt-2"><label class="eForm-label">{{ academic_term('class', auth()->user()->school_id) }}</label>
                 <select class="form-control eForm-control" name="class_id" {{ $structureLocked ? 'disabled' : '' }}>
                     <option value="">{{ get_phrase('All classes') }}</option>
                     @foreach($classes as $c)
@@ -47,6 +47,27 @@
                     @endforeach
                 </select>
                 @if($structureLocked)<input type="hidden" name="class_id" value="{{ $exam->class_id }}">@endif
+            </div>
+
+            <div class="row mt-2">
+                <div class="col-6 fpb-7"><label class="eForm-label">{{ academic_term('programme', auth()->user()->school_id) }}</label>
+                    <select class="form-control eForm-control" name="programme_id" id="online_exam_programme_id" {{ $structureLocked ? 'disabled' : '' }}>
+                        <option value="">{{ get_phrase('Not programme-targeted') }}</option>
+                        @foreach(($programmes ?? collect()) as $programme)
+                            <option value="{{ $programme->id }}" {{ (string) ($exam->programme_id ?? '') === (string) $programme->id ? 'selected' : '' }}>{{ $programme->name }}{{ $programme->code ? ' ('.$programme->code.')' : '' }}</option>
+                        @endforeach
+                    </select>
+                    @if($structureLocked)<input type="hidden" name="programme_id" value="{{ $exam->programme_id }}">@endif
+                </div>
+                <div class="col-6 fpb-7"><label class="eForm-label">{{ academic_term('session', auth()->user()->school_id) }}</label>
+                    <select class="form-control eForm-control" name="session_id" {{ $structureLocked ? 'disabled' : '' }}>
+                        <option value="">{{ get_phrase('No academic period selected') }}</option>
+                        @foreach(($sessions ?? collect()) as $session)
+                            <option value="{{ $session->id }}" {{ (string) ($exam->session_id ?? ($session->status ? $session->id : '')) === (string) $session->id ? 'selected' : '' }}>{{ $session->session_title }}{{ $session->status ? ' — '.get_phrase('Active') : '' }}</option>
+                        @endforeach
+                    </select>
+                    @if($structureLocked)<input type="hidden" name="session_id" value="{{ $exam->session_id }}">@endif
+                </div>
             </div>
 
             <div class="row mt-2">
@@ -118,5 +139,22 @@
                 <button class="btn-form" type="submit">{{ $exam ? get_phrase('Update Exam') : get_phrase('Create Exam') }}</button>
             </div>
         </div>
-    </form>
+</form>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const programme = document.getElementById('online_exam_programme_id');
+    const subject = document.querySelector('select[name="subject_id"]');
+    if (!programme || !subject) return;
+    const filterSubjects = function () {
+        const selected = programme.value;
+        Array.from(subject.options).forEach(function (option) {
+            if (!option.value) return;
+            option.hidden = !!selected && option.dataset.programmeId !== selected;
+            if (option.hidden && option.selected) subject.value = '';
+        });
+    };
+    programme.addEventListener('change', filterSubjects);
+    filterSubjects();
+});
+</script>
 </div>

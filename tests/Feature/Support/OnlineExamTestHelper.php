@@ -35,6 +35,8 @@ trait OnlineExamTestHelper
         Schema::create('schools', function (Blueprint $table) {
             $table->id();
             $table->string('title')->nullable();
+            $table->string('school_type')->nullable();
+            $table->string('education_level')->nullable();
             $table->timestamps();
         });
 
@@ -57,8 +59,42 @@ trait OnlineExamTestHelper
             $table->id();
             $table->unsignedBigInteger('school_id');
             $table->unsignedBigInteger('class_id')->nullable();
+            $table->unsignedBigInteger('programme_id')->nullable();
             $table->string('name')->nullable();
             $table->timestamps();
+        });
+
+        Schema::create('departments', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('school_id')->nullable();
+            $table->string('name')->nullable();
+        });
+
+        Schema::create('programmes', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('school_id')->nullable();
+            $table->unsignedBigInteger('department_id')->nullable();
+            $table->string('name')->nullable();
+            $table->string('code')->nullable();
+            $table->boolean('is_active')->default(true);
+        });
+
+        Schema::create('student_profiles', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('user_id');
+            $table->unsignedBigInteger('school_id')->nullable();
+            $table->unsignedBigInteger('programme_id')->nullable();
+            $table->string('status')->default('active');
+        });
+
+        Schema::create('teacher_programme_assignments', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('teacher_id');
+            $table->unsignedBigInteger('programme_id');
+            $table->unsignedBigInteger('school_id');
+            $table->tinyInteger('marks')->default(0);
+            $table->tinyInteger('attendance')->default(0);
+            $table->timestamp('updated_at')->nullable();
         });
 
         Schema::create('enrollment', function (Blueprint $table) {
@@ -106,6 +142,8 @@ trait OnlineExamTestHelper
             $table->string('title');
             $table->unsignedBigInteger('subject_id')->nullable();
             $table->unsignedBigInteger('class_id')->nullable();
+            $table->unsignedBigInteger('programme_id')->nullable()->index();
+            $table->unsignedBigInteger('session_id')->nullable()->index();
             $table->string('exam_type')->default('cat');
             $table->dateTime('start_datetime')->nullable();
             $table->dateTime('end_datetime')->nullable();
@@ -145,6 +183,9 @@ trait OnlineExamTestHelper
             $table->text('option_c')->nullable();
             $table->text('option_d')->nullable();
             $table->string('correct_ans', 255)->nullable();
+            $table->unsignedTinyInteger('question_schema_version')->nullable();
+            $table->text('question_config')->nullable();
+            $table->text('marking_config')->nullable();
             $table->tinyInteger('marks')->default(1);
             $table->integer('sort_order')->default(0);
         });
@@ -163,6 +204,7 @@ trait OnlineExamTestHelper
             $table->dateTime('submitted_at')->nullable();
             $table->string('submitted_via', 20)->nullable();
             $table->string('status', 40)->default('in_progress');
+            $table->string('result_review_state', 30)->nullable();
             $table->dateTime('timeout_at')->nullable();
             $table->integer('total_marks_snapshot')->nullable();
             $table->decimal('objective_score', 8, 2)->nullable();
@@ -184,6 +226,8 @@ trait OnlineExamTestHelper
             $table->unsignedBigInteger('question_id')->index();
             $table->string('selected_option', 10)->nullable();
             $table->text('answer_text')->nullable();
+            $table->unsignedTinyInteger('answer_schema_version')->nullable();
+            $table->text('answer_payload')->nullable();
             $table->decimal('awarded_marks', 8, 2)->nullable();
             $table->boolean('is_correct')->nullable();
             $table->unsignedBigInteger('marked_by')->nullable();
@@ -192,6 +236,8 @@ trait OnlineExamTestHelper
             $table->timestamps();
             $table->unique(['submission_id', 'question_id']);
         });
+
+        (require database_path('migrations/2026_09_19_000004_add_answer_revision_to_online_exam_answers.php'))->up();
 
         Schema::create('online_exam_proctoring_events', function (Blueprint $table) {
             $table->id();
@@ -208,6 +254,10 @@ trait OnlineExamTestHelper
             $table->id();
             $table->unsignedBigInteger('school_id')->index();
             $table->unsignedBigInteger('subject_id')->nullable();
+            $table->unsignedBigInteger('programme_id')->nullable()->index();
+            $table->unsignedBigInteger('session_id')->nullable()->index();
+            $table->unsignedBigInteger('topic_id')->nullable()->index();
+            $table->unsignedBigInteger('subtopic_id')->nullable()->index();
             $table->text('question');
             $table->string('type', 30)->default('mcq');
             $table->text('option_a')->nullable();
@@ -215,10 +265,32 @@ trait OnlineExamTestHelper
             $table->text('option_c')->nullable();
             $table->text('option_d')->nullable();
             $table->string('correct_ans', 255)->nullable();
+            $table->unsignedTinyInteger('question_schema_version')->nullable();
+            $table->text('question_config')->nullable();
+            $table->text('marking_config')->nullable();
             $table->integer('marks')->default(1);
             $table->string('difficulty', 20)->default('easy');
+            $table->string('topic', 150)->nullable();
+            $table->string('subtopic', 150)->nullable();
+            $table->string('bloom_level', 40)->nullable();
+            $table->string('status', 20)->default('active');
             $table->unsignedBigInteger('created_by')->nullable();
             $table->timestamps();
+        });
+
+        Schema::create('question_topics', function (Blueprint $table) {
+            $table->id(); $table->unsignedBigInteger('school_id')->index(); $table->unsignedBigInteger('subject_id')->index();
+            $table->unsignedBigInteger('parent_id')->nullable()->index(); $table->string('name', 150); $table->boolean('is_active')->default(true);
+            $table->unsignedBigInteger('created_by')->nullable(); $table->timestamps();
+        });
+        Schema::create('question_tags', function (Blueprint $table) {
+            $table->id(); $table->unsignedBigInteger('school_id')->index(); $table->string('name', 100); $table->string('normalized_name', 100);
+            $table->boolean('is_active')->default(true); $table->unsignedBigInteger('created_by')->nullable(); $table->timestamps();
+            $table->unique(['school_id', 'normalized_name']);
+        });
+        Schema::create('question_bank_tag', function (Blueprint $table) {
+            $table->unsignedBigInteger('question_bank_id'); $table->unsignedBigInteger('question_tag_id');
+            $table->unique(['question_bank_id', 'question_tag_id']);
         });
 
         Schema::create('audit_logs', function (Blueprint $table) {
@@ -269,6 +341,38 @@ trait OnlineExamTestHelper
             $table->timestamps();
         });
 
+        // Queried unconditionally by student/navigation.blade.php's hostel
+        // sidebar item — needed by any test here that renders that layout.
+        Schema::create('hostel_applications', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('student_id')->nullable();
+            $table->unsignedBigInteger('hostel_id')->nullable();
+            $table->unsignedBigInteger('room_id')->nullable();
+            $table->tinyInteger('status')->default(0);
+            $table->text('note')->nullable();
+            $table->timestamp('accepted_at')->nullable();
+            $table->unsignedBigInteger('school_id')->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('hostel_fees', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('school_id')->nullable();
+            $table->unsignedBigInteger('hostel_id')->nullable();
+            $table->unsignedBigInteger('room_id')->nullable();
+            $table->unsignedBigInteger('student_id')->nullable();
+            $table->string('title')->nullable();
+            $table->decimal('amount', 10, 2)->nullable();
+            $table->decimal('paid_amount', 10, 2)->nullable();
+            $table->date('fee_payment_date')->nullable();
+            $table->dateTime('payment_date')->nullable();
+            $table->string('payment_method')->nullable();
+            $table->string('gateway_reference', 191)->nullable();
+            $table->text('gateway_payload')->nullable();
+            $table->unsignedInteger('status')->default(0);
+            $table->timestamps();
+        });
+
         Schema::create('noticeboard', function (Blueprint $table) {
             $table->id();
             $table->longText('notice_title');
@@ -309,6 +413,23 @@ trait OnlineExamTestHelper
             $table->unique(['online_exam_id', 'type']);
         });
 
+        Schema::create('online_exam_user_notifications', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('school_id')->index();
+            $table->unsignedBigInteger('user_id')->index();
+            $table->unsignedBigInteger('actor_id')->nullable();
+            $table->unsignedBigInteger('online_exam_id')->nullable()->index();
+            $table->unsignedBigInteger('submission_id')->nullable()->index();
+            $table->string('type', 60);
+            $table->string('title', 190);
+            $table->text('message');
+            $table->string('action_url', 500)->nullable();
+            $table->dateTime('read_at')->nullable();
+            $table->string('event_key', 190)->nullable();
+            $table->timestamps();
+            $table->unique(['school_id', 'user_id', 'event_key']);
+        });
+
         DB::table('global_settings')->insert([
             ['key' => 'role_perm_2', 'value' => json_encode([]), 'created_at' => now(), 'updated_at' => now()],
             ['key' => 'role_perm_4', 'value' => json_encode([]), 'created_at' => now(), 'updated_at' => now()],
@@ -332,6 +453,8 @@ trait OnlineExamTestHelper
         DB::table('schools')->insert([
             'id' => 1,
             'title' => 'Test School',
+            'school_type' => 'higher_ed',
+            'education_level' => 'tertiary',
             'created_at' => now(),
             'updated_at' => now(),
         ]);

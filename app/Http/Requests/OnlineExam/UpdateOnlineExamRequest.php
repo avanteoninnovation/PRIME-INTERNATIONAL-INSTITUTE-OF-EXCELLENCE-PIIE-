@@ -4,6 +4,8 @@ namespace App\Http\Requests\OnlineExam;
 
 use App\Models\OnlineExam;
 use App\Models\Subject;
+use App\Models\TeacherPermission;
+use App\Models\TeacherProgrammeAssignment;
 use App\Support\Permissions\OnlineExamAuthorizer;
 use App\Support\Permissions\OnlineExamPermissionService;
 use Illuminate\Foundation\Http\FormRequest;
@@ -20,11 +22,11 @@ class UpdateOnlineExamRequest extends FormRequest
             return false;
         }
 
-        $examParam = $this->route('exam');
-        if ($examParam instanceof OnlineExam) {
-            $this->exam = $examParam;
+        $routeExam = $this->route('exam');
+        if ($routeExam instanceof OnlineExam) {
+            $this->exam = $routeExam;
         } else {
-            $id = (int) ($this->route('id') ?? $examParam ?? 0);
+            $id = (int) ($this->route('id') ?? $routeExam ?? 0);
             $this->exam = OnlineExam::find($id);
         }
 
@@ -49,6 +51,14 @@ class UpdateOnlineExamRequest extends FormRequest
                 'nullable',
                 'integer',
                 Rule::exists('classes', 'id')->where(fn($q) => $q->where('school_id', $this->user()->school_id)),
+            ],
+            'programme_id' => [
+                'nullable', 'integer',
+                Rule::exists('programmes', 'id')->where(fn($q) => $q->where('school_id', $this->user()->school_id)->where('is_active', 1)),
+            ],
+            'session_id' => [
+                'nullable', 'integer',
+                Rule::exists('sessions', 'id')->where(fn($q) => $q->where('school_id', $this->user()->school_id)),
             ],
             'exam_type' => ['required', 'string', Rule::in(['cat', 'midterm', 'final', 'quiz', 'assignment'])],
             'start_datetime' => ['required', 'date'],
@@ -122,7 +132,7 @@ class UpdateOnlineExamRequest extends FormRequest
 
             if ($this->exam->isStructurallyLocked()) {
                 $lockedFields = [
-                    'subject_id', 'class_id', 'start_datetime', 'end_datetime', 'duration_mins',
+                    'subject_id', 'class_id', 'programme_id', 'session_id', 'start_datetime', 'end_datetime', 'duration_mins',
                     'duration_minutes', 'total_marks', 'pass_mark', 'max_attempts',
                     'shuffle_questions', 'shuffle_options', 'allow_previous_navigation',
                     'result_release_policy', 'webcam_required', 'fullscreen_required', 'exam_type',
@@ -140,8 +150,28 @@ class UpdateOnlineExamRequest extends FormRequest
                     ->where('school_id', $user->school_id)
                     ->first();
 
-                if ($subject && (int) $subject->class_id !== (int) $this->input('class_id')) {
+                if ($subject && $subject->class_id && (int) $subject->class_id !== (int) $this->input('class_id')) {
                     $validator->errors()->add('class_id', 'Selected class does not match selected subject.');
+                }
+
+                if ($subject && $this->filled('programme_id') && (int) ($subject->programme_id ?? 0) !== (int) $this->input('programme_id')) {
+                    $validator->errors()->add('programme_id', 'Selected course does not belong to the selected programme.');
+                }
+            }
+
+            if ($this->filled('programme_id') && $this->filled('subject_id')) {
+                $subject = Subject::where('id', (int) $this->input('subject_id'))->where('school_id', $user->school_id)->first();
+                if ($subject && (int) ($subject->programme_id ?? 0) !== (int) $this->input('programme_id')) {
+                    $validator->errors()->add('subject_id', 'Selected course is not part of the selected programme.');
+                }
+            }
+
+            if ((int) $user->role_id === 3) {
+                if ($this->filled('programme_id') && !TeacherProgrammeAssignment::where('teacher_id', $user->id)->where('school_id', $user->school_id)->where('programme_id', $this->input('programme_id'))->exists()) {
+                    $validator->errors()->add('programme_id', 'You are not assigned to the selected programme.');
+                }
+                if ($this->filled('class_id') && !TeacherPermission::where('teacher_id', $user->id)->where('school_id', $user->school_id)->where('class_id', $this->input('class_id'))->exists()) {
+                    $validator->errors()->add('class_id', 'You are not assigned to the selected cohort.');
                 }
             }
         });

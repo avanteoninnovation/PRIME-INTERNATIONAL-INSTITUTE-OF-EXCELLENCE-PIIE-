@@ -54,11 +54,14 @@
     </div>
 
     <div class="col-md-6">
-        <label class="eForm-label">{{ get_phrase('Subject') }}</label>
+        <label class="eForm-label">{{ academic_term('subject', auth()->user()->school_id) }}</label>
+        @if($subjects->isEmpty())
+            <div class="alert alert-warning py-2">{{ get_phrase('No subjects are assigned to this teacher. An administrator must assign a class/subject before this exam can be created.') }}</div>
+        @endif
         <select class="form-select eForm-select" name="subject_id" required {{ !empty($structureLocked) ? 'disabled' : '' }}>
             <option value="">{{ get_phrase('Select subject') }}</option>
             @foreach($subjects as $subject)
-                <option value="{{ $subject->id }}" {{ (string) old('subject_id', $exam->subject_id ?? '') === (string) $subject->id ? 'selected' : '' }}>{{ $subject->name }}</option>
+                <option value="{{ $subject->id }}" data-programme-id="{{ $subject->programme_id ?? '' }}" {{ (string) old('subject_id', $exam->subject_id ?? '') === (string) $subject->id ? 'selected' : '' }}>{{ $subject->name }}</option>
             @endforeach
         </select>
         @if(!empty($structureLocked) && !empty($exam))
@@ -67,7 +70,7 @@
     </div>
 
     <div class="col-md-6">
-        <label class="eForm-label">{{ get_phrase('Class') }}</label>
+        <label class="eForm-label">{{ academic_term('class', auth()->user()->school_id) }}</label>
         <select class="form-select eForm-select" name="class_id" {{ !empty($structureLocked) ? 'disabled' : '' }}>
             <option value="">{{ get_phrase('Select class') }}</option>
             @foreach($classes as $class)
@@ -80,13 +83,25 @@
     </div>
 
     <div class="col-md-6">
-        <label class="eForm-label">{{ get_phrase('Academic Session') }}</label>
-        <select class="form-select eForm-select" disabled>
-            <option>{{ get_phrase('Using global active session') }}</option>
-            @foreach($sessions as $session)
-                <option>{{ $session->session_title }}</option>
+        <label class="eForm-label">{{ academic_term('programme', auth()->user()->school_id) }}</label>
+        <select class="form-select eForm-select" name="programme_id" id="teacher_online_exam_programme" {{ !empty($structureLocked) ? 'disabled' : '' }}>
+            <option value="">{{ get_phrase('Not programme-targeted') }}</option>
+            @foreach(($programmes ?? collect()) as $programme)
+                <option value="{{ $programme->id }}" {{ (string) old('programme_id', $exam->programme_id ?? '') === (string) $programme->id ? 'selected' : '' }}>{{ $programme->name }}{{ $programme->code ? ' ('.$programme->code.')' : '' }}</option>
             @endforeach
         </select>
+        @if(!empty($structureLocked) && !empty($exam))<input type="hidden" name="programme_id" value="{{ $exam->programme_id }}">@endif
+    </div>
+
+    <div class="col-md-6">
+        <label class="eForm-label">{{ academic_term('session', auth()->user()->school_id) }}</label>
+        <select class="form-select eForm-select" name="session_id" {{ !empty($structureLocked) ? 'disabled' : '' }}>
+            <option value="">{{ get_phrase('No academic period selected') }}</option>
+            @foreach(($sessions ?? collect()) as $session)
+                <option value="{{ $session->id }}" {{ (string) old('session_id', $exam->session_id ?? ($session->status ? $session->id : '')) === (string) $session->id ? 'selected' : '' }}>{{ $session->session_title }}{{ $session->status ? ' — '.get_phrase('Active') : '' }}</option>
+            @endforeach
+        </select>
+        @if(!empty($structureLocked) && !empty($exam))<input type="hidden" name="session_id" value="{{ $exam->session_id }}">@endif
     </div>
 
     <div class="col-md-3">
@@ -132,6 +147,7 @@
                 <option value="{{ $k }}" {{ old('result_release_policy', $exam->result_release_policy ?? 'immediate') === $k ? 'selected' : '' }}>{{ get_phrase($v) }}</option>
             @endforeach
         </select>
+        <small class="form-text text-muted">{{ get_phrase('Immediate allows an administrator to publish once marking is complete; After Exam End also requires the scheduled end time; Manual keeps it hidden until an administrator publishes it.') }}</small>
     </div>
 
     <div class="col-md-12">
@@ -165,8 +181,9 @@
             <div class="col-md-3 form-check">
                 <input class="form-check-input" type="checkbox" name="auto_submit" id="auto_submit" value="1" {{ old('auto_submit', $exam->auto_submit ?? true) ? 'checked' : '' }}>
                 <label class="form-check-label" for="auto_submit">{{ get_phrase('Auto Submit') }}</label>
+                <small class="form-text text-muted d-block">{{ get_phrase('Automatically submit the student attempt when the exam time expires.') }}</small>
             </div>
-        </div>
+
     </div>
 
     <div class="col-md-12">
@@ -196,3 +213,20 @@
         @endif
     </div>
 </form>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const programme = document.getElementById('teacher_online_exam_programme');
+    const subject = document.querySelector('select[name="subject_id"]');
+    if (!programme || !subject) return;
+    const filterSubjects = function () {
+        const selected = programme.value;
+        Array.from(subject.options).forEach(function (option) {
+            if (!option.value) return;
+            option.hidden = !!selected && option.dataset.programmeId !== selected;
+            if (option.hidden && option.selected) subject.value = '';
+        });
+    };
+    programme.addEventListener('change', filterSubjects);
+    filterSubjects();
+});
+</script>

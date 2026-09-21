@@ -75,6 +75,7 @@ class OnlineExamControllerSecurityTest extends TestCase
 
         $this->actingAs($student)
             ->postJson(route('student.online_exam.save_answer', $submissionId), [
+                'answer_revision' => 1,
                 'submission_id' => $submissionId,
                 'question_id' => $questionId,
                 'selected_option' => 'A',
@@ -112,6 +113,7 @@ class OnlineExamControllerSecurityTest extends TestCase
 
         $this->actingAs($student)
             ->postJson(route('student.online_exam.save_answer', $submissionId), [
+                'answer_revision' => 1,
                 'submission_id' => $submissionId,
                 'question_id' => $questionFromExamB,
                 'selected_option' => 'A',
@@ -152,6 +154,7 @@ class OnlineExamControllerSecurityTest extends TestCase
 
         $saveResponse = $this->actingAs($student)
             ->postJson(route('student.online_exam.save_answer', $submissionId), [
+                'answer_revision' => 1,
                 'submission_id' => $submissionId,
                 'question_id' => $questionId,
                 'selected_option' => 'A',

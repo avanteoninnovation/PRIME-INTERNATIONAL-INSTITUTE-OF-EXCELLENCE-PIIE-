@@ -587,6 +587,27 @@ trait AdmissionsTestHelper
             $table->timestamps();
         });
 
+        // Queried unconditionally by the online_exam.notifications partial
+        // every admin/student/teacher navigation layout now @includes (see
+        // the online-exams governed-workflow merge) — without this, any
+        // test that renders one of those layouts 500s on a missing table.
+        Schema::create('online_exam_user_notifications', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('school_id')->index();
+            $table->unsignedBigInteger('user_id')->index();
+            $table->unsignedBigInteger('actor_id')->nullable();
+            $table->unsignedBigInteger('online_exam_id')->nullable()->index();
+            $table->unsignedBigInteger('submission_id')->nullable()->index();
+            $table->string('type', 60);
+            $table->string('title', 190);
+            $table->text('message');
+            $table->string('action_url', 500)->nullable();
+            $table->dateTime('read_at')->nullable();
+            $table->string('event_key', 190)->nullable();
+            $table->timestamps();
+            $table->unique(['school_id', 'user_id', 'event_key']);
+        });
+
         Schema::create('noticeboard', function (Blueprint $table) {
             $table->id();
             $table->longText('notice_title');

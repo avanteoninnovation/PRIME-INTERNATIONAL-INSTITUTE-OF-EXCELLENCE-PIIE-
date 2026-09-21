@@ -16,7 +16,10 @@ class SubmitOnlineExamRequest extends FormRequest
             return false;
         }
 
-        $submissionId = (int) ($this->route('submission') ?? $this->input('submission_id') ?? 0);
+        $routeSubmission = $this->route('submission');
+        $submissionId = $routeSubmission instanceof OnlineExamSubmission
+            ? (int) $routeSubmission->getKey()
+            : (int) ($routeSubmission ?? $this->input('submission_id') ?? 0);
         $this->submission = OnlineExamSubmission::find($submissionId);
 
         return $this->submission
@@ -45,14 +48,7 @@ class SubmitOnlineExamRequest extends FormRequest
                 return;
             }
 
-            if ($this->submission->status !== OnlineExamSubmission::STATUS_IN_PROGRESS) {
-                $validator->errors()->add('submission_id', 'Submission is not in progress or was already submitted.');
-                return;
-            }
-
-            if (!empty($this->submission->submitted_at)) {
-                $validator->errors()->add('submission_id', 'Duplicate submission is not allowed.');
-            }
+            // Terminal submissions are accepted so repeated submit requests are idempotent.
         });
     }
 }

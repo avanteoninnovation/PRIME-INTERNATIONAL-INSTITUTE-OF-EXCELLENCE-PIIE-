@@ -56,6 +56,32 @@ class TeacherOnlineExamTest extends TestCase
         $this->assertTrue(Route::has('teacher.online_exams.index'));
     }
 
+    public function test_pending_review_row_uses_readable_status_instead_of_disabled_submit_action(): void
+    {
+        $teacher = $this->makeTeacherWithPermission(1);
+        $classId = DB::table('teacher_permissions')->where('teacher_id', $teacher->id)->value('class_id');
+        $subjectId = $this->makeSubject(1, $classId);
+        $this->makeExam([
+            'school_id' => 1,
+            'class_id' => $classId,
+            'subject_id' => $subjectId,
+            'created_by' => $teacher->id,
+            'creator_id' => $teacher->id,
+            'workflow_state' => 'pending_review',
+            'is_published' => false,
+            'title' => 'Pending Review Visual Test',
+        ]);
+
+        $response = $this->actingAs($teacher)->get(route('teacher.online_exams.index'));
+
+        $response->assertOk()
+            ->assertSee('Awaiting Admin Review')
+            ->assertSee('Workflow')
+            ->assertSee('Lifecycle')
+            ->assertDontSee('Submit Review')
+            ->assertSee('online-exams.css', false);
+    }
+
     public function test_teacher_sees_only_own_school_exams(): void
     {
         $teacher = $this->makeTeacherWithPermission(1);
@@ -107,6 +133,36 @@ class TeacherOnlineExamTest extends TestCase
             ->assertStatus(403);
     }
 
+    public function test_assigned_teacher_can_view_attempts_for_admin_created_exam(): void
+    {
+        $teacher = $this->makeTeacherWithPermission(1);
+        $classId = DB::table('teacher_permissions')->where('teacher_id', $teacher->id)->value('class_id');
+        $subjectId = $this->makeSubject(1, $classId);
+        $admin = $this->makeUser(2, 1);
+        $student = $this->makeUser(7, 1);
+        $this->enrollStudent($student->id, 1, $classId);
+
+        $examId = $this->makeExam([
+            'school_id' => 1,
+            'class_id' => $classId,
+            'subject_id' => $subjectId,
+            'created_by' => $admin->id,
+            'creator_id' => $admin->id,
+        ]);
+        $this->makeSubmission([
+            'online_exam_id' => $examId,
+            'student_id' => $student->id,
+            'school_id' => 1,
+            'status' => 'pending_manual_marking',
+            'submitted_at' => now(),
+        ]);
+
+        $this->actingAs($teacher)
+            ->get(route('teacher.online_exams.attempts', $examId))
+            ->assertOk()
+            ->assertSee($student->name);
+    }
+
     public function test_teacher_can_add_valid_mcq(): void
     {
         $teacher = $this->makeTeacherWithPermission(1);
@@ -119,6 +175,8 @@ class TeacherOnlineExamTest extends TestCase
             'subject_id' => $subjectId,
             'created_by' => $teacher->id,
             'creator_id' => $teacher->id,
+            'workflow_state' => 'draft',
+            'is_published' => 0,
         ]);
 
         $response = $this->actingAs($teacher)->post(route('teacher.online_exams.questions.store', $examId), [
@@ -135,6 +193,42 @@ class TeacherOnlineExamTest extends TestCase
             'online_exam_id' => $examId,
             'question' => 'What is 2+2?',
         ]);
+    }
+
+    public function test_ordinary_mcq_ignores_empty_structured_option_slots_from_ui(): void
+    {
+        $teacher = $this->makeTeacherWithPermission(1);
+        $classId = DB::table('teacher_permissions')->where('teacher_id', $teacher->id)->value('class_id');
+        $subjectId = $this->makeSubject(1, $classId);
+        $examId = $this->makeExam(['school_id' => 1, 'class_id' => $classId, 'subject_id' => $subjectId, 'created_by' => $teacher->id, 'creator_id' => $teacher->id]);
+        $emptyRows = array_map(fn ($i) => ['id' => '', 'label' => ''], range(0, 7));
+
+        $this->actingAs($teacher)->post(route('teacher.online_exams.questions.store', $examId), [
+            'question' => 'Which value is even?', 'type' => 'multiple_choice',
+            'option_a' => '2', 'option_b' => '3', 'correct_ans' => 'a', 'marks' => 1,
+            'structured_options' => $emptyRows,
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('online_exam_questions', ['online_exam_id' => $examId, 'type' => 'mcq', 'correct_ans' => 'a']);
+    }
+
+    public function test_real_mcq_form_payload_ignores_empty_matching_ordering_fill_and_numeric_groups(): void
+    {
+        $teacher = $this->makeTeacherWithPermission(1);
+        $classId = DB::table('teacher_permissions')->where('teacher_id', $teacher->id)->value('class_id');
+        $subjectId = $this->makeSubject(1, $classId);
+        $examId = $this->makeExam(['school_id' => 1, 'class_id' => $classId, 'subject_id' => $subjectId, 'created_by' => $teacher->id, 'creator_id' => $teacher->id]);
+        $emptyRows = [['left_id' => 'left_1', 'left_text' => '', 'right_id' => 'right_1', 'right_text' => ''], ['left_id' => 'left_2', 'left_text' => '', 'right_id' => 'right_2', 'right_text' => '']];
+        $response = $this->actingAs($teacher)->from('/teacher/online-exams/' . $examId . '/questions')->post(route('teacher.online_exams.questions.store', $examId), [
+            'question' => 'Which value is even?', 'type' => 'multiple_choice', 'option_a' => '2', 'option_b' => '3', 'option_c' => '', 'option_d' => '', 'correct_ans' => 'a', 'marks' => 1,
+            'structured_options' => array_map(fn ($i) => ['id' => '', 'label' => ''], range(0, 7)),
+            'structured_pairs' => $emptyRows,
+            'structured_order_items' => [['id' => 'item_1', 'text' => ''], ['id' => 'item_2', 'text' => '']],
+            'structured_blanks' => [['id' => 'blank_1', 'accepted_answers' => ['']], ['id' => 'blank_2', 'accepted_answers' => ['']]],
+            'numeric_target' => '', 'numeric_tolerance' => '',
+        ]);
+        $response->assertRedirect()->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('online_exam_questions', ['online_exam_id' => $examId, 'type' => 'mcq', 'correct_ans' => 'a']);
     }
 
     public function test_invalid_mcq_is_rejected(): void
@@ -160,6 +254,110 @@ class TeacherOnlineExamTest extends TestCase
             ]);
 
         $response->assertSessionHasErrors();
+    }
+
+    public function test_teacher_question_authoring_accepts_each_supported_type_without_irrelevant_option_rows(): void
+    {
+        $teacher = $this->makeTeacherWithPermission(1);
+        $classId = DB::table('teacher_permissions')->where('teacher_id', $teacher->id)->value('class_id');
+        $subjectId = $this->makeSubject(1, $classId);
+        $payloads = [
+            ['type' => 'multiple_choice', 'option_a' => 'A', 'option_b' => 'B', 'correct_ans' => 'a'],
+            ['type' => 'multiple_select', 'structured_options' => [['id' => 'a', 'label' => 'A'], ['id' => 'b', 'label' => 'B']], 'correct_option_ids' => ['a', 'b']],
+            ['type' => 'numeric', 'numeric_target' => '10', 'numeric_tolerance' => '0'],
+            ['type' => 'fill_blank', 'structured_blanks' => [['id' => 'blank_1', 'accepted_answers' => ['answer']]], 'question' => '[[blank_1]]'],
+            ['type' => 'true_false', 'correct_answer_tf' => 'true'],
+            ['type' => 'short_answer', 'correct_ans' => 'answer'],
+            ['type' => 'essay'],
+            ['type' => 'matching', 'structured_pairs' => [['left_id' => 'left_1', 'left_text' => 'A', 'right_id' => 'right_1', 'right_text' => '1'], ['left_id' => 'left_2', 'left_text' => 'B', 'right_id' => 'right_2', 'right_text' => '2']]],
+            ['type' => 'ordering', 'structured_order_items' => [['id' => 'item_1', 'text' => 'First'], ['id' => 'item_2', 'text' => 'Second']]],
+        ];
+        foreach ($payloads as $index => $payload) {
+            $examId = $this->makeExam(['school_id' => 1, 'class_id' => $classId, 'subject_id' => $subjectId, 'created_by' => $teacher->id, 'creator_id' => $teacher->id]);
+            $payload += ['question' => $payload['question'] ?? ('Question ' . $index), 'marks' => 2,
+                'structured_options' => array_map(fn ($i) => ['id' => '', 'label' => ''], range(0, 7)),
+                'structured_pairs' => [['left_id' => 'left_1', 'left_text' => '', 'right_id' => 'right_1', 'right_text' => ''], ['left_id' => 'left_2', 'left_text' => '', 'right_id' => 'right_2', 'right_text' => '']],
+                'structured_order_items' => [['id' => 'item_1', 'text' => ''], ['id' => 'item_2', 'text' => '']],
+                'structured_blanks' => [['id' => 'blank_1', 'accepted_answers' => ['']]], 'numeric_target' => '', 'numeric_tolerance' => ''];
+            $this->actingAs($teacher)->post(route('teacher.online_exams.questions.store', $examId), $payload)->assertRedirect()->assertSessionHasNoErrors();
+            $stored = DB::table('online_exam_questions')->where('online_exam_id', $examId)->latest('id')->first();
+            if (in_array($payload['type'], ['matching', 'ordering'], true)) $this->assertSame('short', $stored->type);
+        }
+        $this->assertSame(9, DB::table('online_exam_questions')->count());
+    }
+
+    public function test_teacher_can_create_multiple_select_and_numeric_questions_with_structured_contracts(): void
+    {
+        $teacher = $this->makeTeacherWithPermission(1);
+        $classId = DB::table('teacher_permissions')->where('teacher_id', $teacher->id)->value('class_id');
+        $subjectId = $this->makeSubject(1, $classId);
+        $examId = $this->makeExam(['school_id' => 1, 'class_id' => $classId, 'subject_id' => $subjectId, 'created_by' => $teacher->id, 'creator_id' => $teacher->id]);
+
+        $this->actingAs($teacher)->post(route('teacher.online_exams.questions.store', $examId), [
+            'question' => 'Select all prime numbers', 'type' => 'multiple_select', 'marks' => 4,
+            'structured_options' => [
+                ['id' => 'a', 'label' => '2'], ['id' => 'b', 'label' => '3'], ['id' => 'c', 'label' => '4'],
+            ], 'correct_option_ids' => ['a', 'b'],
+        ])->assertRedirect();
+        $multi = DB::table('online_exam_questions')->where('online_exam_id', $examId)->latest('id')->first();
+        $this->assertSame(2, (int) $multi->question_schema_version);
+        $this->assertSame('multiple_select', json_decode($multi->question_config, true)['type']);
+
+        $this->actingAs($teacher)->post(route('teacher.online_exams.questions.store', $examId), [
+            'question' => 'Enter the answer', 'type' => 'numeric', 'marks' => 3,
+            'numeric_target' => '10', 'numeric_tolerance' => '0.5',
+        ])->assertRedirect();
+        $numeric = DB::table('online_exam_questions')->where('online_exam_id', $examId)->latest('id')->first();
+        $this->assertSame(2, (int) $numeric->question_schema_version);
+        $marking = json_decode($numeric->marking_config, true);
+        $this->assertSame(10.0, (float) $marking['target']);
+        $this->assertSame(0.5, (float) $marking['tolerance']);
+    }
+
+    public function test_teacher_can_create_structured_fill_blank_question(): void
+    {
+        $teacher = $this->makeTeacherWithPermission(1);
+        $classId = DB::table('teacher_permissions')->where('teacher_id', $teacher->id)->value('class_id');
+        $subjectId = $this->makeSubject(1, $classId);
+        $examId = $this->makeExam(['school_id' => 1, 'class_id' => $classId, 'subject_id' => $subjectId, 'created_by' => $teacher->id, 'creator_id' => $teacher->id]);
+
+        $this->actingAs($teacher)->post(route('teacher.online_exams.questions.store', $examId), [
+            'question' => 'Capital [[blank_1]] and country [[blank_2]]', 'type' => 'fill_blank', 'marks' => 4,
+            'structured_blanks' => [
+                ['id' => 'blank_1', 'accepted_answers' => ['Kampala', 'kampala']],
+                ['id' => 'blank_2', 'accepted_answers' => ['Uganda']],
+            ],
+        ])->assertRedirect();
+        $question = DB::table('online_exam_questions')->where('online_exam_id', $examId)->latest('id')->first();
+        $this->assertSame(2, (int) $question->question_schema_version);
+        $this->assertSame('fill_blank', json_decode($question->question_config, true)['type']);
+    }
+
+    public function test_structured_fill_blank_http_contract_handles_spares_variants_and_placeholder_rules(): void
+    {
+        $teacher = $this->makeTeacherWithPermission(1);
+        $classId = DB::table('teacher_permissions')->where('teacher_id', $teacher->id)->value('class_id');
+        $subjectId = $this->makeSubject(1, $classId);
+        $post = function (string $question, array $blanks, array $extra = []) use ($teacher, $classId, $subjectId) {
+            $examId = $this->makeExam(['school_id' => 1, 'class_id' => $classId, 'subject_id' => $subjectId, 'created_by' => $teacher->id, 'creator_id' => $teacher->id]);
+            return [$examId, $this->actingAs($teacher)->from('/teacher/online-exams/' . $examId . '/questions')->post(route('teacher.online_exams.questions.store', $examId), array_merge(['question' => $question, 'type' => 'fill_blank', 'marks' => 2, 'structured_blanks' => $blanks], $extra))];
+        };
+        [$exam, $response] = $post('Capital [[blank_1]]', [['id' => 'blank_1', 'accepted_answers' => ['Kampala', '']], ['id' => 'blank_2', 'accepted_answers' => ['', '']], ['id' => 'blank_3', 'accepted_answers' => ['', '']], ['id' => 'blank_4', 'accepted_answers' => ['', '']]]);
+        $response->assertRedirect()->assertSessionHasNoErrors();
+        $config = json_decode(DB::table('online_exam_questions')->where('online_exam_id', $exam)->value('question_config'), true);
+        $this->assertCount(1, $config['blanks']);
+
+        [, $response] = $post('Capital [[blank_1]]', [['id' => 'blank_1', 'accepted_answers' => ['Kampala', '']]]); $response->assertRedirect()->assertSessionHasNoErrors();
+        [, $response] = $post('[[blank_1]] is in [[blank_2]]', [['id' => 'blank_1', 'accepted_answers' => ['Kampala']], ['id' => 'blank_2', 'accepted_answers' => ['Uganda']], ['id' => 'blank_3', 'accepted_answers' => ['']]]); $response->assertRedirect()->assertSessionHasNoErrors();
+        [, $response] = $post('Capital [[blank_1]]', [['id' => 'blank_2', 'accepted_answers' => ['Kampala']]]); $response->assertSessionHasErrors('structured_blanks');
+        [, $response] = $post('Capital [[blank_1]] [[blank_1]]', [['id' => 'blank_1', 'accepted_answers' => ['Kampala']]]); $response->assertSessionHasErrors('structured_blanks');
+        [, $response] = $post('Capital [[blank_1]]', [['id' => 'blank_1', 'accepted_answers' => ['']]]); $response->assertSessionHasErrors('structured_blanks');
+        [, $response] = $post('Capital [[blank_2]]', [['id' => 'blank_1', 'accepted_answers' => ['Kampala']]]); $response->assertSessionHasErrors('structured_blanks');
+        [$exam, $response] = $post('Capital [[blank_1]]', [['id' => 'blank_1', 'accepted_answers' => ['Kampala', 'Kampala City']]]); $response->assertRedirect()->assertSessionHasNoErrors();
+        $marking = json_decode(DB::table('online_exam_questions')->where('online_exam_id', $exam)->value('marking_config'), true); $this->assertSame(['Kampala', 'Kampala City'], $marking['blanks']['blank_1']['accepted_answers']);
+        [$exam, $response] = $post('Capital [[blank_1]]', [['id' => 'blank_1', 'accepted_answers' => ['KAMPALA']]], ['case_sensitive' => '1']); $response->assertRedirect()->assertSessionHasNoErrors(); $marking = json_decode(DB::table('online_exam_questions')->where('online_exam_id', $exam)->value('marking_config'), true); $this->assertTrue($marking['case_sensitive']);
+        $rows = []; $parts = []; for ($i = 1; $i <= 16; $i++) { $parts[] = '[[blank_' . $i . ']]'; $rows[] = ['id' => 'blank_' . $i, 'accepted_answers' => ['Answer ' . $i]]; } [, $response] = $post(implode(' ', $parts), $rows, ['marks' => 16]); $response->assertRedirect()->assertSessionHasNoErrors();
+        $rows[] = ['id' => 'blank_17', 'accepted_answers' => ['Too many']]; [, $response] = $post(implode(' ', $parts) . ' [[blank_17]]', $rows, ['marks' => 17]); $response->assertSessionHasErrors('structured_blanks');
     }
 
     public function test_teacher_can_import_question_bank_snapshot_and_future_changes_do_not_mutate_exam_question(): void
@@ -211,6 +409,7 @@ class TeacherOnlineExamTest extends TestCase
     public function test_teacher_without_publish_permission_submits_for_review(): void
     {
         $teacher = $this->makeTeacherWithPermission(1);
+        $this->makeUser(2, 1);
 
         DB::table('global_settings')->where('key', 'role_perm_3')->update([
             'value' => json_encode([
@@ -232,6 +431,8 @@ class TeacherOnlineExamTest extends TestCase
             'pass_mark' => 1,
             'created_by' => $teacher->id,
             'creator_id' => $teacher->id,
+            'workflow_state' => 'draft',
+            'is_published' => 0,
         ]);
         $this->makeQuestion($examId, ['marks' => 2]);
 
@@ -242,6 +443,12 @@ class TeacherOnlineExamTest extends TestCase
         $this->assertDatabaseHas('online_exams', [
             'id' => $examId,
             'workflow_state' => 'pending_review',
+        ]);
+        $this->assertDatabaseHas('online_exam_user_notifications', [
+            'school_id' => 1,
+            'type' => 'exam_submitted_for_review',
+            'online_exam_id' => $examId,
+            'event_key' => 'exam-review:' . $examId . ':user:' . DB::table('users')->where('role_id', 2)->where('school_id', 1)->value('id'),
         ]);
     }
 
@@ -269,20 +476,22 @@ class TeacherOnlineExamTest extends TestCase
             'total_marks' => 5,
             'created_by' => $teacher->id,
             'creator_id' => $teacher->id,
+            'workflow_state' => 'draft',
+            'is_published' => 0,
         ]);
         $this->makeQuestion($examId, ['marks' => 4]);
 
         $this->actingAs($teacher)
             ->post(route('teacher.online_exams.publish', $examId))
-            ->assertSessionHasErrors();
+            ->assertForbidden();
 
         DB::table('online_exam_questions')->where('online_exam_id', $examId)->update(['marks' => 5]);
 
         $this->actingAs($teacher)
             ->post(route('teacher.online_exams.publish', $examId))
-            ->assertRedirect();
+            ->assertForbidden();
 
-        $this->assertDatabaseHas('online_exams', [
+        $this->assertDatabaseMissing('online_exams', [
             'id' => $examId,
             'workflow_state' => 'published',
             'is_published' => 1,

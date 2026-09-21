@@ -10,10 +10,16 @@ use App\Models\OnlineExamProctoringEvent;
 use App\Models\OnlineExam;
 use App\Models\OnlineExamQuestion;
 use App\Models\OnlineExamSubmission;
+use App\Models\OnlineExamUserNotification;
 use App\Models\QuestionBank;
+use App\Models\QuestionTopic;
+use App\Models\QuestionTag;
+use App\Models\Programme;
 use App\Models\Session;
+use App\Models\StudentProfile;
 use App\Models\Subject;
 use App\Models\TeacherPermission;
+use App\Models\TeacherProgrammeAssignment;
 use App\Http\Requests\OnlineExam\CameraReadinessRequest;
 use App\Http\Requests\OnlineExam\ManualMarkAnswerRequest;
 use App\Http\Requests\OnlineExam\ProctoringEventRequest;
@@ -26,11 +32,15 @@ use App\Http\Requests\OnlineExam\UpdateOnlineExamQuestionRequest;
 use App\Http\Requests\OnlineExam\UpdateOnlineExamRequest;
 use App\Support\Permissions\OnlineExamAuthorizer;
 use App\Support\Permissions\OnlineExamPermissionService;
+use App\Support\OnlineExams\QuestionContract;
+use App\Support\OnlineExams\OnlineExamPortalNotifier;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use InvalidArgumentException;
 
 class OnlineExamController extends Controller
 {
@@ -53,7 +63,7 @@ class OnlineExamController extends Controller
         $search  = $request->search ?? '';
         $exams   = OnlineExam::forSchool($this->school_id)
             ->when($search, fn($q) => $q->where('title', 'like', "%$search%"))
-            ->with(['subject'])
+            ->with(['subject', 'submissions.student', 'submissions.answerRows', 'submissions.proctoringEvents', 'submissions.exam.questions'])
             ->withCount('questions', 'submissions')
             ->latest()
             ->paginate(20);
@@ -77,7 +87,9 @@ class OnlineExamController extends Controller
 
         $subjects = Subject::where('school_id', $this->school_id)->orderBy('name')->get();
         $classes  = Classes::where('school_id', $this->school_id)->orderBy('name')->get();
-        return view('admin.online_exam.modal', compact('exam', 'subjects', 'classes'));
+        $programmes = Programme::where('school_id', $this->school_id)->where('is_active', 1)->orderBy('name')->get();
+        $sessions = $this->academicSessionsForSelection();
+        return view('admin.online_exam.modal', compact('exam', 'subjects', 'classes', 'programmes', 'sessions'));
     }
 
     public function create()
@@ -86,11 +98,15 @@ class OnlineExamController extends Controller
 
         $subjects = Subject::where('school_id', $this->school_id)->orderBy('name')->get();
         $classes  = Classes::where('school_id', $this->school_id)->orderBy('name')->get();
+        $programmes = Programme::where('school_id', $this->school_id)->where('is_active', 1)->orderBy('name')->get();
+        $sessions = $this->academicSessionsForSelection();
 
         return view('admin.online_exam.modal', [
             'exam' => null,
             'subjects' => $subjects,
             'classes' => $classes,
+            'programmes' => $programmes,
+            'sessions' => $sessions,
         ]);
     }
 
@@ -100,8 +116,8 @@ class OnlineExamController extends Controller
         $this->authorize('view', $exam);
 
         $exam->load(['subject', 'classRoom', 'questions', 'submissions.student']);
-
-        return view('admin.online_exam.show', compact('exam'));
+        $readinessErrors = $exam->publicationReadinessErrors();
+        return view('admin.online_exam.show', compact('exam', 'readinessErrors'));
     }
 
     public function edit($id)
@@ -111,8 +127,10 @@ class OnlineExamController extends Controller
 
         $subjects = Subject::where('school_id', $this->school_id)->orderBy('name')->get();
         $classes  = Classes::where('school_id', $this->school_id)->orderBy('name')->get();
+        $programmes = Programme::where('school_id', $this->school_id)->where('is_active', 1)->orderBy('name')->get();
+        $sessions = $this->academicSessionsForSelection();
 
-        return view('admin.online_exam.modal', compact('exam', 'subjects', 'classes'));
+        return view('admin.online_exam.modal', compact('exam', 'subjects', 'classes', 'programmes', 'sessions'));
     }
 
     public function store(StoreOnlineExamRequest $request)
@@ -120,11 +138,16 @@ class OnlineExamController extends Controller
         $this->authorize('create', OnlineExam::class);
 
         $validated = $request->validated();
+        if (($validated['workflow_state'] ?? 'draft') === 'published') {
+            abort(422, 'Add and validate questions before publishing an exam.');
+        }
         $payload = [
             'title' => $validated['title'],
             'instructions' => $validated['instructions'] ?? null,
             'subject_id' => $validated['subject_id'] ?? null,
             'class_id' => $validated['class_id'] ?? null,
+            'programme_id' => $validated['programme_id'] ?? null,
+            'session_id' => $validated['session_id'] ?? null,
             'exam_type' => $validated['exam_type'],
             'start_datetime' => $validated['start_datetime'] ?? null,
             'end_datetime' => $validated['end_datetime'] ?? null,
@@ -146,6 +169,8 @@ class OnlineExamController extends Controller
             'creator_id' => Auth::id(),
             'updater_id' => Auth::id(),
         ];
+        if (!Schema::hasColumn('online_exams', 'programme_id')) unset($payload['programme_id']);
+        if (!Schema::hasColumn('online_exams', 'session_id')) unset($payload['session_id']);
 
         $exam = DB::transaction(fn() => OnlineExam::create($payload));
         AuditLog::record('create', 'Online Exams', "Created exam: {$exam->title}");
@@ -159,11 +184,13 @@ class OnlineExamController extends Controller
 
         $validated = $request->validated();
         DB::transaction(function () use ($exam, $validated) {
-            $exam->update([
+            $payload = [
                 'title' => $validated['title'],
                 'instructions' => $validated['instructions'] ?? null,
                 'subject_id' => $validated['subject_id'] ?? null,
                 'class_id' => $validated['class_id'] ?? null,
+                'programme_id' => $validated['programme_id'] ?? null,
+                'session_id' => $validated['session_id'] ?? null,
                 'exam_type' => $validated['exam_type'],
                 'start_datetime' => $validated['start_datetime'] ?? null,
                 'end_datetime' => $validated['end_datetime'] ?? null,
@@ -181,43 +208,43 @@ class OnlineExamController extends Controller
                 'workflow_state' => $validated['workflow_state'] ?? $exam->workflow_state,
                 'is_published' => ($validated['workflow_state'] ?? $exam->workflow_state) === 'published',
                 'updater_id' => Auth::id(),
-            ]);
+            ];
+            if (!Schema::hasColumn('online_exams', 'programme_id')) unset($payload['programme_id']);
+            if (!Schema::hasColumn('online_exams', 'session_id')) unset($payload['session_id']);
+            $exam->update($payload);
+            if (($validated['workflow_state'] ?? $exam->workflow_state) === 'published') {
+                $exam->refresh()->load('questions');
+                $errors = $exam->publicationReadinessErrors();
+                if (!empty($errors)) {
+                    abort(422, implode(' ', $errors));
+                }
+            }
         });
 
         AuditLog::record('update', 'Online Exams', "Updated exam: {$exam->title}");
         return redirect()->back()->with('success', get_phrase('Exam updated'));
     }
 
-    public function publish($id)
+    public function publish(Request $request, $id)
     {
         $exam = $this->findExamOrFail((int) $id);
         $this->authorize('publish', $exam);
+        $wasPublished = (bool) $exam->is_published;
 
-        $wasPublished = $exam->is_published;
+        $readinessErrors = $exam->fresh()->publicationReadinessErrors();
+        if (!empty($readinessErrors)) {
+            return $this->publicationReadinessFailure($request, $readinessErrors);
+        }
 
-        DB::transaction(function () use ($exam) {
-            $exam->refresh();
-            if (!$exam->is_published) {
-                $errors = $exam->publicationReadinessErrors();
-                if (!empty($errors)) {
-                    abort(422, implode(' ', $errors));
-                }
-            }
-
-            $state = $exam->is_published ? 'draft' : 'published';
-            $exam->update([
-                'is_published' => !$exam->is_published,
-                'workflow_state' => $state,
-                'reviewed_by' => Auth::id(),
-                'reviewed_at' => now(),
-                'updater_id' => Auth::id(),
-            ]);
-        });
+        $this->publishExam($exam);
+        $exam->refresh();
 
         AuditLog::record('update', 'Online Exams', (($exam->is_published ? 'Published' : 'Unpublished') . " exam: {$exam->title}"));
 
         if (!$wasPublished && $exam->is_published) {
-            \App\Support\OnlineExams\OnlineExamAnnouncementNotifier::examPublished($exam);
+            OnlineExamPortalNotifier::teacher('exam_approved', 'Exam Approved', 'Your exam "' . $exam->title . '" was approved and published.', $exam, Auth::id(), 'exam-approved:' . $exam->id);
+            OnlineExamPortalNotifier::eligibleStudents($exam, 'exam_published', 'Exam Available', 'A new exam, "' . $exam->title . '", is now available.', Auth::id(), 'exam-published:' . $exam->id);
+            \App\Support\OnlineExams\OnlineExamAnnouncementNotifier::examPublished($exam->fresh());
         }
         return redirect()->back()->with('success', get_phrase('Exam status updated'));
     }
@@ -226,6 +253,10 @@ class OnlineExamController extends Controller
     {
         $exam = $this->findExamOrFail((int) $id);
         $this->authorize('unpublish', $exam);
+
+        if ($exam->submissions()->whereIn('status', [OnlineExamSubmission::STATUS_IN_PROGRESS, OnlineExamSubmission::STATUS_SUBMITTED, OnlineExamSubmission::STATUS_PENDING_MANUAL])->exists()) {
+            return redirect()->back()->withErrors(['exam' => get_phrase('Cannot unpublish an exam with active or pending attempts.')]);
+        }
 
         DB::transaction(function () use ($exam) {
             $exam->update([
@@ -243,6 +274,10 @@ class OnlineExamController extends Controller
     {
         $exam = $this->findExamOrFail((int) $id);
         $this->authorize('cancel', $exam);
+
+        if ($exam->submissions()->where('status', OnlineExamSubmission::STATUS_IN_PROGRESS)->exists()) {
+            return redirect()->back()->withErrors(['exam' => get_phrase('Cannot cancel an exam while candidates are active.')]);
+        }
 
         DB::transaction(function () use ($request, $exam) {
             $exam->update([
@@ -299,7 +334,8 @@ class OnlineExamController extends Controller
         $bank      = QuestionBank::where('school_id', $this->school_id)
             ->when($exam->subject_id, fn($q) => $q->where('subject_id', $exam->subject_id))
             ->get();
-        return view('admin.online_exam.questions', compact('exam', 'questions', 'bank'));
+        $questionMarksTotal = (int) $questions->sum('marks');
+        return view('admin.online_exam.questions', compact('exam', 'questions', 'bank', 'questionMarksTotal'));
     }
 
     public function storeQuestion(StoreOnlineExamQuestionRequest $request, $exam_id)
@@ -320,6 +356,9 @@ class OnlineExamController extends Controller
                 'option_c' => $validated['option_c'] ?? null,
                 'option_d' => $validated['option_d'] ?? null,
                 'correct_ans' => $validated['correct_ans'] ?? null,
+                'question_schema_version' => $validated['question_schema_version'] ?? null,
+                'question_config' => $validated['question_config'] ?? null,
+                'marking_config' => $validated['marking_config'] ?? null,
                 'marks' => $validated['marks'],
                 'sort_order' => $nextSort,
             ]);
@@ -345,6 +384,9 @@ class OnlineExamController extends Controller
                 'option_c' => $validated['option_c'] ?? null,
                 'option_d' => $validated['option_d'] ?? null,
                 'correct_ans' => $validated['correct_ans'] ?? null,
+                'question_schema_version' => $validated['question_schema_version'] ?? null,
+                'question_config' => $validated['question_config'] ?? null,
+                'marking_config' => $validated['marking_config'] ?? null,
                 'marks' => $validated['marks'],
             ]);
         });
@@ -374,24 +416,117 @@ class OnlineExamController extends Controller
 
     // ── Question Bank ─────────────────────────────────────────────────────
 
+    private function assertQuestionMetadataAdmin(): void
+    {
+        $user = Auth::user();
+        $permissions = app(OnlineExamPermissionService::class);
+        abort_unless($user && $permissions->has($user, 'manage_exam_questions') && $permissions->has($user, 'edit_all_online_exams'), 403);
+    }
+
+    public function questionMetadata()
+    {
+        $this->assertQuestionMetadataAdmin();
+        $subjects = Subject::where('school_id', $this->school_id)->orderBy('name')->get();
+        $topics = QuestionTopic::where('school_id', $this->school_id)->with('subject')->orderBy('name')->get();
+        $tags = QuestionTag::where('school_id', $this->school_id)->orderBy('name')->get();
+        return view('admin.online_exam.question_metadata', compact('subjects', 'topics', 'tags'));
+    }
+
+    public function storeQuestionTopic(Request $request)
+    {
+        $this->assertQuestionMetadataAdmin();
+        $data = $request->validate(['subject_id' => ['required', Rule::exists('subjects', 'id')->where(fn ($q) => $q->where('school_id', $this->school_id))], 'name' => ['required', 'string', 'max:150']]);
+        $name = trim($data['name']);
+        abort_if($name === '', 422, 'Topic name is required.');
+        abort_if(QuestionTopic::where('school_id', $this->school_id)->where('subject_id', $data['subject_id'])->whereNull('parent_id')->whereRaw('LOWER(name) = ?', [mb_strtolower($name)])->exists(), 422, 'That Topic already exists for this Course.');
+        QuestionTopic::create(['school_id' => $this->school_id, 'subject_id' => $data['subject_id'], 'name' => $name, 'is_active' => true, 'created_by' => Auth::id()]);
+        return redirect()->back()->with('success', get_phrase('Topic created'));
+    }
+
+    public function storeQuestionSubtopic(Request $request)
+    {
+        $this->assertQuestionMetadataAdmin();
+        $data = $request->validate(['subject_id' => ['required', Rule::exists('subjects', 'id')->where(fn ($q) => $q->where('school_id', $this->school_id))], 'parent_id' => ['required', 'integer'], 'name' => ['required', 'string', 'max:150']]);
+        $parent = QuestionTopic::where('school_id', $this->school_id)->where('subject_id', $data['subject_id'])->whereNull('parent_id')->findOrFail($data['parent_id']);
+        $name = trim($data['name']); abort_if($name === '', 422, 'Subtopic name is required.');
+        abort_if(QuestionTopic::where('school_id', $this->school_id)->where('subject_id', $parent->subject_id)->where('parent_id', $parent->id)->whereRaw('LOWER(name) = ?', [mb_strtolower($name)])->exists(), 422, 'That Subtopic already exists under this Topic.');
+        QuestionTopic::create(['school_id' => $this->school_id, 'subject_id' => $parent->subject_id, 'parent_id' => $parent->id, 'name' => $name, 'is_active' => true, 'created_by' => Auth::id()]);
+        return redirect()->back()->with('success', get_phrase('Subtopic created'));
+    }
+
+    public function updateQuestionTopic(Request $request, $id)
+    {
+        $this->assertQuestionMetadataAdmin(); $topic = QuestionTopic::where('school_id', $this->school_id)->findOrFail((int) $id);
+        $data = $request->validate(['name' => ['required', 'string', 'max:150'], 'subject_id' => ['sometimes', 'integer']]);
+        $name = trim($data['name']); $subjectId = (int) ($data['subject_id'] ?? $topic->subject_id);
+        abort_unless(Subject::where('school_id', $this->school_id)->whereKey($subjectId)->exists(), 422);
+        abort_if($topic->parent_id !== null && !QuestionTopic::whereKey($topic->parent_id)->where('subject_id', $subjectId)->exists(), 422, 'Subtopic parent and Course must remain consistent.');
+        $hasRefs = QuestionBank::where('school_id', $this->school_id)->where(fn ($q) => $q->where('topic_id', $topic->id)->orWhere('subtopic_id', $topic->id))->exists();
+        abort_if($hasRefs && $subjectId !== (int) $topic->subject_id, 422, 'A referenced taxonomy item cannot be moved to another Course.');
+        abort_if(QuestionTopic::where('school_id', $this->school_id)->where('subject_id', $subjectId)->where('parent_id', $topic->parent_id)->whereRaw('LOWER(name) = ?', [mb_strtolower($name)])->where('id', '<>', $topic->id)->exists(), 422, 'That taxonomy name already exists here.');
+        $topic->update(['name' => $name, 'subject_id' => $subjectId]); return redirect()->back()->with('success', get_phrase('Topic updated'));
+    }
+
+    public function toggleQuestionTopic($id)
+    {
+        $this->assertQuestionMetadataAdmin(); $topic = QuestionTopic::where('school_id', $this->school_id)->findOrFail((int) $id); $topic->update(['is_active' => !$topic->is_active]); return redirect()->back()->with('success', get_phrase('Topic status updated'));
+    }
+
+    public function storeQuestionTag(Request $request)
+    {
+        $this->assertQuestionMetadataAdmin(); $data = $request->validate(['name' => ['required', 'string', 'max:100']]); $name = trim($data['name']); $normalized = mb_strtolower(preg_replace('/\s+/', ' ', $name));
+        abort_if($normalized === '', 422, 'Tag name is required.'); abort_if(QuestionTag::where('school_id', $this->school_id)->where('normalized_name', $normalized)->exists(), 422, 'That Tag already exists in this school.');
+        QuestionTag::create(['school_id' => $this->school_id, 'name' => $name, 'normalized_name' => $normalized, 'is_active' => true, 'created_by' => Auth::id()]); return redirect()->back()->with('success', get_phrase('Tag created'));
+    }
+
+    public function updateQuestionTag(Request $request, $id)
+    {
+        $this->assertQuestionMetadataAdmin(); $tag = QuestionTag::where('school_id', $this->school_id)->findOrFail((int) $id); $data = $request->validate(['name' => ['required', 'string', 'max:100']]); $name = trim($data['name']); $normalized = mb_strtolower(preg_replace('/\s+/', ' ', $name));
+        abort_if(QuestionTag::where('school_id', $this->school_id)->where('normalized_name', $normalized)->where('id', '<>', $tag->id)->exists(), 422, 'That Tag already exists in this school.'); $tag->update(['name' => $name, 'normalized_name' => $normalized]); return redirect()->back()->with('success', get_phrase('Tag updated'));
+    }
+
+    public function toggleQuestionTag($id)
+    {
+        $this->assertQuestionMetadataAdmin(); $tag = QuestionTag::where('school_id', $this->school_id)->findOrFail((int) $id); $tag->update(['is_active' => !$tag->is_active]); return redirect()->back()->with('success', get_phrase('Tag status updated'));
+    }
+
     public function questionBank(Request $request)
     {
         $this->authorize('viewAny', OnlineExam::class);
 
         $search   = $request->search ?? '';
+        $subjectId = (int) $request->input('subject_id', 0); $programmeId = (int) $request->input('programme_id', 0); $sessionId = (int) $request->input('session_id', 0); $topicId = (int) $request->input('topic_id', 0); $subtopicId = (int) $request->input('subtopic_id', 0); $tagId = (int) $request->input('tag_id', 0); $type = (string) $request->input('type', ''); $difficulty = (string) $request->input('difficulty', ''); $status = $request->input('status', '');
         $questions = QuestionBank::where('school_id', $this->school_id)
             ->when($search, fn($q) => $q->where('question', 'like', "%$search%"))
+            ->when($subjectId, fn($q) => $q->where('subject_id', $subjectId))
+            ->when($programmeId, fn($q) => $q->where('programme_id', $programmeId))
+            ->when($sessionId, fn($q) => $q->where('session_id', $sessionId))
+            ->when($topicId, fn($q) => $q->where('topic_id', $topicId))
+            ->when($subtopicId, fn($q) => $q->where('subtopic_id', $subtopicId))
+            ->when($tagId, fn($q) => $q->whereHas('tags', fn($t) => $t->where('question_tags.id', $tagId)))
+            ->when($type !== '', fn($q) => $q->where('type', $type))
+            ->when($difficulty !== '', fn($q) => $q->where('difficulty', $difficulty))
+            ->when($status !== '', fn($q) => $q->where('status', $status))
             ->orderByDesc('id')
             ->paginate(20);
         $subjects = Subject::where('school_id', $this->school_id)->orderBy('name')->get();
-        return view('admin.online_exam.question_bank', compact('questions', 'subjects', 'search'));
+        $programmes = Programme::where('school_id',$this->school_id)->where('is_active',1)->orderBy('name')->get(); $sessions = Session::where('school_id',$this->school_id)->orderByDesc('id')->get();
+        $topics = QuestionTopic::where('school_id',$this->school_id)->where('is_active',1)->whereNull('parent_id')->orderBy('name')->get(); $subtopics = QuestionTopic::where('school_id',$this->school_id)->where('is_active',1)->whereNotNull('parent_id')->orderBy('name')->get(); $tags = QuestionTag::where('school_id',$this->school_id)->where('is_active',1)->orderBy('name')->get();
+        return view('admin.online_exam.question_bank', compact('questions', 'subjects', 'search', 'subjectId', 'programmes', 'sessions', 'topics', 'subtopics', 'tags', 'programmeId', 'sessionId', 'topicId', 'subtopicId', 'tagId', 'type', 'difficulty', 'status'));
     }
 
-    public function bankModal()
+    public function bankModal(Request $request)
     {
         $this->authorize('create', OnlineExam::class);
         $subjects = Subject::where('school_id', $this->school_id)->orderBy('name')->get();
-        return view('admin.online_exam.bank_modal', compact('subjects'));
+        $programmes = Programme::where('school_id',$this->school_id)->where('is_active',1)->orderBy('name')->get(); $sessions = Session::where('school_id',$this->school_id)->orderByDesc('id')->get();
+        $topics = QuestionTopic::where('school_id',$this->school_id)->where('is_active',1)->whereNull('parent_id')->orderBy('name')->get();
+        $subtopics = QuestionTopic::where('school_id',$this->school_id)->where('is_active',1)->whereNotNull('parent_id')->orderBy('name')->get();
+        $tags = QuestionTag::where('school_id',$this->school_id)->where('is_active',1)->orderBy('name')->get();
+        $question = $request->filled('id')
+            ? QuestionBank::where('school_id', $this->school_id)->findOrFail((int) $request->input('id'))
+            : null;
+        return view('admin.online_exam.bank_modal', compact('subjects', 'question', 'programmes', 'sessions', 'topics', 'subtopics', 'tags'));
     }
 
     public function bankImportModal()
@@ -402,9 +537,12 @@ class OnlineExamController extends Controller
 
     public function destroyBankQuestion($id)
     {
-        $this->authorize('create', OnlineExam::class);
-
         $question = QuestionBank::where('school_id', $this->school_id)->findOrFail((int) $id);
+        abort_unless((int) $question->school_id === (int) $this->school_id, 404);
+        $user = Auth::user();
+        $privileged = app(OnlineExamPermissionService::class)->has($user, 'manage_exam_questions')
+            && app(OnlineExamPermissionService::class)->has($user, 'edit_all_online_exams');
+        abort_unless($privileged || (int) ($question->created_by ?? $question->creator_id) === (int) $user->id, 403);
         DB::transaction(function () use ($question) {
             $question->delete();
         });
@@ -423,24 +561,51 @@ class OnlineExamController extends Controller
     public function storeBankQuestion(Request $request)
     {
         $this->authorize('create', OnlineExam::class);
+        $this->normalizeBankStructuredOptions($request);
 
         $validated = $request->validate([
-            'subject_id'  => 'nullable|exists:subjects,id',
+            'subject_id'  => ['nullable', \Illuminate\Validation\Rule::exists('subjects', 'id')->where(fn ($q) => $q->where('school_id', $this->school_id))],
+            'programme_id' => ['nullable', Rule::exists('programmes','id')->where(fn($q)=>$q->where('school_id',$this->school_id))],
+            'session_id' => ['nullable', Rule::exists('sessions','id')->where(fn($q)=>$q->where('school_id',$this->school_id))],
+            'topic_id' => ['nullable','integer'], 'subtopic_id' => ['nullable','integer'], 'tag_ids' => ['nullable','array','max:20'], 'tag_ids.*' => ['integer'], 'status' => ['nullable','in:draft,active,retired,archived'],
             'question'    => 'required|string',
-            'type'        => 'required|in:mcq,true_false,short,essay',
+            'type'        => 'required|in:mcq,true_false,short,essay,multiple_select,numeric,matching,ordering',
             'option_a'    => 'nullable|string',
             'option_b'    => 'nullable|string',
             'option_c'    => 'nullable|string',
             'option_d'    => 'nullable|string',
-            'correct_ans' => 'nullable|string|max:5',
-            'marks'       => 'required|integer|min:1',
+            'correct_ans' => 'nullable|string|max:255',
+            'correct_answer_tf' => 'nullable|string|in:true,false',
+            'marks'       => 'required|integer|min:1|max:127',
             'difficulty'  => 'required|in:easy,medium,hard',
+            'structured_options' => 'nullable|array|max:8',
+            'structured_options.*.id' => 'required|string|max:32|regex:/^[a-z][a-z0-9_-]*$/i',
+            'structured_options.*.label' => 'required|string|max:1000',
+            'correct_option_ids' => 'nullable|array|max:8',
+            'correct_option_ids.*' => 'required|string|max:32',
+            'numeric_target' => 'nullable', 'numeric_tolerance' => 'nullable',
+            'structured_blanks' => 'nullable|array|max:16',
+            'structured_blanks.*.id' => 'required|string|max:32|regex:/^[a-z][a-z0-9_-]*$/i',
+            'structured_blanks.*.accepted_answers' => 'required|array|max:8',
+            'structured_blanks.*.accepted_answers.*' => 'required|string|max:255',
+            'case_sensitive' => 'nullable|boolean', 'trim_whitespace' => 'nullable|boolean',
+            'structured_pairs' => 'nullable|array|max:16', 'structured_pairs.*.left_id'=>'required|string|max:32', 'structured_pairs.*.left_text'=>'required|string|max:1000', 'structured_pairs.*.right_id'=>'required|string|max:32', 'structured_pairs.*.right_text'=>'required|string|max:1000',
+            'structured_order_items' => 'nullable|array|max:16', 'structured_order_items.*.id'=>'required|string|max:32', 'structured_order_items.*.text'=>'required|string|max:1000',
         ]);
+        if (in_array($validated['type'], ['multiple_select', 'numeric','matching','ordering'], true) || ($validated['type'] === 'fill_blank' && !empty($validated['structured_blanks']))) {
+            $structured = $this->structuredBankFields($validated);
+            $validated = array_merge($validated, $structured);
+        } else {
+            $validated['correct_ans'] = $this->canonicalizeBankAnswer($validated);
+        }
+        unset($validated['correct_answer_tf']);
+        $this->validateQuestionBankAcademicMetadata($validated);
 
         DB::transaction(function () use ($validated) {
-            QuestionBank::create([
+            $question = QuestionBank::create([
                 'school_id' => $this->school_id,
                 'subject_id' => $validated['subject_id'] ?? null,
+                ...$this->questionBankMetadataPayload($validated),
                 'question' => $validated['question'],
                 'type' => $validated['type'],
                 'option_a' => $validated['option_a'] ?? null,
@@ -448,10 +613,14 @@ class OnlineExamController extends Controller
                 'option_c' => $validated['option_c'] ?? null,
                 'option_d' => $validated['option_d'] ?? null,
                 'correct_ans' => $validated['correct_ans'] ?? null,
+                'question_schema_version' => $validated['question_schema_version'] ?? null,
+                'question_config' => $validated['question_config'] ?? null,
+                'marking_config' => $validated['marking_config'] ?? null,
                 'marks' => $validated['marks'],
                 'difficulty' => $validated['difficulty'],
                 'created_by' => Auth::id(),
             ]);
+            if (Schema::hasTable('question_bank_tag') && !empty($validated['tag_ids'])) $question->tags()->sync($validated['tag_ids']);
         });
 
         return redirect()->back()->with('success', get_phrase('Question added to bank'));
@@ -504,7 +673,92 @@ class OnlineExamController extends Controller
         ]);
     }
 
+    public function updateBankQuestion(Request $request, $id)
+    {
+        $question = QuestionBank::where('school_id', $this->school_id)->findOrFail((int) $id);
+        $user = Auth::user();
+        $privileged = app(OnlineExamPermissionService::class)->has($user, 'manage_exam_questions')
+            && app(OnlineExamPermissionService::class)->has($user, 'edit_all_online_exams');
+        abort_unless($privileged || (int) ($question->created_by ?? 0) === (int) $user->id, 403);
+        $this->normalizeBankStructuredOptions($request);
+        $validated = $request->validate([
+            'subject_id'  => ['nullable', Rule::exists('subjects', 'id')->where(fn ($q) => $q->where('school_id', $this->school_id))],
+            'programme_id' => ['nullable', Rule::exists('programmes','id')->where(fn($q)=>$q->where('school_id',$this->school_id))], 'session_id' => ['nullable', Rule::exists('sessions','id')->where(fn($q)=>$q->where('school_id',$this->school_id))],
+            'topic_id' => ['nullable','integer'], 'subtopic_id' => ['nullable','integer'], 'tag_ids' => ['nullable','array','max:20'], 'tag_ids.*' => ['integer'], 'status' => ['nullable','in:draft,active,retired,archived'],
+            'question'    => ['required', 'string'],
+            'type'        => ['required', 'in:mcq,true_false,short,essay,multiple_select,numeric,matching,ordering'],
+            'option_a'    => ['nullable', 'string'], 'option_b' => ['nullable', 'string'],
+            'option_c'    => ['nullable', 'string'], 'option_d' => ['nullable', 'string'],
+            'correct_ans' => ['nullable', 'string', 'max:255'],
+            'correct_answer_tf' => ['nullable', 'string', 'in:true,false'],
+            'marks'       => ['required', 'integer', 'min:1', 'max:127'],
+            'difficulty'  => ['required', 'in:easy,medium,hard'],
+            'structured_options' => ['nullable', 'array', 'max:8'],
+            'structured_options.*.id' => ['required', 'string', 'max:32', 'regex:/^[a-z][a-z0-9_-]*$/i'],
+            'structured_options.*.label' => ['required', 'string', 'max:1000'],
+            'correct_option_ids' => ['nullable', 'array', 'max:8'],
+            'correct_option_ids.*' => ['required', 'string', 'max:32'],
+            'numeric_target' => ['nullable'], 'numeric_tolerance' => ['nullable'],
+            'structured_blanks' => ['nullable', 'array', 'max:16'],
+            'structured_blanks.*.id' => ['required', 'string', 'max:32', 'regex:/^[a-z][a-z0-9_-]*$/i'],
+            'structured_blanks.*.accepted_answers' => ['required', 'array', 'max:8'],
+            'structured_blanks.*.accepted_answers.*' => ['required', 'string', 'max:255'],
+            'case_sensitive' => ['nullable', 'boolean'], 'trim_whitespace' => ['nullable', 'boolean'],
+            'structured_pairs' => ['nullable','array','max:16'], 'structured_pairs.*.left_id'=>['required','string','max:32'], 'structured_pairs.*.left_text'=>['required','string','max:1000'], 'structured_pairs.*.right_id'=>['required','string','max:32'], 'structured_pairs.*.right_text'=>['required','string','max:1000'],
+            'structured_order_items' => ['nullable','array','max:16'], 'structured_order_items.*.id'=>['required','string','max:32'], 'structured_order_items.*.text'=>['required','string','max:1000'],
+        ]);
+        if (in_array($validated['type'], ['multiple_select', 'numeric','matching','ordering'], true) || ($validated['type'] === 'fill_blank' && !empty($validated['structured_blanks']))) {
+            $validated = array_merge($validated, $this->structuredBankFields($validated));
+        } else {
+            $validated['correct_ans'] = $this->canonicalizeBankAnswer($validated);
+        }
+        unset($validated['correct_answer_tf']);
+        $this->validateQuestionBankAcademicMetadata($validated);
+        $updateData = $validated + ['subject_id' => $validated['subject_id'] ?? null];
+        if (!Schema::hasColumn('question_banks', 'programme_id')) foreach (['programme_id','session_id','topic_id','subtopic_id','tag_ids','status'] as $key) unset($updateData[$key]);
+        unset($updateData['tag_ids']);
+        $question->update($updateData);
+        if (Schema::hasTable('question_bank_tag') && array_key_exists('tag_ids', $validated)) $question->tags()->sync($validated['tag_ids'] ?? []);
+        return redirect()->route('admin.question_bank.index')->with('success', get_phrase('Question bank item updated'));
+    }
+
     // ── Teacher: online exams ─────────────────────────────────────────────
+
+    public function adminImportQuestion(Request $request, OnlineExam $exam)
+    {
+        $this->authorize('manageQuestions', $exam);
+        abort_unless((int) $exam->school_id === (int) $this->school_id, 404);
+        if ($exam->isStructurallyLocked()) {
+            return redirect()->back()->withErrors(['questions' => get_phrase('Questions are locked after attempts have started.')]);
+        }
+        $validated = $request->validate([
+            'question_bank_ids' => ['required', 'array', 'min:1'],
+            'question_bank_ids.*' => ['required', 'integer', 'exists:question_banks,id'],
+        ]);
+        $bankQuestions = QuestionBank::where('school_id', $this->school_id)
+            ->whereIn('id', $validated['question_bank_ids'])->get();
+        $imported = 0;
+        DB::transaction(function () use ($exam, $bankQuestions, &$imported) {
+            $nextSort = ((int) OnlineExamQuestion::forExam($exam->id)->max('sort_order')) + 1;
+            foreach ($bankQuestions as $bankQuestion) {
+                OnlineExamQuestion::create([
+                    'online_exam_id' => $exam->id, 'question_bank_id' => $bankQuestion->id,
+                    'question' => $bankQuestion->question, 'type' => $this->snapshotStorageType($bankQuestion),
+                    'option_a' => $bankQuestion->option_a, 'option_b' => $bankQuestion->option_b,
+                    'option_c' => $bankQuestion->option_c, 'option_d' => $bankQuestion->option_d,
+                'correct_ans' => \App\Support\OnlineExams\AnswerKey::normalize($bankQuestion->normalized_type, $bankQuestion->correct_ans, ['a' => $bankQuestion->option_a, 'b' => $bankQuestion->option_b, 'c' => $bankQuestion->option_c, 'd' => $bankQuestion->option_d]),
+                    'question_schema_version' => $bankQuestion->question_schema_version,
+                    'question_config' => $bankQuestion->question_config,
+                    'marking_config' => $bankQuestion->marking_config,
+                    'marks' => $bankQuestion->marks,
+                    'sort_order' => $nextSort++,
+                ]);
+                $imported++;
+            }
+        });
+        AuditLog::record('create', 'Online Exams', "Admin imported {$imported} question(s) from bank into exam #{$exam->id}");
+        return redirect()->back()->with('success', get_phrase('Questions imported from bank.'));
+    }
 
     public function teacherIndex(Request $request)
     {
@@ -525,6 +779,8 @@ class OnlineExamController extends Controller
 
         $search = trim((string) $request->input('title', ''));
         $subjectId = (int) $request->input('subject_id', 0);
+        $programmeId = (int) $request->input('programme_id', 0); $sessionId = (int) $request->input('session_id', 0); $status = $request->input('status', '');
+        $programmeId = (int) $request->input('programme_id', 0); $sessionId = (int) $request->input('session_id', 0); $status = $request->input('status', '');
         $classId = (int) $request->input('class_id', 0);
         $workflowState = trim((string) $request->input('workflow_state', ''));
         $lifecycleState = trim((string) $request->input('lifecycle_state', ''));
@@ -539,6 +795,12 @@ class OnlineExamController extends Controller
         if ($subjectId > 0) {
             $query->where('subject_id', $subjectId);
         }
+        if ($programmeId > 0) $query->where('programme_id', $programmeId);
+        if ($sessionId > 0) $query->where('session_id', $sessionId);
+        if ($status !== '') $query->where('status', $status);
+        if ($programmeId > 0) $query->where('programme_id', $programmeId);
+        if ($sessionId > 0) $query->where('session_id', $sessionId);
+        if ($status !== '') $query->where('status', $status);
 
         if ($classId > 0) {
             $query->where('class_id', $classId);
@@ -567,8 +829,12 @@ class OnlineExamController extends Controller
         $exams = $query->latest()->paginate(20)->appends($request->all());
 
         $subjects = $this->teacherAssignableSubjects((int) $user->id, $assignedClassIds);
+        $programmes = Programme::where('school_id',$this->school_id)->where('is_active',1)->whereIn('id', TeacherProgrammeAssignment::where('school_id',$this->school_id)->where('teacher_id',$user->id)->pluck('programme_id'))->orderBy('name')->get();
+        $sessions = Session::where('school_id',$this->school_id)->orderByDesc('id')->get();
+        $programmes = Programme::where('school_id',$this->school_id)->where('is_active',1)->whereIn('id', TeacherProgrammeAssignment::where('school_id',$this->school_id)->where('teacher_id',$user->id)->pluck('programme_id'))->orderBy('name')->get(); $sessions = Session::where('school_id',$this->school_id)->orderByDesc('id')->get();
         $classes = $this->teacherAssignableClasses($assignedClassIds);
         $sessions = Session::where('school_id', $this->school_id)->orderByDesc('id')->get();
+        $topics = QuestionTopic::where('school_id',$this->school_id)->where('is_active',1)->whereNull('parent_id')->orderBy('name')->get(); $subtopics = QuestionTopic::where('school_id',$this->school_id)->where('is_active',1)->whereNotNull('parent_id')->orderBy('name')->get(); $tags = QuestionTag::where('school_id',$this->school_id)->where('is_active',1)->orderBy('name')->get();
 
         return view('teacher.online_exam.index', compact(
             'exams',
@@ -640,13 +906,15 @@ class OnlineExamController extends Controller
         $assignedClassIds = $this->teacherAssignedClassIds((int) $user->id);
         $subjects = $this->teacherAssignableSubjects((int) $user->id, $assignedClassIds);
         $classes = $this->teacherAssignableClasses($assignedClassIds);
-        $sessions = Session::where('school_id', $this->school_id)->orderByDesc('id')->get();
+        $programmes = $this->teacherAssignableProgrammes((int) $user->id);
+        $sessions = $this->academicSessionsForSelection();
 
         return view('teacher.online_exam.create', [
             'exam' => null,
             'subjects' => $subjects,
             'classes' => $classes,
             'sessions' => $sessions,
+            'programmes' => $programmes,
             'structureLocked' => false,
             'readinessErrors' => [],
         ]);
@@ -664,6 +932,8 @@ class OnlineExamController extends Controller
             'instructions' => $validated['instructions'] ?? null,
             'subject_id' => $validated['subject_id'],
             'class_id' => $validated['class_id'] ?? null,
+            'programme_id' => $validated['programme_id'] ?? null,
+            'session_id' => $validated['session_id'] ?? null,
             'exam_type' => $validated['exam_type'],
             'start_datetime' => $validated['start_datetime'],
             'end_datetime' => $validated['end_datetime'],
@@ -685,6 +955,8 @@ class OnlineExamController extends Controller
             'creator_id' => $user->id,
             'updater_id' => $user->id,
         ];
+        if (!Schema::hasColumn('online_exams', 'programme_id')) unset($payload['programme_id']);
+        if (!Schema::hasColumn('online_exams', 'session_id')) unset($payload['session_id']);
 
         $exam = DB::transaction(fn() => OnlineExam::create($payload));
         AuditLog::record('create', 'Online Exams', "Teacher created exam: {$exam->title}");
@@ -720,13 +992,15 @@ class OnlineExamController extends Controller
         $assignedClassIds = $this->teacherAssignedClassIds((int) $user->id);
         $subjects = $this->teacherAssignableSubjects((int) $user->id, $assignedClassIds);
         $classes = $this->teacherAssignableClasses($assignedClassIds);
-        $sessions = Session::where('school_id', $this->school_id)->orderByDesc('id')->get();
+        $programmes = $this->teacherAssignableProgrammes((int) $user->id);
+        $sessions = $this->academicSessionsForSelection();
 
         return view('teacher.online_exam.edit', [
             'exam' => $exam,
             'subjects' => $subjects,
             'classes' => $classes,
             'sessions' => $sessions,
+            'programmes' => $programmes,
             'structureLocked' => $exam->isStructurallyLocked(),
             'readinessErrors' => $exam->publicationReadinessErrors(),
         ]);
@@ -740,11 +1014,13 @@ class OnlineExamController extends Controller
         $validated = $request->validated();
 
         DB::transaction(function () use ($exam, $validated) {
-            $exam->update([
+            $payload = [
                 'title' => $validated['title'],
                 'instructions' => $validated['instructions'] ?? null,
                 'subject_id' => $validated['subject_id'],
                 'class_id' => $validated['class_id'] ?? null,
+                'programme_id' => $validated['programme_id'] ?? null,
+                'session_id' => $validated['session_id'] ?? null,
                 'exam_type' => $validated['exam_type'],
                 'start_datetime' => $validated['start_datetime'],
                 'end_datetime' => $validated['end_datetime'],
@@ -760,7 +1036,10 @@ class OnlineExamController extends Controller
                 'fullscreen_required' => (bool) ($validated['fullscreen_required'] ?? false),
                 'auto_submit' => (bool) ($validated['auto_submit'] ?? true),
                 'updater_id' => Auth::id(),
-            ]);
+            ];
+            if (!Schema::hasColumn('online_exams', 'programme_id')) unset($payload['programme_id']);
+            if (!Schema::hasColumn('online_exams', 'session_id')) unset($payload['session_id']);
+            $exam->update($payload);
         });
 
         AuditLog::record('update', 'Online Exams', "Teacher updated exam: {$exam->title}");
@@ -825,58 +1104,40 @@ class OnlineExamController extends Controller
         });
 
         AuditLog::record('update', 'Online Exams', "Teacher submitted exam for review: {$exam->title}");
+        OnlineExamPortalNotifier::admins('exam_submitted_for_review', 'Exam Awaiting Review', Auth::user()->name . ' submitted "' . $exam->title . '" for review.', $exam, Auth::id(), 'exam-review:' . $exam->id);
         return redirect()->back()->with('success', get_phrase('Exam submitted for review.'));
     }
 
-    public function teacherPublish(OnlineExam $exam)
+    public function markPortalNotificationRead(OnlineExamUserNotification $notification)
     {
-        $this->authorize('publish', $exam);
-        abort_unless((int) $exam->school_id === (int) $this->school_id, 404);
+        $user = Auth::user();
+        abort_unless($user && (int) $notification->school_id === (int) $user->school_id && (int) $notification->user_id === (int) $user->id, 404);
 
-        $errors = $exam->publicationReadinessErrors();
-        if (!empty($errors)) {
-            return redirect()->back()->withErrors(['readiness' => implode(' ', $errors)]);
+        if (!$notification->read_at) {
+            $notification->forceFill(['read_at' => now()])->save();
         }
 
-        DB::transaction(function () use ($exam) {
-            $exam->update([
-                'workflow_state' => 'published',
-                'is_published' => 1,
-                'reviewed_by' => Auth::id(),
-                'reviewed_at' => now(),
-                'updater_id' => Auth::id(),
-            ]);
-        });
+        return redirect()->to($notification->action_url ?: url()->previous());
+    }
 
-        AuditLog::record('update', 'Online Exams', "Teacher published exam: {$exam->title}");
-        return redirect()->back()->with('success', get_phrase('Exam published.'));
+    public function teacherPublish(Request $request, OnlineExam $exam)
+    {
+        abort(403, 'Only an administrator may publish an exam.');
     }
 
     public function teacherUnpublish(OnlineExam $exam)
     {
-        $this->authorize('unpublish', $exam);
-        abort_unless((int) $exam->school_id === (int) $this->school_id, 404);
-
-        if ($exam->submissions()->exists()) {
-            return redirect()->back()->withErrors(['exam' => get_phrase('Cannot unpublish an exam with attempts.')]);
-        }
-
-        DB::transaction(function () use ($exam) {
-            $exam->update([
-                'workflow_state' => 'draft',
-                'is_published' => 0,
-                'updater_id' => Auth::id(),
-            ]);
-        });
-
-        AuditLog::record('update', 'Online Exams', "Teacher unpublished exam: {$exam->title}");
-        return redirect()->back()->with('success', get_phrase('Exam unpublished.'));
+        abort(403, 'Only an administrator may change official publication.');
     }
 
     public function teacherCancel(Request $request, OnlineExam $exam)
     {
         $this->authorize('cancel', $exam);
         abort_unless((int) $exam->school_id === (int) $this->school_id, 404);
+
+        if ($exam->submissions()->where('status', OnlineExamSubmission::STATUS_IN_PROGRESS)->exists()) {
+            return redirect()->back()->withErrors(['exam' => get_phrase('Cannot cancel an exam while candidates are active.')]);
+        }
 
         $validated = $request->validate([
             'reason' => ['required', 'string', 'max:1000'],
@@ -936,6 +1197,9 @@ class OnlineExamController extends Controller
                 'option_c' => $validated['option_c'] ?? null,
                 'option_d' => $validated['option_d'] ?? null,
                 'correct_ans' => $validated['correct_ans'] ?? null,
+                'question_schema_version' => $validated['question_schema_version'] ?? null,
+                'question_config' => $validated['question_config'] ?? null,
+                'marking_config' => $validated['marking_config'] ?? null,
                 'marks' => $validated['marks'],
                 'sort_order' => $nextSort,
             ]);
@@ -962,6 +1226,9 @@ class OnlineExamController extends Controller
                 'option_c' => $validated['option_c'] ?? null,
                 'option_d' => $validated['option_d'] ?? null,
                 'correct_ans' => $validated['correct_ans'] ?? null,
+                'question_schema_version' => $validated['question_schema_version'] ?? null,
+                'question_config' => $validated['question_config'] ?? null,
+                'marking_config' => $validated['marking_config'] ?? null,
                 'marks' => $validated['marks'],
             ]);
         });
@@ -1026,20 +1293,17 @@ class OnlineExamController extends Controller
         $assignedClassIds = $this->teacherAssignedClassIds((int) $user->id);
         $search = trim((string) $request->input('search', ''));
         $subjectId = (int) $request->input('subject_id', 0);
+        $programmeId = (int) $request->input('programme_id', 0);
+        $sessionId = (int) $request->input('session_id', 0);
+        $status = (string) $request->input('status', '');
+        $topicId = (int) $request->input('topic_id', 0);
+        $subtopicId = (int) $request->input('subtopic_id', 0);
+        $tagId = (int) $request->input('tag_id', 0);
+        $type = (string) $request->input('type', '');
+        $difficulty = (string) $request->input('difficulty', '');
 
-        $query = QuestionBank::visibleToTeacher((int) $user->id, $this->school_id)
-            ->with('subject')
-            ->where(function ($q) use ($assignedClassIds) {
-                if (empty($assignedClassIds)) {
-                    $q->whereNull('subject_id');
-                    return;
-                }
-
-                $q->whereNull('subject_id')
-                    ->orWhereIn('subject_id', Subject::where('school_id', $this->school_id)
-                        ->whereIn('class_id', $assignedClassIds)
-                        ->pluck('id'));
-            });
+        $query = $this->teacherQuestionBankQuery($user, $assignedClassIds)
+            ->with('subject');
 
         $query->when($search !== '', function ($q) use ($search) {
             $q->where('question', 'like', '%' . $search . '%');
@@ -1048,11 +1312,98 @@ class OnlineExamController extends Controller
         if ($subjectId > 0) {
             $query->where('subject_id', $subjectId);
         }
+        $query->when($programmeId > 0, fn($q) => $q->where('programme_id', $programmeId))
+            ->when($sessionId > 0, fn($q) => $q->where('session_id', $sessionId))
+            ->when($topicId > 0, fn($q) => $q->where('topic_id', $topicId))
+            ->when($subtopicId > 0, fn($q) => $q->where('subtopic_id', $subtopicId))
+            ->when($tagId > 0, fn($q) => $q->whereHas('tags', fn($t) => $t->where('question_tags.id', $tagId)))
+            ->when($type !== '', fn($q) => $q->where('type', $type))
+            ->when($difficulty !== '', fn($q) => $q->where('difficulty', $difficulty))
+            ->when($status !== '', fn($q) => $q->where('status', $status));
 
         $questions = $query->orderByDesc('id')->paginate(20)->appends($request->all());
         $subjects = $this->teacherAssignableSubjects((int) $user->id, $assignedClassIds);
+        $programmes = Programme::where('school_id', $this->school_id)->where('is_active', 1)
+            ->whereIn('id', TeacherProgrammeAssignment::where('school_id', $this->school_id)->where('teacher_id', $user->id)->pluck('programme_id'))
+            ->orderBy('name')->get();
+        $sessions = Session::where('school_id', $this->school_id)->orderByDesc('id')->get();
+        $topics = QuestionTopic::where('school_id',$this->school_id)->where('is_active',1)->whereNull('parent_id')->orderBy('name')->get();
+        $subtopics = QuestionTopic::where('school_id',$this->school_id)->where('is_active',1)->whereNotNull('parent_id')->orderBy('name')->get();
+        $tags = QuestionTag::where('school_id',$this->school_id)->where('is_active',1)->orderBy('name')->get();
 
-        return view('teacher.online_exam.question_bank', compact('questions', 'subjects', 'search', 'subjectId'));
+        return view('teacher.online_exam.question_bank', compact('questions', 'subjects', 'search', 'subjectId', 'programmes', 'sessions', 'programmeId', 'sessionId', 'topicId', 'subtopicId', 'tagId', 'type', 'difficulty', 'status', 'topics', 'subtopics', 'tags'))
+            ->with('canCreateBankQuestion', $permissionService->has($user, 'manage_exam_questions'));
+    }
+
+    public function teacherStoreBankQuestion(Request $request)
+    {
+        $user = Auth::user();
+        $permissionService = app(OnlineExamPermissionService::class);
+        abort_unless($permissionService->has($user, 'manage_exam_questions'), 403);
+        $this->normalizeBankStructuredOptions($request);
+
+        $validated = $request->validate([
+            'subject_id'  => ['required', 'integer', Rule::exists('subjects', 'id')->where(fn ($q) => $q->where('school_id', $this->school_id))],
+            'programme_id' => ['nullable', Rule::exists('programmes','id')->where(fn($q)=>$q->where('school_id',$this->school_id))], 'session_id' => ['nullable', Rule::exists('sessions','id')->where(fn($q)=>$q->where('school_id',$this->school_id))],
+            'topic_id' => ['nullable','integer'], 'subtopic_id' => ['nullable','integer'], 'tag_ids' => ['nullable','array','max:20'], 'tag_ids.*' => ['integer'], 'status' => ['nullable','in:draft,active,retired,archived'],
+            'question'    => ['required', 'string'],
+            'type'        => ['required', 'in:mcq,true_false,short,essay,multiple_select,numeric,matching,ordering'],
+            'option_a'    => ['nullable', 'string'],
+            'option_b'    => ['nullable', 'string'],
+            'option_c'    => ['nullable', 'string'],
+            'option_d'    => ['nullable', 'string'],
+            'correct_ans' => ['nullable', 'string', 'max:255'],
+            'correct_answer_tf' => ['nullable', 'string', 'in:true,false'],
+            'marks'       => ['required', 'integer', 'min:1', 'max:127'],
+            'difficulty'  => ['required', 'in:easy,medium,hard'],
+            'structured_options' => ['nullable', 'array', 'max:8'],
+            'structured_options.*.id' => ['required', 'string', 'max:32', 'regex:/^[a-z][a-z0-9_-]*$/i'],
+            'structured_options.*.label' => ['required', 'string', 'max:1000'],
+            'correct_option_ids' => ['nullable', 'array', 'max:8'],
+            'correct_option_ids.*' => ['required', 'string', 'max:32'],
+            'numeric_target' => ['nullable'], 'numeric_tolerance' => ['nullable'],
+            'structured_blanks' => ['nullable', 'array', 'max:16'],
+            'structured_blanks.*.id' => ['required', 'string', 'max:32', 'regex:/^[a-z][a-z0-9_-]*$/i'],
+            'structured_blanks.*.accepted_answers' => ['required', 'array', 'max:8'],
+            'structured_blanks.*.accepted_answers.*' => ['required', 'string', 'max:255'],
+            'case_sensitive' => ['nullable', 'boolean'], 'trim_whitespace' => ['nullable', 'boolean'],
+            'structured_pairs' => ['nullable','array','max:16'], 'structured_pairs.*.left_id'=>['required','string','max:32'], 'structured_pairs.*.left_text'=>['required','string','max:1000'], 'structured_pairs.*.right_id'=>['required','string','max:32'], 'structured_pairs.*.right_text'=>['required','string','max:1000'],
+            'structured_order_items' => ['nullable','array','max:16'], 'structured_order_items.*.id'=>['required','string','max:32'], 'structured_order_items.*.text'=>['required','string','max:1000'],
+        ]);
+        if (in_array($validated['type'], ['multiple_select', 'numeric','matching','ordering'], true) || ($validated['type'] === 'fill_blank' && !empty($validated['structured_blanks']))) {
+            $validated = array_merge($validated, $this->structuredBankFields($validated));
+        } else {
+            $validated['correct_ans'] = $this->canonicalizeBankAnswer($validated);
+        }
+        unset($validated['correct_answer_tf']);
+        $this->validateQuestionBankAcademicMetadata($validated, $user);
+
+        if (!$permissionService->teacherCanUseSubject($user, (int) $validated['subject_id'])) {
+            return redirect()->back()->withErrors(['subject_id' => get_phrase('You are not assigned to the selected subject/class.')])->withInput();
+        }
+
+        $bankQuestion = QuestionBank::create([
+            'school_id' => $this->school_id,
+            'subject_id' => $validated['subject_id'],
+                ...$this->questionBankMetadataPayload($validated),
+            'question' => $validated['question'],
+            'type' => $validated['type'],
+            'option_a' => $validated['option_a'] ?? null,
+            'option_b' => $validated['option_b'] ?? null,
+            'option_c' => $validated['option_c'] ?? null,
+            'option_d' => $validated['option_d'] ?? null,
+            'correct_ans' => $validated['correct_ans'] ?? null,
+            'question_schema_version' => $validated['question_schema_version'] ?? null,
+            'question_config' => $validated['question_config'] ?? null,
+            'marking_config' => $validated['marking_config'] ?? null,
+            'marks' => $validated['marks'],
+            'difficulty' => $validated['difficulty'],
+            'created_by' => $user->id,
+        ]);
+        if (Schema::hasTable('question_bank_tag') && !empty($validated['tag_ids'])) $bankQuestion->tags()->sync($validated['tag_ids']);
+
+        AuditLog::record('create', 'Online Exams', "Teacher added question bank item");
+        return redirect()->route('teacher.online_exams.question_bank')->with('success', get_phrase('Question added to bank.'));
     }
 
     public function teacherImportQuestion(Request $request, OnlineExam $exam)
@@ -1070,7 +1421,7 @@ class OnlineExamController extends Controller
         ]);
 
         $user = Auth::user();
-        $bankQuestions = QuestionBank::visibleToTeacher((int) $user->id, $this->school_id)
+        $bankQuestions = $this->teacherQuestionBankQuery($user, $this->teacherAssignedClassIds((int) $user->id))
             ->whereIn('id', $validated['question_bank_ids'])
             ->get();
 
@@ -1082,12 +1433,15 @@ class OnlineExamController extends Controller
                     'online_exam_id' => $exam->id,
                     'question_bank_id' => $bankQuestion->id,
                     'question' => $bankQuestion->question,
-                    'type' => $bankQuestion->type,
+                    'type' => $this->snapshotStorageType($bankQuestion),
                     'option_a' => $bankQuestion->option_a,
                     'option_b' => $bankQuestion->option_b,
                     'option_c' => $bankQuestion->option_c,
                     'option_d' => $bankQuestion->option_d,
-                    'correct_ans' => $bankQuestion->correct_ans,
+                    'correct_ans' => \App\Support\OnlineExams\AnswerKey::normalize($bankQuestion->normalized_type, $bankQuestion->correct_ans, ['a' => $bankQuestion->option_a, 'b' => $bankQuestion->option_b, 'c' => $bankQuestion->option_c, 'd' => $bankQuestion->option_d]),
+                    'question_schema_version' => $bankQuestion->question_schema_version,
+                    'question_config' => $bankQuestion->question_config,
+                    'marking_config' => $bankQuestion->marking_config,
                     'marks' => $bankQuestion->marks,
                     'sort_order' => $nextSort,
                 ]);
@@ -1109,48 +1463,6 @@ class OnlineExamController extends Controller
         $subjects = $this->teacherAssignableSubjects((int) $user->id, $assignedClassIds);
 
         return view('teacher.online_exam.bank_modal', compact('subjects'));
-    }
-
-    public function teacherStoreBankQuestion(Request $request)
-    {
-        $user = Auth::user();
-        abort_unless(app(OnlineExamPermissionService::class)->has($user, 'manage_exam_questions'), 403);
-
-        $assignedClassIds = $this->teacherAssignedClassIds((int) $user->id);
-        $allowedSubjectIds = $this->teacherAssignableSubjects((int) $user->id, $assignedClassIds)->pluck('id')->map(fn($id) => (int) $id)->all();
-
-        $validated = $request->validate([
-            'subject_id'  => ['nullable', 'integer', Rule::in($allowedSubjectIds)],
-            'question'    => 'required|string',
-            'type'        => 'required|in:mcq,true_false,short,essay',
-            'option_a'    => 'nullable|string',
-            'option_b'    => 'nullable|string',
-            'option_c'    => 'nullable|string',
-            'option_d'    => 'nullable|string',
-            'correct_ans' => 'nullable|string|max:5',
-            'marks'       => 'required|integer|min:1',
-            'difficulty'  => 'required|in:easy,medium,hard',
-        ]);
-
-        DB::transaction(function () use ($validated) {
-            QuestionBank::create([
-                'school_id' => $this->school_id,
-                'subject_id' => $validated['subject_id'] ?? null,
-                'question' => $validated['question'],
-                'type' => $validated['type'],
-                'option_a' => $validated['option_a'] ?? null,
-                'option_b' => $validated['option_b'] ?? null,
-                'option_c' => $validated['option_c'] ?? null,
-                'option_d' => $validated['option_d'] ?? null,
-                'correct_ans' => $validated['correct_ans'] ?? null,
-                'marks' => $validated['marks'],
-                'difficulty' => $validated['difficulty'],
-                'created_by' => Auth::id(),
-            ]);
-        });
-
-        AuditLog::record('create', 'Online Exams', 'Teacher added a question bank question');
-        return redirect()->back()->with('success', get_phrase('Question added to bank'));
     }
 
     public function teacherBankImportModal()
@@ -1231,7 +1543,7 @@ class OnlineExamController extends Controller
 
         $submissions = OnlineExamSubmission::where('online_exam_id', $exam->id)
             ->where('school_id', $this->school_id)
-            ->with('student')
+            ->with(['student', 'exam.questions', 'answerRows'])
             ->withCount('proctoringEvents')
             ->orderByDesc('submitted_at')
             ->paginate(30);
@@ -1267,7 +1579,7 @@ class OnlineExamController extends Controller
 
         $submissions = OnlineExamSubmission::where('online_exam_id', $exam->id)
             ->where('school_id', $this->school_id)
-            ->with('student')
+            ->with(['student', 'exam.questions', 'answerRows'])
             ->orderByDesc('submitted_at')
             ->paginate(30);
 
@@ -1282,29 +1594,35 @@ class OnlineExamController extends Controller
 
         $authorizer = app(OnlineExamAuthorizer::class);
         $canEditAll = $authorizer->can($user, 'edit_all_online_exams');
+        $assignedClassIds = $this->teacherAssignedClassIds((int) $user->id);
 
         $query = OnlineExamAnswer::query()
-            ->with(['submission.student', 'submission.exam', 'question'])
-            ->whereHas('submission', function ($submissionQ) use ($canEditAll, $user) {
+            ->with(['submission.student', 'submission.exam.questions', 'submission.answerRows', 'question'])
+            ->whereHas('submission', function ($submissionQ) use ($canEditAll, $user, $assignedClassIds) {
                 $submissionQ->where('school_id', $this->school_id)
-                    ->whereHas('exam', function ($examQ) use ($canEditAll, $user) {
+                    ->whereHas('exam', function ($examQ) use ($canEditAll, $assignedClassIds, $user) {
                         if (!$canEditAll) {
-                            $examQ->where(function ($ownedQ) use ($user) {
-                                $ownedQ->where('creator_id', $user->id)
+                            $examQ->where(function ($accessQ) use ($assignedClassIds, $user) {
+                                $accessQ->where('creator_id', $user->id)
                                     ->orWhere('created_by', $user->id);
+                                if (!empty($assignedClassIds)) {
+                                    $accessQ->orWhereIn('class_id', $assignedClassIds);
+                                }
                             });
                         }
                     });
             })
             ->whereHas('question', function ($questionQ) {
-                $questionQ->whereIn('type', ['short', 'essay', 'fill_blank']);
+                \App\Support\OnlineExams\OnlineExamMarking::manualQuestions($questionQ);
             });
 
+        \App\Support\OnlineExams\OnlineExamMarking::responses($query);
+        $query->whereHas('submission', fn ($q) => $q->whereIn('status', ['submitted', 'timed_out', 'pending_manual_marking']));
         $status = trim((string) $request->input('status', 'pending'));
         if ($status === 'marked') {
-            $query->whereNotNull('awarded_marks');
+            $query->whereNotNull('awarded_marks')->whereNotNull('marked_at')->whereNotNull('marked_by');
         } else {
-            $query->whereNull('awarded_marks');
+            \App\Support\OnlineExams\OnlineExamMarking::unmarked($query);
         }
 
         $answers = $query->orderBy('id')->paginate(25)->appends($request->all());
@@ -1314,95 +1632,120 @@ class OnlineExamController extends Controller
 
     public function teacherMarkAnswer(ManualMarkAnswerRequest $request, OnlineExamAnswer $answer)
     {
-        $answer->loadMissing(['submission.exam', 'question']);
-        abort_unless((int) $answer->submission->school_id === (int) $this->school_id, 404);
-        $this->authorize('mark', $answer);
-
-        if (!in_array($answer->question?->type, ['short', 'essay', 'fill_blank'], true)) {
-            return redirect()->back()->withErrors(['answer' => get_phrase('Only written answers can be manually marked.')]);
-        }
-
-        $validated = $request->validated();
-        DB::transaction(function () use ($answer, $validated) {
-            $answer->update([
-                'awarded_marks' => $validated['awarded_marks'],
-                'marked_by' => Auth::id(),
-                'marked_at' => now(),
-                'teacher_comment' => $validated['teacher_comment'] ?? null,
-            ]);
-
-            $this->recomputeSubmissionScore($answer->submission);
-        });
-
-        AuditLog::record('update', 'Online Exams', "Teacher marked answer #{$answer->id}");
+        $this->markSubmissionAnswer($answer, $request->validated());
         return redirect()->back()->with('success', get_phrase('Answer marked.'));
     }
 
     public function teacherFinalizeResult(OnlineExamSubmission $submission)
     {
-        $submission->loadMissing(['exam', 'answerRows.question']);
-        abort_unless((int) $submission->school_id === (int) $this->school_id, 404);
-        $this->authorize('grade', $submission);
-
-        $pendingManual = $submission->answerRows
-            ->filter(fn(OnlineExamAnswer $answer) => in_array($answer->question?->type, ['short', 'essay', 'fill_blank'], true))
-            ->filter(fn(OnlineExamAnswer $answer) => is_null($answer->awarded_marks))
-            ->count();
-
-        if ($pendingManual > 0) {
-            return redirect()->back()->withErrors(['submission' => get_phrase('Finalize is blocked until all written answers are marked.')]);
-        }
-
-        DB::transaction(function () use ($submission) {
-            $locked = OnlineExamSubmission::whereKey($submission->id)->lockForUpdate()->firstOrFail();
-            $this->recomputeSubmissionScore($locked);
-
-            $locked->update([
-                'status' => OnlineExamSubmission::STATUS_FINALIZED,
-                'submitted_via' => $locked->submitted_via ?: 'teacher',
-            ]);
-        });
-
-        AuditLog::record('update', 'Online Exams', "Teacher finalized result for submission #{$submission->id}");
-        return redirect()->back()->with('success', get_phrase('Result finalized.'));
+        $this->finalizeSubmission($submission, 'teacher');
+        $submission->load('exam');
+        OnlineExamPortalNotifier::admins('marking_submitted_for_review', 'Marking Awaiting Review', Auth::user()->name . ' submitted marking for "' . $submission->exam->title . '".', $submission->exam, Auth::id(), 'marking-review:' . $submission->id, $submission->id);
+        return redirect()->back()->with('success', get_phrase('Marking submitted for Admin review.'));
     }
 
-    // ── Student: take exam ─────────────────────────────────────────────────
-
+    // Student: take exam.
     public function studentExams(Request $request)
     {
         $this->authorize('viewAny', OnlineExam::class);
 
         $student_id = Auth::id();
         $school_id  = Auth::user()->school_id;
-        $enroll     = Enrollment::where('user_id', $student_id)->where('school_id', $school_id)->first();
-        $class_id   = $enroll?->class_id;
+        // A student can have more than one current academic relationship.
+        // Using only the first enrollment can hide an otherwise eligible exam.
+        $classIds = Enrollment::where('user_id', $student_id)
+            ->where('school_id', $school_id)
+            ->pluck('class_id')
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
 
-        $exams = OnlineExam::visibleToStudent($school_id, $class_id)
+        $sessionIds = Enrollment::where('user_id', $student_id)
+            ->where('school_id', $school_id)
+            ->pluck('session_id')->filter()->map(fn($id) => (int) $id)->unique()->values()->all();
+        $programmeId = Schema::hasTable('student_profiles')
+            ? (int) (StudentProfile::where('user_id', $student_id)->where('school_id', $school_id)->value('programme_id') ?? 0)
+            : 0;
+
+        $classConstraint = function ($query) use ($classIds) {
+            $query->whereNull('class_id');
+            if ($classIds) {
+                $query->orWhereIn('class_id', $classIds);
+            }
+        };
+
+        $eligibleExams = OnlineExam::forSchool($school_id)
+            ->published()
+            ->where($classConstraint)
+            ->where(function ($query) use ($programmeId) {
+                $query->whereNull('programme_id');
+                if ($programmeId) $query->orWhere('programme_id', $programmeId);
+            })
+            ->where(function ($query) use ($sessionIds) {
+                $query->whereNull('session_id');
+                if ($sessionIds) $query->orWhereIn('session_id', $sessionIds);
+            })
+            ->with(['subject', 'questions'])
+            ->get();
+
+        // History is driven by the student's own submissions, not the exam's
+        // current date window. Ended and released attempts remain visible,
+        // while school and current class eligibility remain enforced.
+        $submissions = OnlineExamSubmission::forSchool($school_id)
+            ->forStudent($student_id)
+            ->with(['exam.subject', 'exam.questions', 'answerRows'])
+            ->orderByDesc('attempt_no')
             ->get()
-            ->map(function ($exam) use ($student_id) {
-                // The latest attempt is also the only one that can ever be
-                // in_progress: start() refuses a new attempt while one is
-                // already active, so an older attempt being in_progress
-                // while a newer one exists can never happen. That makes the
-                // latest row alone enough to answer both "is there an active
-                // attempt to resume" and "what's the most recent result" —
-                // no need to load every attempt just to find those two facts.
-                $exam->submission = OnlineExamSubmission::where('online_exam_id', $exam->id)
-                    ->where('student_id', $student_id)
-                    ->orderByDesc('attempt_no')
-                    ->first();
-
-                $exam->attempts_used = OnlineExamSubmission::where('online_exam_id', $exam->id)
-                    ->where('student_id', $student_id)
-                    ->count();
-
-                return $exam;
+            ->filter(function ($submission) use ($classIds, $programmeId) {
+                $exam = $submission->exam;
+                return $exam
+                    && ($exam->class_id === null || in_array((int) $exam->class_id, $classIds, true))
+                    && ($exam->programme_id === null || (int) $exam->programme_id === $programmeId);
             });
 
-        return view('student.online_exam.list', compact('exams'));
-    }
+        $latestByExam = $submissions->groupBy('online_exam_id')->map->first();
+        $attemptCounts = $submissions->groupBy('online_exam_id')->map->count();
+        $historyExamIds = $latestByExam->keys()->all();
+        $historyExams = $historyExamIds
+            ? OnlineExam::forSchool($school_id)->whereIn('id', $historyExamIds)
+                ->where(function ($query) use ($classIds) {
+                    $query->whereNull('class_id');
+                    if ($classIds) $query->orWhereIn('class_id', $classIds);
+                })
+                ->where(function ($query) use ($programmeId) {
+                    $query->whereNull('programme_id');
+                    if ($programmeId) $query->orWhere('programme_id', $programmeId);
+                })
+                ->with(['subject', 'questions'])->get()
+            : collect();
 
+        $attach = function ($exam) use ($latestByExam, $attemptCounts) {
+            $exam->submission = $latestByExam->get($exam->id);
+            $exam->attempts_used = (int) ($attemptCounts->get($exam->id) ?? 0);
+            return $exam;
+        };
+
+        $historyExams = $historyExams->map($attach)->keyBy('id');
+        $availableExams = $eligibleExams
+            ->map($attach)
+            ->reject(fn ($exam) => $exam->submission !== null)
+            ->values();
+
+        foreach ($eligibleExams as $exam) {
+            if ($exam->submission) {
+                $historyExams->put($exam->id, $exam);
+            }
+        }
+
+        return view('student.online_exam.list', [
+            'availableExams' => $availableExams,
+            'attemptedExams' => $historyExams->values(),
+            // Retain the legacy variable for extensions that still consume it.
+            'exams' => $availableExams->concat($historyExams->values())->unique('id')->values(),
+        ]);
+    }
     /**
      * The pre-exam screen: rules, attempt count, and (when the exam
      * requires it) the fullscreen/webcam readiness steps that
@@ -1453,17 +1796,7 @@ class OnlineExamController extends Controller
      */
     private function withinExamWindow(OnlineExam $exam): bool
     {
-        $now = now();
-
-        if ($exam->start_datetime && $now->lt($exam->start_datetime)) {
-            return false;
-        }
-
-        if ($exam->end_datetime && $now->gte($exam->end_datetime)) {
-            return false;
-        }
-
-        return true;
+        return $exam->isWithinScheduledWindow();
     }
 
     public function readiness(CameraReadinessRequest $request, $submissionId)
@@ -1523,8 +1856,9 @@ class OnlineExamController extends Controller
 
             $startedAt = now();
             $durationExpiry = $startedAt->copy()->addMinutes((int) $lockedExam->duration_mins);
-            $expiresAt = $lockedExam->end_datetime && $durationExpiry->gt($lockedExam->end_datetime)
-                ? $lockedExam->end_datetime->copy()
+            $scheduledEnd = $lockedExam->scheduledEndAt();
+            $expiresAt = $scheduledEnd && $durationExpiry->gt($scheduledEnd)
+                ? $scheduledEnd->copy()
                 : $durationExpiry;
 
             $submission = OnlineExamSubmission::create([
@@ -1567,6 +1901,18 @@ class OnlineExamController extends Controller
 
         if ($submission->status !== OnlineExamSubmission::STATUS_IN_PROGRESS) {
             return response()->json(['status' => 'error', 'message' => 'Attempt is not active.'], 422);
+        }
+
+        if ($submission->isExpired()) {
+            try {
+                $this->submitBySubmission($submission, 'timeout');
+            } catch (InvalidArgumentException $e) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => get_phrase('We could not submit your exam because one saved answer could not be validated. Your saved answers have been preserved. Please contact the examiner or administrator if the problem continues.'),
+                ], 422);
+            }
+            return response()->json(['status' => 'error', 'message' => 'Attempt expired and was finalized.'], 422);
         }
 
         AuditLog::record('update', 'Online Exams', "Resumed attempt #{$submission->id}");
@@ -1614,9 +1960,46 @@ class OnlineExamController extends Controller
 
         $questions = $this->orderQuestionsForAttempt($questions, $exam, $submission);
 
+        // Sanitize the model before it reaches the student view. Structured
+        // marking rules and legacy answer keys are server-only data.
+        $questions->each(function (OnlineExamQuestion $question) use ($exam, $submission) {
+            $public = \App\Support\OnlineExams\QuestionContract::publicProjection($question);
+            if ($exam->shuffle_options && count($public['options'] ?? []) > 1) {
+                usort($public['options'], fn ($a, $b) => crc32($submission->id . '-o-' . $question->id . '-' . $a['id']) <=> crc32($submission->id . '-o-' . $question->id . '-' . $b['id']));
+            }
+            // Matching choices are always deterministically reordered: leaving
+            // them in authoring/pair order could reveal the answer even when
+            // ordinary MCQ option shuffling is disabled.
+            if (count($public['right_items'] ?? []) > 1) {
+                usort($public['right_items'], fn ($a, $b) => crc32($submission->id . '-r-' . $question->id . '-' . $a['id']) <=> crc32($submission->id . '-r-' . $question->id . '-' . $b['id']));
+            }
+            if (count($public['items'] ?? []) > 1) {
+                usort($public['items'], fn ($a, $b) => crc32($submission->id . '-i-' . $question->id . '-' . $a['id']) <=> crc32($submission->id . '-i-' . $question->id . '-' . $b['id']));
+                $correctOrder = array_values((QuestionContract::normalize($question, true)['marking']['correct_order'] ?? []));
+                $presentedOrder = array_column($public['items'], 'id');
+                if ($correctOrder === $presentedOrder) {
+                    [$public['items'][0], $public['items'][1]] = [$public['items'][1], $public['items'][0]];
+                }
+            }
+            $question->setAttribute('public_question', $public);
+            $question->makeHidden(['correct_ans', 'marking_config']);
+            $question->setAttribute('correct_ans', null);
+        });
+
         $existingAnswers = OnlineExamAnswer::where('submission_id', $submission->id)
             ->get()
             ->keyBy('question_id');
+
+        $serverAnswers = $existingAnswers->mapWithKeys(function (OnlineExamAnswer $answer) {
+            return [$answer->question_id => [
+                'selected_option' => $answer->selected_option,
+                'answer_text' => $answer->answer_text,
+                'answer_payload' => $answer->answer_schema_version !== null
+                    ? \App\Support\OnlineExams\QuestionContract::decode($answer->answer_payload, 'answer_payload') : null,
+                'answer_revision' => $answer->answer_revision,
+                'updated_at' => optional($answer->updated_at)->toIso8601String(),
+            ]];
+        })->all();
 
         $optionOrders = $questions->mapWithKeys(function (OnlineExamQuestion $q) use ($exam, $submission) {
             return [$q->id => $this->orderOptionsForAttempt($q, $exam, $submission)];
@@ -1627,6 +2010,7 @@ class OnlineExamController extends Controller
             'submission' => $submission,
             'questions' => $questions,
             'existingAnswers' => $existingAnswers,
+            'serverAnswers' => $serverAnswers,
             'optionOrders' => $optionOrders,
             'remainingSeconds' => $submission->remainingSeconds(),
             'expiresAt' => optional($submission->expires_at)->toIso8601String(),
@@ -1695,6 +2079,11 @@ class OnlineExamController extends Controller
                 ->lockForUpdate()
                 ->firstOrFail();
 
+            abort_unless((int) $lockedSubmission->student_id === (int) Auth::id()
+                && (int) $lockedSubmission->school_id === (int) $this->school_id
+                && $lockedSubmission->exam
+                && (int) $lockedSubmission->exam->school_id === (int) $this->school_id, 403);
+
             if ($lockedSubmission->status !== OnlineExamSubmission::STATUS_IN_PROGRESS) {
                 abort(422, 'Submission is not active.');
             }
@@ -1711,36 +2100,88 @@ class OnlineExamController extends Controller
                 abort(422, 'Question does not belong to this exam.');
             }
 
-            OnlineExamAnswer::updateOrCreate(
-                [
+            // The parent lock serializes saves even when the answer does not yet exist.
+            // Finalization takes the same lock; keep all checks and writes inside it.
+            $answer = OnlineExamAnswer::where('submission_id', $lockedSubmission->id)
+                ->where('question_id', $question->id)->lockForUpdate()->first();
+            $revision = (int) $validated['answer_revision'];
+            $payload = [
+                'selected_option' => $validated['selected_option'] ?? null,
+                'answer_text' => $validated['answer_text'] ?? null,
+            ];
+            if (array_key_exists('answer_payload', $validated) && $validated['answer_payload'] !== null && $validated['answer_payload'] !== '') {
+                $canonicalAnswer = \App\Support\OnlineExams\AnswerContract::fromRequest($validated, $question);
+                $payload['answer_schema_version'] = \App\Support\OnlineExams\AnswerContract::STRUCTURED_VERSION;
+                $payload['answer_payload'] = \App\Support\OnlineExams\AnswerContract::encode($canonicalAnswer);
+            } elseif (array_key_exists('answer_payload', $validated)) {
+                $payload['answer_schema_version'] = null;
+                $payload['answer_payload'] = null;
+            }
+            $status = 'success';
+            if ($answer && $revision <= $answer->answer_revision) {
+                $identical = $answer->selected_option === $payload['selected_option']
+                    && $answer->answer_text === $payload['answer_text']
+                    && ($answer->answer_payload ?? null) === ($payload['answer_payload'] ?? null);
+                if ($revision < $answer->answer_revision || !$identical) {
+                    return [
+                        'status' => $revision < $answer->answer_revision ? 'stale' : 'conflict',
+                        'submission_id' => $lockedSubmission->id,
+                        'question_id' => $question->id,
+                        'answer_revision' => $answer->answer_revision,
+                        'selected_option' => $answer->selected_option,
+                        'answer_text' => $answer->answer_text,
+                    ];
+                }
+                $status = 'idempotent';
+            } else {
+                $answer = $answer ?: new OnlineExamAnswer([
                     'submission_id' => $lockedSubmission->id,
                     'question_id' => $question->id,
-                ],
-                [
-                    'selected_option' => $validated['selected_option'] ?? null,
-                    'answer_text' => $validated['answer_text'] ?? null,
-                ]
-            );
+                ]);
+                $answer->fill($payload + ['answer_revision' => $revision])->save();
+            }
 
             $lockedSubmission->update([
                 'last_activity_at' => now(),
             ]);
 
             return [
-                'status' => 'success',
+                'status' => $status,
                 'submission_id' => $lockedSubmission->id,
+                'question_id' => $question->id,
+                'answer_revision' => $answer->answer_revision,
+                'answer_updated_at' => optional($answer->fresh()->updated_at)->toIso8601String(),
                 'expires_at' => optional($lockedSubmission->expires_at)->toDateTimeString(),
                 'server_time' => now()->toDateTimeString(),
             ];
         });
 
-        return response()->json($responseData);
+        return response()->json($responseData, in_array($responseData['status'], ['stale', 'conflict'], true) ? 409 : 200);
     }
 
     public function heartbeat($submissionId)
     {
         $submission = $this->findStudentSubmissionOrFail((int) $submissionId);
         $this->authorize('view', $submission);
+
+        if ($submission->status === OnlineExamSubmission::STATUS_IN_PROGRESS && $submission->isExpired()) {
+            try {
+                $this->submitBySubmission($submission, 'timeout');
+            } catch (InvalidArgumentException $e) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => get_phrase('We could not submit your exam because one saved answer could not be validated. Your saved answers have been preserved. Please contact the examiner or administrator if the problem continues.'),
+                ], 422);
+            }
+            $submission = $submission->fresh();
+            return response()->json([
+                'status' => 'expired',
+                'server_time' => now()->toDateTimeString(),
+                'expires_at' => optional($submission->expires_at)->toDateTimeString(),
+                'expired' => true,
+                'submission_status' => $submission->status,
+            ]);
+        }
 
         $submission->update(['last_activity_at' => now()]);
 
@@ -1782,11 +2223,22 @@ class OnlineExamController extends Controller
         $submission = OnlineExamSubmission::where('online_exam_id', $exam->id)
             ->where('student_id', Auth::id())
             ->where('school_id', $this->school_id)
-            ->where('status', OnlineExamSubmission::STATUS_IN_PROGRESS)
-            ->orderByDesc('attempt_no')
+            ->whereKey((int) $request->input('submission_id'))
             ->firstOrFail();
 
-        return $this->submitBySubmission($submission, 'manual');
+        if ($submission->status !== OnlineExamSubmission::STATUS_IN_PROGRESS) {
+            return $submission->isResultVisible()
+                ? redirect()->route('student.online_exam.result', $submission->id)
+                : redirect()->back()->withErrors(['submission' => get_phrase('This submission has already been received and is awaiting marking or release.')]);
+        }
+
+        try {
+            return $this->submitBySubmission($submission, 'manual');
+        } catch (InvalidArgumentException $e) {
+            return redirect()->back()->withErrors([
+                'submission' => get_phrase('We could not submit your exam because one saved answer could not be validated. Your saved answers have been preserved. Please contact the examiner or administrator if the problem continues.'),
+            ]);
+        }
     }
 
     public function timeoutSubmit($submissionId)
@@ -1794,12 +2246,35 @@ class OnlineExamController extends Controller
         $submission = $this->findStudentSubmissionOrFail((int) $submissionId);
         $this->authorize('submit', $submission);
 
-        return $this->submitBySubmission($submission, 'timeout');
+        if ($submission->status !== OnlineExamSubmission::STATUS_IN_PROGRESS) {
+            return $submission->isResultVisible()
+                ? redirect()->route('student.online_exam.result', $submission->id)
+                : redirect()->back()->withErrors(['submission' => get_phrase('This attempt has already been finalized.')]);
+        }
+
+        try {
+            return $this->submitBySubmission($submission, 'timeout');
+        } catch (InvalidArgumentException $e) {
+            return redirect()->back()->withErrors([
+                'submission' => get_phrase('We could not submit your exam because one saved answer could not be validated. Your saved answers have been preserved. Please contact the examiner or administrator if the problem continues.'),
+            ]);
+        }
     }
 
     public function examResult($submission_id)
     {
         $submission = $this->findStudentSubmissionOrFail((int) $submission_id);
+        // A student owns the submission even while its result is withheld.
+        // Keep ownership protection, but render a state-aware status page
+        // instead of treating the normal pending-release state as forbidden.
+        $this->authorize('view', $submission);
+
+        if ($submission->submitted_at && !$submission->isResultVisible()) {
+            return view('student.online_exam.submitted', [
+                'submission' => $submission->load('exam'),
+            ]);
+        }
+
         $this->authorize('viewResult', $submission);
 
         $exam       = $submission->exam;
@@ -1825,21 +2300,22 @@ class OnlineExamController extends Controller
 
         $submissions = OnlineExamSubmission::where('online_exam_id', $exam->id)
             ->where('school_id', $this->school_id)
-            ->with('student')
+            ->with(['student', 'exam.questions', 'answerRows'])
+            ->withCount('proctoringEvents')
             ->orderByDesc('submitted_at')
             ->paginate(30);
 
         return view('admin.online_exam.submissions', compact('exam', 'submissions'));
     }
 
-    public function results($exam_id)
+    public function results(Request $request, $exam_id)
     {
         $exam = $this->findExamOrFail((int) $exam_id);
         $this->authorize('markAnswers', $exam);
 
         $submissions = OnlineExamSubmission::where('online_exam_id', $exam->id)
             ->where('school_id', $this->school_id)
-            ->with('student')
+            ->with(['student', 'exam.questions', 'answerRows'])
             ->orderByDesc('submitted_at')
             ->paginate(30);
 
@@ -1849,12 +2325,15 @@ class OnlineExamController extends Controller
                 $q->where('online_exam_id', $exam->id)->where('school_id', $this->school_id);
             })
             ->whereHas('question', function ($q) {
-                $q->whereIn('type', ['short', 'essay', 'fill_blank']);
+                \App\Support\OnlineExams\OnlineExamMarking::manualQuestions($q);
             })
-            ->whereNull('awarded_marks')
+            ->whereHas('submission', fn ($q) => $q->whereIn('status', ['submitted', 'timed_out', 'pending_manual_marking']))
+            ->where(fn ($q) => \App\Support\OnlineExams\OnlineExamMarking::responses($q))
+            ->where(fn ($q) => \App\Support\OnlineExams\OnlineExamMarking::unmarked($q))
             ->get();
 
-        return view('admin.online_exam.results', compact('exam', 'submissions', 'answersNeedingMarking'));
+        $highlightSubmissionId = (int) $request->query('submission', 0);
+        return view('admin.online_exam.results', compact('exam', 'submissions', 'answersNeedingMarking', 'highlightSubmissionId'));
     }
 
     public function reviewProctoring($exam_id, $submission_id)
@@ -1878,49 +2357,64 @@ class OnlineExamController extends Controller
 
     public function manualMarking(ManualMarkAnswerRequest $request, $answerId)
     {
-        $answer = OnlineExamAnswer::with(['submission.exam', 'question'])->findOrFail((int) $answerId);
-        abort_unless((int) $answer->submission->school_id === (int) $this->school_id, 404);
-        $this->authorize('mark', $answer);
-
-        $validated = $request->validated();
-        DB::transaction(function () use ($answer, $validated) {
-            $answer->update([
-                'awarded_marks' => $validated['awarded_marks'],
-                'marked_by' => Auth::id(),
-                'marked_at' => now(),
-                'teacher_comment' => $validated['teacher_comment'] ?? null,
-            ]);
-
-            $this->recomputeSubmissionScore($answer->submission);
-        });
-
-        AuditLog::record('update', 'Online Exams', "Manual marking on answer #{$answer->id}");
+        $answer = OnlineExamAnswer::findOrFail((int) $answerId);
+        $this->markSubmissionAnswer($answer, $request->validated());
         return redirect()->back()->with('success', get_phrase('Answer marked'));
     }
 
     public function finalizeResult($submissionId)
     {
-        $submission = OnlineExamSubmission::where('id', (int) $submissionId)
-            ->where('school_id', $this->school_id)
-            ->with('exam')
-            ->firstOrFail();
-        $this->authorize('grade', $submission);
-
-        DB::transaction(function () use ($submission) {
-            $locked = OnlineExamSubmission::whereKey($submission->id)->lockForUpdate()->firstOrFail();
-
-            $this->recomputeSubmissionScore($locked);
-
-            $locked->update([
-                'status' => OnlineExamSubmission::STATUS_FINALIZED,
-                'submitted_via' => $locked->submitted_via ?: 'administrator',
-            ]);
-        });
-
-        AuditLog::record('update', 'Online Exams', "Finalized result for submission #{$submission->id}");
-
-        \App\Support\OnlineExams\OnlineExamResultNotifier::resultAvailable($submission->fresh());
+        $submission = OnlineExamSubmission::findOrFail((int) $submissionId);
+        $this->finalizeSubmission($submission, 'administrator');
         return redirect()->back()->with('success', get_phrase('Result finalized'));
+    }
+
+    public function publishResult(OnlineExamSubmission $submission)
+    {
+        abort_unless(Auth::user() && (int) Auth::user()->role_id === 2, 403, 'Only an administrator may publish official results.');
+        $changed = DB::transaction(function () use ($submission) {
+            $locked = OnlineExamSubmission::whereKey($submission->id)->lockForUpdate()->with('exam')->firstOrFail();
+            $this->assertStaffSubmission($locked);
+            $this->authorize('grade', $locked);
+            if ($locked->status === OnlineExamSubmission::STATUS_RESULT_PUBLISHED) return false;
+            abort_if($locked->status !== OnlineExamSubmission::STATUS_FINALIZED, 422, 'Only finalized results can be released.');
+            $reviewState = $locked->result_review_state ?: 'pending_review';
+            abort_if($reviewState !== 'pending_review', 422, 'This result is not awaiting Admin review.');
+            if (($locked->exam->result_release_policy ?? 'immediate') === 'after_exam_end') {
+                $end = $locked->exam->scheduledEndAt();
+                abort_if(!$end || now($locked->exam->scheduleTimezone())->lt($end), 422, 'This result cannot be published before the exam ends.');
+            }
+            $updated = $locked->update(['status' => OnlineExamSubmission::STATUS_RESULT_PUBLISHED, 'result_review_state' => 'published']);
+            abort_unless($updated && $locked->refresh()->status === OnlineExamSubmission::STATUS_RESULT_PUBLISHED, 422, 'The result could not be released. Please try again.');
+            return true;
+        });
+        $persisted = OnlineExamSubmission::whereKey($submission->id)->value('status') === OnlineExamSubmission::STATUS_RESULT_PUBLISHED;
+        if (!$persisted) {
+            return redirect()->back()->withErrors(['result' => get_phrase('The result was not released. No success was recorded.')]);
+        }
+        if ($changed) {
+            \App\Support\OnlineExams\OnlineExamResultNotifier::resultAvailable($submission->fresh());
+            $published = $submission->fresh()->load('exam');
+            OnlineExamPortalNotifier::create($published->exam->school_id, $published->student_id, 'result_published', 'Result Available', 'Your result for ' . $published->exam->title . ' is now available.', route('student.online_exam.result', $published->id), Auth::id(), $published->exam->id, $published->id, 'result-published:' . $published->id);
+            AuditLog::record('update', 'Online Exams', "Published result for submission #{$submission->id}");
+        }
+        return redirect()->back()->with('success', get_phrase('Result published'));
+    }
+
+    public function returnResultForCorrection(Request $request, OnlineExamSubmission $submission)
+    {
+        abort_unless(Auth::user() && (int) Auth::user()->role_id === 2, 403, 'Only an administrator may return results.');
+        $reason = trim((string) $request->input('reason', ''));
+        DB::transaction(function () use ($submission) {
+            $locked = OnlineExamSubmission::whereKey($submission->id)->lockForUpdate()->with('exam')->firstOrFail();
+            $this->assertStaffSubmission($locked);
+            $this->authorize('grade', $locked);
+            abort_unless($locked->status === OnlineExamSubmission::STATUS_FINALIZED && $locked->result_review_state === 'pending_review', 422, 'Only results awaiting review can be returned.');
+            $locked->update(['status' => OnlineExamSubmission::STATUS_PENDING_MANUAL, 'result_review_state' => 'returned_for_correction']);
+        });
+        $submission->load('exam');
+        OnlineExamPortalNotifier::teacher('marking_returned', 'Marking Returned', 'Marking for "' . $submission->exam->title . '" was returned for correction.' . ($reason ? ' Reason: ' . $reason : ''), $submission->exam, Auth::id(), 'marking-returned:' . $submission->id);
+        return redirect()->back()->with('success', get_phrase('Marking returned for correction.'));
     }
 
     private function submitBySubmission(OnlineExamSubmission $submission, string $submittedVia)
@@ -1934,7 +2428,7 @@ class OnlineExamController extends Controller
                 ->firstOrFail();
 
             if (!empty($locked->submitted_at) || $locked->status !== OnlineExamSubmission::STATUS_IN_PROGRESS) {
-                abort(422, 'Duplicate submission is not allowed.');
+                return $locked;
             }
 
             $now = now();
@@ -1947,37 +2441,21 @@ class OnlineExamController extends Controller
                 ->with('question')
                 ->get();
 
-            $objectiveScore = 0.0;
-            $manualScore = 0.0;
-            $requiresManual = false;
-
             foreach ($answers as $answer) {
                 $question = $answer->question;
-                if (!$question) {
-                    continue;
+                abort_unless($question && (int) $question->online_exam_id === (int) $locked->online_exam_id, 422, 'Answer question does not belong to this exam.');
+                if (\App\Support\OnlineExams\OnlineExamMarking::isAutomatic($question)) {
+                    $correct = $this->isObjectiveAnswerCorrect($question, $answer);
+                    $answer->update(['is_correct' => $correct, 'awarded_marks' => $correct ? $question->marks : 0]);
                 }
-
-                $isObjective = in_array($question->normalized_type, ['multiple_choice', 'true_false'], true);
-                if ($isObjective) {
-                    $isCorrect = $this->isObjectiveAnswerCorrect($question, $answer);
-                    $awarded = $isCorrect ? (float) $question->marks : 0.0;
-                    $objectiveScore += $awarded;
-                    $answer->update([
-                        'is_correct' => $isCorrect,
-                        'awarded_marks' => $awarded,
-                    ]);
-                    continue;
-                }
-
-                $requiresManual = true;
-                $manualScore += (float) ($answer->awarded_marks ?? 0);
             }
-
-            $score = $objectiveScore + $manualScore;
-            $passed = $score >= (float) ($locked->exam->pass_mark ?? 0);
-            $nextStatus = $requiresManual
-                ? OnlineExamSubmission::STATUS_PENDING_MANUAL
-                : OnlineExamSubmission::STATUS_FINALIZED;
+            $locked->load(['exam.questions', 'answerRows']);
+            $summary = \App\Support\OnlineExams\OnlineExamMarking::summary($locked);
+            $objectiveScore = $summary['objective_score'];
+            $manualScore = $summary['manual_score'];
+            $score = $summary['score'];
+            $passed = $summary['pending'] ? null : $score >= (float) $locked->exam->pass_mark;
+            $nextStatus = $summary['pending'] ? OnlineExamSubmission::STATUS_PENDING_MANUAL : OnlineExamSubmission::STATUS_FINALIZED;
 
             $locked->update([
                 'objective_score' => $objectiveScore,
@@ -1987,6 +2465,10 @@ class OnlineExamController extends Controller
                 'submitted_at' => $now,
                 'submitted_via' => $submittedVia,
                 'status' => $nextStatus,
+                // Completing the attempt only makes the result ready. The
+                // governance review state changes when staff explicitly
+                // submits the completed marking for Admin review.
+                'result_review_state' => 'not_ready',
                 'last_activity_at' => $now,
                 'timeout_at' => $submittedVia === 'timeout' ? ($locked->timeout_at ?: $now) : $locked->timeout_at,
             ]);
@@ -1996,52 +2478,137 @@ class OnlineExamController extends Controller
 
         $action = $submittedVia === 'timeout' ? 'timeout' : 'submit';
         AuditLog::record($action, 'Online Exams', "Submission #{$locked->id} completed via {$submittedVia}. Score: {$locked->score}");
-
-        \App\Support\OnlineExams\OnlineExamResultNotifier::resultAvailable($locked);
-
         return redirect()->route('student.online_exam.result', $locked->id);
     }
 
     private function recomputeSubmissionScore(OnlineExamSubmission $submission): void
     {
-        $submission->loadMissing(['exam', 'answerRows.question']);
-
-        $objective = 0.0;
-        $manual = 0.0;
-        $needsManual = false;
-
-        foreach ($submission->answerRows as $answer) {
-            $question = $answer->question;
-            if (!$question) {
-                continue;
-            }
-
-            if (in_array($question->normalized_type, ['multiple_choice', 'true_false'], true)) {
-                $objective += (float) ($answer->awarded_marks ?? 0);
-            } else {
-                $needsManual = true;
-                $manual += (float) ($answer->awarded_marks ?? 0);
-            }
-        }
-
-        $score = $objective + $manual;
-        $passed = $score >= (float) ($submission->exam->pass_mark ?? 0);
-        $status = $needsManual ? OnlineExamSubmission::STATUS_PENDING_MANUAL : OnlineExamSubmission::STATUS_FINALIZED;
-
+        if ($submission->isFinalized()) return;
+        $submission->load(['exam.questions', 'answerRows']);
+        $summary = \App\Support\OnlineExams\OnlineExamMarking::summary($submission);
         $submission->update([
-            'objective_score' => $objective,
-            'manual_score' => $manual,
-            'score' => $score,
-            'passed' => $passed,
-            'status' => $status,
+            'objective_score' => $summary['objective_score'], 'manual_score' => $summary['manual_score'],
+            'score' => $summary['score'], 'passed' => null,
+            'status' => $summary['pending'] ? OnlineExamSubmission::STATUS_PENDING_MANUAL : OnlineExamSubmission::STATUS_SUBMITTED,
+            'result_review_state' => 'not_ready',
         ]);
     }
 
     private function isObjectiveAnswerCorrect(OnlineExamQuestion $question, OnlineExamAnswer $answer): bool
     {
-        $expected = strtolower(trim((string) $question->correct_ans));
+        if ($question->question_schema_version !== null) {
+            $contract = \App\Support\OnlineExams\QuestionContract::normalize($question, true);
+            $marking = $contract['marking'];
+            $payload = \App\Support\OnlineExams\AnswerContract::fromStored($answer, $question);
+            if ($contract['type'] === 'multiple_select') {
+                $expected = array_values(array_unique(array_map('strval', $marking['correct_option_ids'] ?? [])));
+                $given = array_values(array_unique(array_map('strval', $payload['selected_option_ids'] ?? [])));
+                sort($expected); sort($given);
+                return $expected === $given;
+            }
+            if ($contract['type'] === 'numeric') {
+                $value = (float) ($payload['value'] ?? 0);
+                $target = (float) ($marking['target'] ?? 0);
+                $tolerance = max(0.0, (float) ($marking['tolerance'] ?? 0));
+                return abs($value - $target) <= $tolerance + 1e-12;
+            }
+            if ($contract['type'] === 'fill_blank') {
+                return QuestionContract::fillBlankCorrect($contract, $payload);
+            }
+            if ($contract['type'] === 'matching') return QuestionContract::matchingCorrect($contract, $payload);
+            if ($contract['type'] === 'ordering') return QuestionContract::orderingCorrect($contract, $payload);
+        }
+        $expected = \App\Support\OnlineExams\AnswerKey::forQuestion($question);
         $given = strtolower(trim((string) $answer->selected_option));
         return $expected !== '' && $expected === $given;
+    }
+
+    private function assertSubmissionMarkable(OnlineExamSubmission $submission): void
+    {
+        abort_if(!in_array($submission->status, [OnlineExamSubmission::STATUS_SUBMITTED, OnlineExamSubmission::STATUS_TIMED_OUT, OnlineExamSubmission::STATUS_PENDING_MANUAL], true), 422, 'Only submitted attempts may be marked.');
+    }
+
+    private function finalizeSubmission(OnlineExamSubmission $submission, string $via): void
+    {
+        $changed = DB::transaction(function () use ($submission) {
+            $locked = OnlineExamSubmission::whereKey($submission->id)->lockForUpdate()->with('exam')->firstOrFail();
+            $this->assertStaffSubmission($locked);
+            $this->authorize('grade', $locked);
+            if ($locked->isFinalized()) return false;
+            $this->assertSubmissionMarkable($locked);
+            $this->recomputeSubmissionScore($locked);
+            abort_if($locked->status === OnlineExamSubmission::STATUS_PENDING_MANUAL, 422, 'Finalize is blocked until all answered manual questions are marked.');
+            $locked->update(['status' => OnlineExamSubmission::STATUS_FINALIZED,
+                'result_review_state' => 'pending_review',
+                'passed' => (float) $locked->score >= (float) $locked->exam->pass_mark]);
+            return true;
+        });
+        if ($changed) {
+            AuditLog::record('update', 'Online Exams', "Finalized result for submission #{$submission->id} via {$via}");
+            \App\Support\OnlineExams\OnlineExamResultNotifier::resultAvailable($submission->fresh());
+        }
+    }
+
+    private function assertStaffSubmission(OnlineExamSubmission $submission): void
+    {
+        abort_unless((int) $submission->school_id === (int) $this->school_id
+            && $submission->exam && (int) $submission->exam->school_id === (int) $this->school_id, 404);
+    }
+
+    private function markSubmissionAnswer(OnlineExamAnswer $answer, array $validated): void
+    {
+        $changed = DB::transaction(function () use ($answer, $validated) {
+            // All marking and finalization writers use the autosave parent lock first.
+            $submission = OnlineExamSubmission::whereKey($answer->submission_id)->lockForUpdate()->with('exam')->firstOrFail();
+            $this->assertStaffSubmission($submission);
+            $this->assertSubmissionMarkable($submission);
+            $locked = OnlineExamAnswer::whereKey($answer->id)->where('submission_id', $submission->id)->lockForUpdate()->with('question')->firstOrFail();
+            $locked->setRelation('submission', $submission);
+            $this->authorize('mark', $locked);
+            abort_unless((int) $validated['answer_id'] === (int) $locked->id
+                && $locked->question && (int) $locked->question->online_exam_id === (int) $submission->online_exam_id, 422, 'Answer must belong to this submission exam.');
+            abort_if(\App\Support\OnlineExams\OnlineExamMarking::isAutomatic($locked->question), 422, 'Automatic marks cannot be overridden.');
+            abort_unless(\App\Support\OnlineExams\OnlineExamMarking::hasResponse($locked), 422, 'Unanswered questions contribute zero without manual marking.');
+            $mark = (float) $validated['awarded_marks'];
+            abort_if($mark < 0 || $mark > (float) $locked->question->marks, 422, 'Mark is outside question bounds.');
+            $comment = array_key_exists('teacher_comment', $validated) ? $validated['teacher_comment'] : $locked->teacher_comment;
+            $identical = \App\Support\OnlineExams\OnlineExamMarking::isManuallyMarked($locked)
+                && (float) $locked->awarded_marks === $mark && $locked->teacher_comment === $comment
+                && (int) $locked->marked_by === (int) Auth::id();
+            if (!$identical) $locked->update(['awarded_marks' => $mark, 'marked_by' => Auth::id(), 'marked_at' => now(), 'teacher_comment' => $comment]);
+            $this->recomputeSubmissionScore($submission);
+            return !$identical;
+        });
+        if ($changed) AuditLog::record('update', 'Online Exams', "Marked answer #{$answer->id}");
+    }
+
+    private function publishExam(OnlineExam $exam): void
+    {
+        DB::transaction(function () use ($exam) {
+            $locked = OnlineExam::whereKey($exam->id)->lockForUpdate()->firstOrFail();
+            if ($locked->is_published) {
+                return;
+            }
+            $errors = $locked->publicationReadinessErrors();
+            if (!empty($errors)) {
+                abort(422, implode(' ', $errors));
+            }
+            $locked->update(['is_published' => 1, 'workflow_state' => 'published', 'reviewed_by' => Auth::id(), 'reviewed_at' => now(), 'updater_id' => Auth::id()]);
+        });
+    }
+
+    private function publicationReadinessFailure(Request $request, array $errors)
+    {
+        $messages = array_merge([get_phrase('Exam cannot be published yet.')], $errors);
+        if ($request->expectsJson()) {
+            return response()->json([
+                'status' => 'error',
+                'message' => $messages[0],
+                'errors' => ['readiness' => $messages],
+            ], 422);
+        }
+
+        return redirect()->back()->withErrors(['readiness' => $errors])->withInput();
     }
 
     private function teacherAssignedClassIds(int $teacherId): array
@@ -2058,14 +2625,198 @@ class OnlineExamController extends Controller
 
     private function teacherAssignableSubjects(int $teacherId, array $assignedClassIds)
     {
-        if (empty($assignedClassIds)) {
+        $programmeIds = Schema::hasTable('teacher_programme_assignments')
+            ? TeacherProgrammeAssignment::where('teacher_id', $teacherId)
+                ->where('school_id', $this->school_id)
+                ->pluck('programme_id')->filter()->map(fn($id) => (int) $id)->all()
+            : [];
+
+        if (!$assignedClassIds && !$programmeIds) {
             return collect();
         }
 
         return Subject::where('school_id', $this->school_id)
-            ->whereIn('class_id', $assignedClassIds)
+            ->where(function ($query) use ($assignedClassIds, $programmeIds) {
+                if ($assignedClassIds) {
+                    $query->whereIn('class_id', $assignedClassIds);
+                }
+                if ($programmeIds) {
+                    $query->orWhereIn('programme_id', $programmeIds);
+                }
+            })
             ->orderBy('name')
             ->get();
+    }
+
+    private function teacherAssignableProgrammes(int $teacherId)
+    {
+        if (!Schema::hasTable('teacher_programme_assignments')) {
+            return collect();
+        }
+
+        $programmeIds = TeacherProgrammeAssignment::where('teacher_id', $teacherId)
+            ->where('school_id', $this->school_id)->pluck('programme_id');
+
+        return Programme::where('school_id', $this->school_id)
+            ->where('is_active', 1)
+            ->whereIn('id', $programmeIds)
+            ->orderBy('name')
+            ->get();
+    }
+
+    private function academicSessionsForSelection()
+    {
+        $sessions = Session::where('school_id', $this->school_id)
+            ->orderByDesc('status')->orderByDesc('id')->get();
+
+        $human = $sessions->filter(function ($session) {
+            $title = trim((string) $session->session_title);
+            return $title !== '' && !preg_match('/^Session\s+[a-f0-9]{8,}$/i', $title);
+        });
+
+        return $human->isNotEmpty() ? $human : $sessions;
+    }
+
+    private function canonicalizeBankAnswer(array $data): ?string
+    {
+        $type = (string) ($data['type'] ?? '');
+        $raw = $type === 'true_false' ? ($data['correct_answer_tf'] ?? $data['correct_ans'] ?? null) : ($data['correct_ans'] ?? null);
+        $key = \App\Support\OnlineExams\AnswerKey::normalize($type, $raw, [
+            'a' => $data['option_a'] ?? null,
+            'b' => $data['option_b'] ?? null,
+            'c' => $data['option_c'] ?? null,
+            'd' => $data['option_d'] ?? null,
+        ]);
+
+        if (in_array($type, ['mcq', 'true_false'], true) && $key === null) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'correct_ans' => $type === 'mcq'
+                    ? 'Select a valid correct option (A, B, C or D).'
+                    : 'Select True or False as the correct answer.',
+            ]);
+        }
+
+        return $key;
+    }
+
+    private function snapshotStorageType(QuestionBank $bankQuestion): string
+    {
+        if ($bankQuestion->question_schema_version === null) {
+            return (string) $bankQuestion->type;
+        }
+
+        $type = QuestionContract::normalize($bankQuestion)['type'];
+        return match ($type) {
+            'multiple_select' => 'mcq',
+            'numeric', 'matching', 'ordering' => 'short',
+            default => $type,
+        };
+    }
+
+    private function structuredBankFields(array $data): array
+    {
+        $structured = \App\Support\OnlineExams\QuestionContract::authoring(
+            (string) $data['type'],
+            (string) $data['question'],
+            (array) (($data['type'] ?? null) === 'fill_blank' ? ($data['structured_blanks'] ?? []) : (($data['type'] ?? null) === 'matching' ? ($data['structured_pairs'] ?? []) : (($data['type'] ?? null) === 'ordering' ? ($data['structured_order_items'] ?? []) : ($data['structured_options'] ?? [])))),
+            [
+                'correct_option_ids' => (array) ($data['correct_option_ids'] ?? []),
+                'target' => $data['numeric_target'] ?? null,
+                'tolerance' => $data['numeric_tolerance'] ?? 0,
+                'case_sensitive' => !empty($data['case_sensitive']),
+                'trim_whitespace' => array_key_exists('trim_whitespace', $data) ? !empty($data['trim_whitespace']) : true,
+            ],
+            $data['marks']
+        );
+
+        return [
+            'type' => $structured['storage_type'],
+            'correct_ans' => null,
+            'question_schema_version' => $structured['schema_version'],
+            'question_config' => $structured['question_config'],
+            'marking_config' => $structured['marking_config'],
+        ];
+    }
+
+    private function questionBankMetadataPayload(array $data): array
+    {
+        if (!Schema::hasColumn('question_banks', 'programme_id')) return [];
+        return ['programme_id'=>$data['programme_id']??null,'session_id'=>$data['session_id']??null,'topic_id'=>$data['topic_id']??null,'subtopic_id'=>$data['subtopic_id']??null,'status'=>$data['status']??'active'];
+    }
+
+    /** Remove inactive authoring groups and unused active slots before wildcard validation. */
+    private function normalizeBankStructuredOptions(Request $request): void
+    {
+        $type = (string) $request->input('type', '');
+        $active = match ($type) {
+            'multiple_select' => 'structured_options',
+            'fill_blank' => 'structured_blanks',
+            'matching' => 'structured_pairs',
+            'ordering' => 'structured_order_items',
+            default => null,
+        };
+        foreach (['structured_options', 'structured_pairs', 'structured_order_items', 'structured_blanks'] as $group) {
+            if ($group !== $active) $request->request->remove($group);
+        }
+        if (!$active) return;
+        $inputRows = (array) $request->input($active, []);
+        if ($active === 'structured_blanks') {
+            $inputRows = array_values(array_filter(array_map(static function ($row) {
+                if (!is_array($row)) return null;
+                $answers = array_values(array_filter(array_map(static fn ($answer) => trim((string) $answer), (array) ($row['accepted_answers'] ?? [])), static fn ($answer) => $answer !== ''));
+                if (!$answers) return null;
+                $row['accepted_answers'] = $answers;
+                return $row;
+            }, $inputRows)));
+        }
+        $rows = array_values(array_filter($inputRows, static function ($row) use ($active) {
+            if (!is_array($row)) return false;
+            if ($active === 'structured_options') return trim((string) ($row['label'] ?? '')) !== '';
+            if ($active === 'structured_blanks') return collect((array) ($row['accepted_answers'] ?? []))->contains(fn ($answer) => trim((string) $answer) !== '');
+            foreach ($row as $value) {
+                if (is_array($value)) {
+                    if (collect($value)->contains(fn ($item) => trim((string) $item) !== '')) return true;
+                } elseif (trim((string) $value) !== '') return true;
+            }
+            return false;
+        }));
+        if ($active === 'structured_options') {
+            $correctIds = array_map('strval', (array) $request->input('correct_option_ids', []));
+            foreach ($inputRows as $row) {
+                if (is_array($row) && in_array((string) ($row['id'] ?? ''), $correctIds, true) && trim((string) ($row['label'] ?? '')) === '') $rows[] = $row;
+            }
+        }
+        $request->request->set($active, $rows);
+    }
+
+    private function validateQuestionBankAcademicMetadata(array $data, $teacher = null): void
+    {
+        if (!empty($data['programme_id'])) {
+            abort_unless(Programme::where('school_id', $this->school_id)->whereKey($data['programme_id'])->where('is_active', 1)->exists(), 422, 'The selected Programme is not available in this school.');
+        }
+        if (!empty($data['session_id'])) {
+            abort_unless(Session::where('school_id', $this->school_id)->whereKey($data['session_id'])->exists(), 422, 'The selected Academic Period is not available in this school.');
+        }
+        if (!empty($data['subject_id'])) {
+            abort_unless(Subject::where('school_id', $this->school_id)->whereKey($data['subject_id'])->exists(), 422, 'The selected Course is not available in this school.');
+        }
+        if (array_key_exists('status', $data) && !in_array($data['status'], ['draft', 'active', 'retired', 'archived'], true)) {
+            abort(422, 'The selected lifecycle state is invalid.');
+        }
+        if (!empty($data['subject_id']) && !empty($data['programme_id'])) {
+            abort_unless(Subject::where('school_id', $this->school_id)->whereKey($data['subject_id'])->where('programme_id', $data['programme_id'])->exists(), 422, 'The selected Course is not part of the selected Programme.');
+        }
+        if ($teacher && !empty($data['programme_id'])) {
+            abort_unless(TeacherProgrammeAssignment::where('school_id', $this->school_id)->where('teacher_id', $teacher->id)->where('programme_id', $data['programme_id'])->exists(), 403);
+        }
+        $topic = !empty($data['topic_id']) ? QuestionTopic::where('school_id',$this->school_id)->where('subject_id',$data['subject_id'])->whereNull('parent_id')->find($data['topic_id']) : null;
+        abort_if(!empty($data['topic_id']) && !$topic, 422, 'The selected Topic is not available for this Course.');
+        if (!empty($data['subtopic_id'])) {
+            abort_unless($topic && QuestionTopic::where('id',$data['subtopic_id'])->where('school_id',$this->school_id)->where('subject_id',$data['subject_id'])->where('parent_id',$topic->id)->exists(), 422, 'The selected Subtopic does not belong to the selected Topic.');
+        }
+        $tagIds = array_values(array_unique(array_map('intval', (array)($data['tag_ids'] ?? []))));
+        abort_if(count($tagIds) !== count((array)($data['tag_ids'] ?? [])), 422, 'Duplicate tags are not allowed.');
+        if ($tagIds && QuestionTag::where('school_id',$this->school_id)->whereIn('id',$tagIds)->count() !== count($tagIds)) abort(422, 'One or more tags are not available in this school.');
     }
 
     private function teacherAssignableClasses(array $assignedClassIds)
@@ -2122,6 +2873,30 @@ class OnlineExamController extends Controller
             'completed' => $base()->ended()->count(),
             'cancelled' => $base()->where('workflow_state', 'cancelled')->count(),
         ];
+    }
+
+    private function teacherQuestionBankQuery($user, array $assignedClassIds)
+    {
+        $assignedSubjectIds = empty($assignedClassIds)
+            ? collect()
+            : Subject::where('school_id', $this->school_id)
+                ->whereIn('class_id', $assignedClassIds)
+                ->pluck('id');
+
+        return QuestionBank::forSchool($this->school_id)
+            ->where(function ($query) use ($user, $assignedSubjectIds) {
+                $query->where('created_by', $user->id)->orWhereNull('created_by');
+                if ($assignedSubjectIds->isNotEmpty()) {
+                    $query->orWhere(function ($assigned) use ($assignedSubjectIds) {
+                        $assigned->whereIn('subject_id', $assignedSubjectIds)
+                            ->whereExists(function ($creator) {
+                                $creator->selectRaw('1')->from('users')
+                                    ->whereColumn('users.id', 'question_banks.created_by')
+                                    ->where('users.role_id', '!=', 3);
+                            });
+                    });
+                }
+            });
     }
 
     private function applyLifecycleFilter($query, string $lifecycleState): void
@@ -2204,11 +2979,38 @@ class OnlineExamController extends Controller
     private function findStudentExamOrFail(int $examId): OnlineExam
     {
         $user = Auth::user();
-        $enrollment = Enrollment::where('user_id', $user->id)
+        $classIds = Enrollment::where('user_id', $user->id)
             ->where('school_id', $this->school_id)
-            ->first();
+            ->pluck('class_id')
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
 
-        return OnlineExam::visibleToStudent($this->school_id, $enrollment?->class_id)
+        $sessionIds = Enrollment::where('user_id', $user->id)
+            ->where('school_id', $this->school_id)
+            ->pluck('session_id')->filter()->map(fn($id) => (int) $id)->unique()->values()->all();
+        $programmeId = Schema::hasTable('student_profiles')
+            ? (int) (StudentProfile::where('user_id', $user->id)->where('school_id', $this->school_id)->value('programme_id') ?? 0)
+            : 0;
+
+        return OnlineExam::forSchool($this->school_id)
+            ->published()
+            ->where(function ($query) use ($classIds) {
+                $query->whereNull('class_id');
+                if ($classIds) {
+                    $query->orWhereIn('class_id', $classIds);
+                }
+            })
+            ->where(function ($query) use ($programmeId) {
+                $query->whereNull('programme_id');
+                if ($programmeId) $query->orWhere('programme_id', $programmeId);
+            })
+            ->where(function ($query) use ($sessionIds) {
+                $query->whereNull('session_id');
+                if ($sessionIds) $query->orWhereIn('session_id', $sessionIds);
+            })
             ->findOrFail($examId);
     }
 
