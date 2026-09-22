@@ -102,8 +102,11 @@
                     </span>
                 </div>
                 <ul class="sub-menu">
-                    <li><a class="{{ request()->is('accountant/student_fee_manager*') ? 'active' : '' }}" href="{{ route('accountant.fee_manager.list') }}"><span>
+                    <li><a class="{{ request()->is('accountant/student_fee_manager*') && !request()->is('accountant/student_fee_manager/sync*') ? 'active' : '' }}" href="{{ route('accountant.fee_manager.list') }}"><span>
                                 {{ get_phrase('Student Fee Manager') }}
+                            </span></a></li>
+                    <li><a class="{{ request()->is('accountant/student_fee_manager/sync*') ? 'active' : '' }}" href="{{ route('accountant.fee_manager.sync') }}"><span>
+                                {{ get_phrase('Sync Invoices') }}
                             </span></a></li>
                     <li><a class="{{ request()->is('accountant/offline_payment/pending*') ? 'active' : '' }}" href="{{ route('accountant.offline_payment_pending') }}"><span>
                                 {{ get_phrase('Offline Payment Request') }}

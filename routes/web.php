@@ -4,6 +4,7 @@ use App\Http\Controllers\AccountantController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\CommonController;
 use App\Http\Controllers\HomeController;
+use App\Http\Controllers\IdCardVerificationController;
 use App\Http\Controllers\InstallController;
 use App\Http\Controllers\LibrarianController;
 use App\Http\Controllers\ParentController;
@@ -85,6 +86,12 @@ Route::controller(HomeController::class)->group(function () {
     Route::post('school/create', 'schoolCreate')->name('school.create');
     Route::get('web_redirect_to_pay_fee', 'webRedirectToPayFee')->name('webRedirectToPayFee');
 });
+
+// Public ID-card verification — reachable only via a signed URL embedded
+// in a card's QR code (see IdCardVerificationController's own docblock).
+Route::get('id-card/verify/{student}', [IdCardVerificationController::class, 'show'])
+    ->name('id_card.verify')
+    ->middleware('signed');
 
 // ── Public admissions / Applicant Portal ──────────────────────────────────
 // Independent of the authenticated HEI Admissions administration area, and on
@@ -1166,6 +1173,8 @@ Route::controller(AccountantController::class)->middleware('accountant', 'auth')
     Route::post('accountant/fee_manager_list/{id}', 'feeManagerUpdate')->name('accountant.fee_manager.update');
     Route::get('accountant/student_fee/delete/{id}', 'studentFeeDelete')->name('accountant.fee_manager.delete');
     Route::get('accountant/student_fee/invoice/{id}', 'studentFeeinvoice')->name('accountant.studentFeeinvoice');
+    Route::get('accountant/student_fee_manager/sync', 'feeSyncForm')->name('accountant.fee_manager.sync');
+    Route::post('accountant/student_fee_manager/sync', 'feeSyncGenerate')->name('accountant.fee_manager.sync.generate');
 
     //Offline payment routes
     Route::get('accountant/offline_payment/pending', 'offline_payment_pending')->name('accountant.offline_payment_pending');
@@ -1207,6 +1216,31 @@ Route::controller(AccountantController::class)->middleware('accountant', 'auth')
     Route::post('accountant/message/single-chat/save', 'chat_save')->name('accountant.message.chat_save');
     Route::get('accountant/message/chat_empty', 'chat_empty')->name('accountant.message.chat_empty');
 });
+
+// ── Bursar ───────────────────────────────────────────────────
+// "Bursar" is this school's own name for the Accountant role (role_id 4,
+// see BursarMiddleware) — same person, same permissions, reachable under a
+// /bursar/... URL too rather than only /accountant/.... Only the finance
+// surface is mirrored here (dashboard, fee manager, offline payments); the
+// rest of that role's day-to-day work (expenses, messaging, profile) stays
+// reachable at its one existing /accountant/... address.
+Route::controller(AccountantController::class)->middleware('bursar', 'auth')->group(function () {
+    Route::get('bursar/dashboard', 'accountantDashboard')->name('bursar.dashboard')->middleware('role_id');
+    Route::get('bursar/student_fee_manager', 'studentFeeManagerList')->name('bursar.fee_manager.list');
+    Route::get('bursar/student_fee_manager/export/{date_from}/{date_to}/{selected_class}/{selected_status}', 'feeManagerExport')->name('bursar.fee_manager.export');
+    Route::get('bursar/student_fee_manager/pdf_print/{date_from}/{date_to}/{selected_class}/{selected_status}', 'feeManagerExportPdfPrint')->name('bursar.fee_manager.pdf_print');
+    Route::get('bursar/fee_manager_create/{value}', 'createFeeManager')->name('bursar.fee_manager.open_modal');
+    Route::post('bursar/fee_manager/{value}', 'feeManagerCreate')->name('bursar.create.fee_manager');
+    Route::get('bursar/fee_manager/{id}', 'editFeeManager')->name('bursar.edit.fee_manager');
+    Route::post('bursar/fee_manager_list/{id}', 'feeManagerUpdate')->name('bursar.fee_manager.update');
+    Route::get('bursar/student_fee/delete/{id}', 'studentFeeDelete')->name('bursar.fee_manager.delete');
+    Route::get('bursar/student_fee/invoice/{id}', 'studentFeeinvoice')->name('bursar.studentFeeinvoice');
+    Route::get('bursar/student_fee_manager/sync', 'feeSyncForm')->name('bursar.fee_manager.sync');
+    Route::post('bursar/student_fee_manager/sync', 'feeSyncGenerate')->name('bursar.fee_manager.sync.generate');
+    Route::get('bursar/offline_payment/pending', 'offline_payment_pending')->name('bursar.offline_payment_pending');
+    Route::get('bursar/student_fee/delete/{id}/{status}', 'update_offline_payment')->name('bursar.update_offline_payment');
+});
+
 //Warden routes are here
 Route::controller(WardenController::class)->middleware('warden', 'auth')->group(function () {
 

@@ -201,8 +201,12 @@ class StudentController extends Controller
         $student_details = (new CommonController)->get_student_details_by_id($student->id);
         $studentProfile = StudentProfile::where('user_id', $student->id)->first();
         $programme = $studentProfile?->programme_id ? Programme::find($studentProfile->programme_id) : null;
+        $school = \App\Models\School::find($student->school_id);
+        $cardNumber = \App\Support\IdCard::cardNumber($student);
+        $validFor = \App\Support\IdCard::validFor($student->school_id);
+        $qrDataUri = \App\Support\IdCard::qrDataUri($student);
 
-        return view('student.id_card', compact('student_details', 'programme'));
+        return view('student.id_card', compact('student_details', 'programme', 'school', 'cardNumber', 'validFor', 'qrDataUri'));
     }
 
     public function idCardPdf()
@@ -211,8 +215,12 @@ class StudentController extends Controller
         $student_details = (new CommonController)->get_student_details_by_id($student->id);
         $studentProfile = StudentProfile::where('user_id', $student->id)->first();
         $programme = $studentProfile?->programme_id ? Programme::find($studentProfile->programme_id) : null;
+        $school = \App\Models\School::find($student->school_id);
+        $cardNumber = \App\Support\IdCard::cardNumber($student);
+        $validFor = \App\Support\IdCard::validFor($student->school_id);
+        $qrDataUri = \App\Support\IdCard::qrDataUri($student);
 
-        $pdf = PDF::loadView('student.id_card_pdf', compact('student_details', 'programme'));
+        $pdf = PDF::loadView('student.id_card_pdf', compact('student_details', 'programme', 'school', 'cardNumber', 'validFor', 'qrDataUri'));
 
         return $pdf->download('ID_Card_' . preg_replace('/[^A-Za-z0-9_-]+/', '-', (string) ($student_details['code'] ?: $student->id)) . '.pdf');
     }
@@ -782,33 +790,54 @@ class StudentController extends Controller
 
     public function FeeManagerList(Request $request)
     {
-        $active_session            = get_school_settings(auth()->user()->school_id)->value('running_session');
+        $active_session = get_school_settings(auth()->user()->school_id)->value('running_session');
+        $student        = auth()->user();
 
         if (count($request->all()) > 0) {
-
             $data            = $request->all();
             $date            = explode('-', $data['eDateRange']);
             $date_from       = strtotime($date[0] . ' 00:00:00');
             $date_to         = strtotime($date[1] . ' 23:59:59');
             $selected_status = $data['status'];
 
-            if ($selected_status != "all") {
-                $invoices = StudentFeeManager::where('timestamp', '>=', $date_from)->where('timestamp', '<=', $date_to)->where('status', $selected_status)->where('student_id', auth()->user()->id)->where('session_id', $active_session)->get();
-            } else if ($selected_status == "all") {
-                $invoices = StudentFeeManager::where('timestamp', '>=', $date_from)->where('timestamp', '<=', $date_to)->where('school_id', auth()->user()->school_id)->where('student_id', auth()->user()->id)->where('session_id', $active_session)->get();
-            }
-
-            return view('student.fee_manager.student_fee_manager', ['invoices' => $invoices, 'date_from' => $date_from, 'date_to' => $date_to, 'selected_status' => $selected_status]);
+            $invoices = StudentFeeManager::where('timestamp', '>=', $date_from)
+                ->where('timestamp', '<=', $date_to)
+                ->where('student_id', $student->id)
+                ->where('school_id', $student->school_id)
+                ->where('session_id', $active_session)
+                ->when($selected_status !== 'all', fn ($q) => $q->where('status', $selected_status))
+                ->orderByDesc('timestamp')
+                ->get();
         } else {
-
-            $date_from       = strtotime(date('d-M-Y', strtotime(' -30 day')) . ' 00:00:00');
-            $date_to         = strtotime(date('d-M-Y') . ' 23:59:59');
+            // No filter applied yet — show every invoice this student has for
+            // the running session, not just the last 30 days. The previous
+            // default silently hid invoices older than 30 days behind a date
+            // range the page never explained, making a student with real,
+            // unpaid fees see "No data found" and assume they had none.
+            $date_from       = null;
+            $date_to         = null;
             $selected_status = "";
 
-            $invoices = StudentFeeManager::where('timestamp', '>=', $date_from)->where('timestamp', '<=', $date_to)->where('student_id', auth()->user()->id)->where('school_id', auth()->user()->school_id)->where('session_id', $active_session)->get();
-
-            return view('student.fee_manager.student_fee_manager', ['invoices' => $invoices, 'date_from' => $date_from, 'date_to' => $date_to, 'selected_status' => $selected_status]);
+            $invoices = StudentFeeManager::where('student_id', $student->id)
+                ->where('school_id', $student->school_id)
+                ->where('session_id', $active_session)
+                ->orderByDesc('timestamp')
+                ->get();
         }
+
+        $feeStructures = \App\Models\FeeStructure::whereIn('id', $invoices->pluck('fee_structure_id')->filter()->unique())
+            ->pluck('name', 'id');
+
+        $totalDue = (float) $invoices->sum(fn ($i) => max(0, (float) $i->total_amount - (float) $i->paid_amount));
+
+        return view('student.fee_manager.student_fee_manager', [
+            'invoices'        => $invoices,
+            'feeStructures'   => $feeStructures,
+            'totalDue'        => $totalDue,
+            'date_from'       => $date_from,
+            'date_to'         => $date_to,
+            'selected_status' => $selected_status,
+        ]);
     }
 
     public function feeManagerExport($date_from = "", $date_to = "", $selected_status = "")
@@ -995,10 +1024,11 @@ class StudentController extends Controller
         $data['name']  = $request->name;
         $data['email'] = $request->email;
 
-        $user_info['birthday'] = strtotime($request->eDefaultDateRange);
-        $user_info['gender']   = $request->gender;
-        $user_info['phone']    = $request->phone;
-        $user_info['address']  = $request->address;
+        $user_info['birthday']     = strtotime($request->eDefaultDateRange);
+        $user_info['gender']       = $request->gender;
+        $user_info['phone']        = $request->phone;
+        $user_info['address']      = $request->address;
+        $user_info['blood_group']  = $request->blood_group;
 
         if (empty($request->photo)) {
             $user_info['photo'] = $request->old_photo;

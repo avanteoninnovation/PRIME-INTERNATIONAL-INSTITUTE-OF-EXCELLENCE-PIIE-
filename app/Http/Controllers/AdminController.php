@@ -2153,8 +2153,16 @@ class AdminController extends Controller
 
     public function studentIdCardGenerate($id)
     {
+        $student = \App\Models\User::findOrFail($id);
         $student_details = (new CommonController)->get_student_details_by_id($id);
-        return view('admin.student.id_card', ['student_details' => $student_details]);
+        $studentProfile = \App\Models\StudentProfile::where('user_id', $id)->first();
+        $programme = $studentProfile?->programme_id ? \App\Models\Programme::find($studentProfile->programme_id) : null;
+        $school = \App\Models\School::find($student->school_id);
+        $cardNumber = \App\Support\IdCard::cardNumber($student);
+        $validFor = \App\Support\IdCard::validFor($student->school_id);
+        $qrDataUri = \App\Support\IdCard::qrDataUri($student);
+
+        return view('admin.student.id_card', compact('student_details', 'programme', 'school', 'cardNumber', 'validFor', 'qrDataUri'));
     }
     public function studentProfile($id)
     {

@@ -3,30 +3,187 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use App\Models\AuditLog;
 use App\Models\Classes;
+use App\Models\Programme;
 use App\Models\StudentFeeManager;
 use App\Models\Session;
 use App\Models\ExpenseCategory;
 use App\Models\Expense;
 use App\Models\Enrollment;
-use App\Models\user;
+use App\Models\StudentProfile;
+use App\Models\User;
 use App\Models\Noticeboard;
 use App\Models\FrontendEvent;
 use App\Models\MessageThrade;
 use App\Models\Chat;
+use App\Support\StudentFeeInvoiceGenerator;
 
 use Illuminate\Support\Facades\DB;
 
 class AccountantController extends Controller
 {
     /**
-     * Show the accountant dashboard.
+     * Show the accountant/bursar dashboard — real finance KPIs (invoiced,
+     * collected, outstanding, collection rate, per-class/programme
+     * breakdown, recent payments, biggest outstanding balances) instead of
+     * the previous generic Students/Teachers/Parents/Staff counts, which
+     * told a finance user nothing about the one thing their role owns:
+     * money. Also queried the dead, unused `enrollments` (plural) table —
+     * same bug this session already fixed on the student dashboard.
      *
      * @return \Illuminate\Contracts\Support\Renderable
      */
     public function accountantDashboard()
     {
-        return view('accountant.dashboard');
+        $schoolId = auth()->user()->school_id;
+        $activeSession = get_school_settings($schoolId)->value('running_session');
+
+        $invoices = StudentFeeManager::where('school_id', $schoolId)
+            ->where('session_id', $activeSession)
+            ->get();
+
+        $totalInvoiced = (float) $invoices->sum('total_amount');
+        $totalCollected = (float) $invoices->sum('paid_amount');
+        $totalOutstanding = (float) $invoices->sum(fn ($i) => max(0, (float) $i->total_amount - (float) $i->paid_amount));
+        $collectionRate = $totalInvoiced > 0 ? round($totalCollected / $totalInvoiced * 100, 1) : 0;
+
+        $statusCounts = [
+            'paid' => $invoices->where('status', 'paid')->count(),
+            'processing' => $invoices->where('status', 'processing')->count(),
+            'unpaid' => $invoices->where('status', 'unpaid')->count(),
+        ];
+
+        // Per-class breakdown (class_id = 0 is the "not class-based"
+        // sentinel for Programme-track students — excluded here, covered
+        // by the per-programme breakdown instead).
+        $classBreakdown = $invoices->where('class_id', '>', 0)
+            ->groupBy('class_id')
+            ->map(fn ($group, $classId) => [
+                'name' => Classes::find($classId)?->name ?? get_phrase('Unknown'),
+                'invoiced' => (float) $group->sum('total_amount'),
+                'collected' => (float) $group->sum('paid_amount'),
+                'outstanding' => (float) $group->sum(fn ($i) => max(0, (float) $i->total_amount - (float) $i->paid_amount)),
+            ])
+            ->sortByDesc('outstanding')
+            ->values();
+
+        $programmeBreakdown = $invoices->whereNotNull('programme_id')->where('programme_id', '>', 0)
+            ->groupBy('programme_id')
+            ->map(fn ($group, $programmeId) => [
+                'name' => Programme::find($programmeId)?->name ?? get_phrase('Unknown'),
+                'invoiced' => (float) $group->sum('total_amount'),
+                'collected' => (float) $group->sum('paid_amount'),
+                'outstanding' => (float) $group->sum(fn ($i) => max(0, (float) $i->total_amount - (float) $i->paid_amount)),
+            ])
+            ->sortByDesc('outstanding')
+            ->values();
+
+        $recentPayments = $invoices->where('paid_amount', '>', 0)
+            ->sortByDesc('timestamp')
+            ->take(8)
+            ->map(function ($invoice) {
+                $student = (new CommonController)->get_student_details_by_id($invoice->student_id);
+                return (object) [
+                    'invoice' => $invoice,
+                    'student_name' => $student['name'] ?? get_phrase('Unknown'),
+                ];
+            });
+
+        $topOutstanding = $invoices->groupBy('student_id')
+            ->map(function ($group, $studentId) {
+                $balance = (float) $group->sum(fn ($i) => max(0, (float) $i->total_amount - (float) $i->paid_amount));
+                $student = (new CommonController)->get_student_details_by_id($studentId);
+                return (object) [
+                    'student_id' => $studentId,
+                    'student_name' => $student['name'] ?? get_phrase('Unknown'),
+                    'class_name' => $student['class_name'] ?? null,
+                    'balance' => $balance,
+                ];
+            })
+            ->filter(fn ($row) => $row->balance > 0)
+            ->sortByDesc('balance')
+            ->take(8)
+            ->values();
+
+        return view('accountant.dashboard', compact(
+            'totalInvoiced',
+            'totalCollected',
+            'totalOutstanding',
+            'collectionRate',
+            'statusCounts',
+            'classBreakdown',
+            'programmeBreakdown',
+            'recentPayments',
+            'topOutstanding'
+        ));
+    }
+
+    /**
+     * "Sync Invoices" — a bulk action to backfill StudentFeeManager rows for
+     * students who never got any, either because they were admitted before
+     * a FeeStructure existed for their class/programme, or through a path
+     * that doesn't auto-generate invoices (see StudentFeeInvoiceGenerator's
+     * own docblock: it only fires at admission/conversion time, never
+     * retroactively). Reuses the exact same idempotent generator those call
+     * sites already use, so running this twice never double-invoices anyone.
+     */
+    public function feeSyncForm()
+    {
+        $schoolId = auth()->user()->school_id;
+        $classes = Classes::where('school_id', $schoolId)->orderBy('name')->get();
+        $programmes = Programme::where('school_id', $schoolId)->where('is_active', 1)->orderBy('name')->get();
+
+        return view('accountant.student_fee_manager.sync', compact('classes', 'programmes'));
+    }
+
+    public function feeSyncGenerate(Request $request)
+    {
+        $schoolId = auth()->user()->school_id;
+
+        $validated = $request->validate([
+            'target_type' => ['required', 'in:class,programme'],
+            'class_id' => ['nullable', 'required_if:target_type,class', 'integer'],
+            'programme_id' => ['nullable', 'required_if:target_type,programme', 'integer'],
+        ]);
+
+        $createdCount = 0;
+        $studentsAffected = 0;
+
+        if ($validated['target_type'] === 'class') {
+            $studentIds = Enrollment::where('school_id', $schoolId)
+                ->where('class_id', $validated['class_id'])
+                ->pluck('user_id');
+
+            foreach (User::whereIn('id', $studentIds)->where('role_id', 7)->get() as $student) {
+                $created = StudentFeeInvoiceGenerator::generateForClassBasedStudent($student, (int) $validated['class_id'], $schoolId);
+                if ($created) {
+                    $studentsAffected++;
+                    $createdCount += count($created);
+                }
+            }
+        } else {
+            $studentIds = StudentProfile::where('school_id', $schoolId)
+                ->where('programme_id', $validated['programme_id'])
+                ->pluck('user_id');
+
+            foreach (User::whereIn('id', $studentIds)->where('role_id', 7)->get() as $student) {
+                $created = StudentFeeInvoiceGenerator::generateForStudent($student, (int) $validated['programme_id'], $schoolId);
+                if ($created) {
+                    $studentsAffected++;
+                    $createdCount += count($created);
+                }
+            }
+        }
+
+        AuditLog::record('create', 'Student Fees', "Synced fee invoices: {$createdCount} invoice(s) created for {$studentsAffected} student(s).");
+
+        return redirect()->route('accountant.fee_manager.sync')->with(
+            'message',
+            $createdCount > 0
+                ? get_phrase("Created {$createdCount} invoice(s) for {$studentsAffected} student(s).")
+                : get_phrase('No new invoices were needed — every matching student already has one for each mandatory fee.')
+        );
     }
 
     /**

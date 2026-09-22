@@ -102,4 +102,69 @@ class StudentIdCardTest extends TestCase
         $response->assertOk();
         $response->assertSee('Not assigned');
     }
+
+    public function test_the_card_shows_a_card_number_and_embedded_qr_code(): void
+    {
+        $schoolId = $this->makeSchool();
+        $student = $this->makeStudent($schoolId, 'card.qr@example.com');
+
+        $response = $this->actingAs($student)->get(route('student.id_card'));
+
+        $response->assertOk();
+        $response->assertSee('PIIE-ID-' . str_pad((string) $student->id, 6, '0', STR_PAD_LEFT));
+        $response->assertSee('data:image/svg+xml;base64,', false);
+    }
+
+    public function test_the_qr_code_encodes_a_signed_verification_url_that_resolves(): void
+    {
+        $schoolId = $this->makeSchool();
+        $student = $this->makeStudent($schoolId, 'card.verifyflow@example.com');
+
+        $verifyUrl = \App\Support\IdCard::verifyUrl($student);
+
+        $response = $this->get($verifyUrl);
+
+        $response->assertOk();
+        $response->assertSee('Card Student');
+        $response->assertSee('VALID STUDENT ID');
+    }
+
+    public function test_a_tampered_verification_url_is_rejected(): void
+    {
+        $schoolId = $this->makeSchool();
+        $student = $this->makeStudent($schoolId, 'card.tampered@example.com');
+
+        $verifyUrl = \App\Support\IdCard::verifyUrl($student);
+        $tampered = $verifyUrl . '&tampered=1';
+
+        $this->get($tampered)->assertStatus(403);
+    }
+
+    public function test_verification_page_flags_a_disabled_students_id_as_not_active(): void
+    {
+        $schoolId = $this->makeSchool();
+        $student = $this->makeStudent($schoolId, 'card.disabled@example.com');
+        $student->update(['account_status' => 'disable']);
+
+        $verifyUrl = \App\Support\IdCard::verifyUrl($student);
+
+        $response = $this->get($verifyUrl);
+
+        $response->assertOk();
+        $response->assertSee('THIS ACCOUNT IS NOT ACTIVE');
+    }
+
+    public function test_verification_never_leaks_phone_or_blood_group(): void
+    {
+        $schoolId = $this->makeSchool();
+        $student = $this->makeStudent($schoolId, 'card.privacy@example.com');
+
+        $verifyUrl = \App\Support\IdCard::verifyUrl($student);
+
+        $response = $this->get($verifyUrl);
+
+        $response->assertOk();
+        $response->assertDontSee('0700000000');
+        $response->assertDontSee('O+');
+    }
 }
