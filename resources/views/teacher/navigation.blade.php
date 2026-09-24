@@ -3,7 +3,7 @@
 
 <head>
 	<!-- New -->
-    <title>{{ get_phrase('Teacher').' | '.get_settings('system_title') }}</title>
+    <title>{{ academic_term('teacher', auth()->user()->school_id).' | '.get_settings('system_title') }}</title>
     <!-- all the meta tags -->
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -143,7 +143,7 @@
 				<ul class="sub-menu">
 					<li><a class="{{ (request()->is('teacher/attendance*')) ? 'active' : '' }}" href="{{ route('teacher.daily_attendance') }}"><span>{{ get_phrase('Daily Attendance') }}</span></a></li>
 					<li><a class="{{ (request()->is('teacher/routine')) ? 'active' : '' }}" href="{{ route('teacher.routine') }}"><span>{{ get_phrase('Class Routine') }}</span></a></li>
-                    <li><a class="{{ (request()->is('teacher/subject')) ? 'active' : '' }}" href="{{ route('teacher.subject_list') }}"><span>{{ get_phrase('Subjects') }}</span></a></li>
+                    <li><a class="{{ (request()->is('teacher/subject')) ? 'active' : '' }}" href="{{ route('teacher.subject_list') }}"><span>{{ academic_term('subjects', auth()->user()->school_id) }}</span></a></li>
                     <li><a class="{{ (request()->is('teacher/gradebook')) ? 'active' : '' }}" href="{{ route('teacher.gradebook') }}"><span>{{ get_phrase('Gradebooks') }}</span></a></li>
                     <li>
                         <a class="{{ (request()->is('teacher/syllabus')) ? 'active' : '' }}" href="{{ route('teacher.list_of_syllabus') }}"><span>{{ get_phrase('Syllabus') }}</span></a>
@@ -575,7 +575,7 @@
                         </div>
                         <div class="px-2 text-start">
                           <span class="user-name">{{ auth()->user()->name }}</span>
-                          <span class="user-title">{{ get_phrase('Teacher') }}</span>
+                          <span class="user-title">{{ academic_term('teacher', auth()->user()->school_id) }}</span>
                         </div>
                       </button>
                       <ul
@@ -596,7 +596,7 @@
                             </div>
                             <div class="px-2 text-start">
                               <span class="user-name">{{ auth()->user()->name }}</span>
-                              <span class="user-title">{{ get_phrase('Teacher') }}</span>
+                              <span class="user-title">{{ academic_term('teacher', auth()->user()->school_id) }}</span>
                             </div>
                           </button>
                         </li>
@@ -693,7 +693,7 @@
           </div>
         </div>
         <div class="main_content">
-            @yield('content')
+                    @yield('content')
             <!-- Start Footer -->
             <div class="copyright-text">
               <?php $active_session = DB::table('sessions')->where('id',  get_settings('running_session'))->value('session_title'); ?>

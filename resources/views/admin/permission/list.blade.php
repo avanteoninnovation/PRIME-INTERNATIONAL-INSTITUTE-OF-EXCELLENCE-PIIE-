@@ -10,7 +10,7 @@ use App\Models\TeacherPermission;
 		<thead>
 		  <tr>
 		    <th scope="col">#</th>
-		    <th scope="col">{{ get_phrase('Teacher') }}</th>
+		    <th scope="col">{{ academic_term('teacher', auth()->user()->school_id) }}</th>
 		    <th scope="col">{{ get_phrase('Marks') }}</th>
 		    <th scope="col">{{ get_phrase('Attendance') }}</th>
 		</thead>

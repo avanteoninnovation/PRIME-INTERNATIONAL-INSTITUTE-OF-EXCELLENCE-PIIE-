@@ -31,6 +31,8 @@ class AuditLog extends Model
         'password', 'password_confirmation', 'remember_token',
         'token', 'api_token', 'api_key', 'secret', 'access_token',
         'refresh_token', 'card_number', 'cvv', 'cvc', 'pin',
+        // Staff records: never log a NIN (plain, encrypted or hashed) or a private document location.
+        'nin', 'nin_encrypted', 'nin_hash', 'storage_key',
     ];
 
     /**

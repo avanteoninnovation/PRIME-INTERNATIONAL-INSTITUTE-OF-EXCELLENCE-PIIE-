@@ -21,7 +21,9 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 
 Route::post('/login', [ApiController::class, 'login']);
 
-Route::group(['middleware', ['auth:sanctum']], function () {
+// Every endpoint below requires a Sanctum token (the array previously lacked the 'middleware' key,
+// so no auth middleware ran and anonymous calls reached the controller).
+Route::group(['middleware' => ['auth:sanctum']], function () {
     Route::post('/user_details', [ApiController::class, 'userDetails']);
     Route::post('/routine', [ApiController::class, 'routine']);
     Route::post('/attendance', [ApiController::class, 'attendanceReport']);
@@ -34,6 +36,7 @@ Route::group(['middleware', ['auth:sanctum']], function () {
     Route::post('/marks', [ApiController::class, 'marks']);
     Route::post('/profile_update', [ApiController::class, 'profile_update']);
     Route::post('/fee_list', [ApiController::class, 'fee_list']);
+    Route::post('/payment_link', [ApiController::class, 'paymentLink']);
     Route::post('/logout', [ApiController::class, 'logout']);
     Route::post('/account_delete', [ApiController::class, 'account_delete']);
     Route::post('/change_profile_photo', [ApiController::class, 'change_profile_photo']);

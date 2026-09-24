@@ -30,12 +30,7 @@ trait StaffModuleTestHelper
             $table->string('staff_status', 20)->nullable();
         });
 
-        Schema::create('departments', function (Blueprint $table) {
-            $table->id();
-            $table->string('name');
-            $table->integer('school_id');
-            $table->timestamps();
-        });
+        // departments is already created by AdmissionsTestHelper::bootAdmissionsTestSchema().
 
         Schema::create('designations', function (Blueprint $table) {
             $table->id();

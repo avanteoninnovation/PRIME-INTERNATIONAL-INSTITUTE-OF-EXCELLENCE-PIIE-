@@ -5,7 +5,7 @@
         <div class="form-row">
 
             <div class="fpb-7">
-                <label for="class_id_on_edit" class="eForm-label">{{ get_phrase('Class') }} <small>({{ get_phrase('for K-12 subjects') }})</small></label>
+                <label for="class_id_on_edit" class="eForm-label">{{ academic_term('class', auth()->user()->school_id) }} <small>({{ get_phrase('for K-12 subjects') }})</small></label>
                 <select name="class_id" id="class_id_on_edit" class="form-select eForm-select eChoice-multiple-with-remove">
                     <option value="">{{ get_phrase('Select a class') }}</option>
                         @foreach($classes as $class)
@@ -15,7 +15,7 @@
             </div>
 
             <div class="fpb-7">
-                <label for="programme_id_on_edit" class="eForm-label">{{ get_phrase('Programme') }} <small>({{ get_phrase('for HEI courses') }})</small></label>
+                <label for="programme_id_on_edit" class="eForm-label">{{ academic_term('programme', auth()->user()->school_id) }} <small>({{ get_phrase('for HEI courses') }})</small></label>
                 <select name="programme_id" id="programme_id_on_edit" class="form-select eForm-select eChoice-multiple-with-remove">
                     <option value="">{{ get_phrase('Select a programme') }}</option>
                         @foreach($programmes as $programme)

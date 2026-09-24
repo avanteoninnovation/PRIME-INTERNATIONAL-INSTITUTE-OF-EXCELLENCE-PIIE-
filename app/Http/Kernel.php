@@ -75,6 +75,8 @@ class Kernel extends HttpKernel
         'is_installed'     => \App\Http\Middleware\IsInstalled::class,
         'alumni'           => \App\Http\Middleware\AlumniMiddleware::class,
         'admin_permission' => \App\Http\Middleware\AdminPermission::class,
+        'school_admin'     => \App\Http\Middleware\SchoolAdminMiddleware::class,
+        'rbac'             => \App\Http\Middleware\EnforceRoutePermission::class,
         'registrar'        => \App\Http\Middleware\RegistrarMiddleware::class,
         'bursar'           => \App\Http\Middleware\BursarMiddleware::class,
         'hod'              => \App\Http\Middleware\HodMiddleware::class,

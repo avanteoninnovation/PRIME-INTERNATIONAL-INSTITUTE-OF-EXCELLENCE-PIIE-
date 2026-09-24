@@ -24,7 +24,7 @@
             </div>
 
             <div class="fpb-7">
-                <label for="programme_id" class="eForm-label">{{ get_phrase('Programme') }}</label>
+                <label for="programme_id" class="eForm-label">{{ academic_term('programme', auth()->user()->school_id) }}</label>
                 <select name="programme_id" id="programme_id" class="form-select eForm-select eChoice-multiple-with-remove">
                     <option value="">{{ get_phrase('Select a programme') }}</option>
                     @foreach($programmes as $programme)
@@ -86,6 +86,7 @@
 
             <div class="fpb-7">
                 <label for="class_id" class="eForm-label">{{ get_phrase("Class") }}</label>
+                <small class="text-muted d-block">{{ get_phrase('Students enrolled in this class can access matching class-targeted online exams.') }}</small>
                 <select name="class_id" id="class_id" class="form-select eForm-select eChoice-multiple-with-remove" required onchange="classWiseSection(this.value)">
                     <option value="">{{ get_phrase("Select a class") }}</option>
                     @foreach($classes as $class)
@@ -95,11 +96,28 @@
             </div>
 
             <div class="fpb-7">
-                <label for="section_id"  class="eForm-label">{{ get_phrase("Section") }}</label>
-                <select name="section_id" id="section_id" class="form-select eForm-select eChoice-multiple-with-remove" required >
-                    <option value="">{{ get_phrase("First select a class") }}</option>
+                <label for="section_id"  class="eForm-label">{{ get_phrase("Class Section (optional)") }}</label>
+                <select name="section_id" id="section_id" class="form-select eForm-select eChoice-multiple-with-remove" >
+                    <option value="">{{ get_phrase("No section / whole class") }}</option>
                 </select>
             </div>
+
+            <div class="fpb-7">
+                <label for="session_id" class="eForm-label">{{ academic_term('session', auth()->user()->school_id) }}</label>
+                <select name="session_id" id="session_id" class="form-select eForm-select">
+                    <option value="">{{ get_phrase('Use current running session') }}</option>
+                    @foreach($sessions as $session)<option value="{{ $session->id }}">{{ $session->name ?? $session->session_title ?? ('Session '.$session->id) }}</option>@endforeach
+                </select>
+            </div>
+            @if($departments->count())
+            <div class="fpb-7">
+                <label for="department_id" class="eForm-label">{{ get_phrase('Department (optional)') }}</label>
+                <select name="department_id" id="department_id" class="form-select eForm-select">
+                    <option value="">{{ get_phrase('No department') }}</option>
+                    @foreach($departments as $department)<option value="{{ $department->id }}">{{ $department->name }}</option>@endforeach
+                </select>
+            </div>
+            @endif
 
             <div class="fpb-7">
                 <label for="birthdatepicker" class="eForm-label">{{ get_phrase('Birthday') }}<span class="required"></span></label>

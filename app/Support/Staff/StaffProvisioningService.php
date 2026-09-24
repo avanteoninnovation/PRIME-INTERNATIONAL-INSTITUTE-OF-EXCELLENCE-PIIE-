@@ -1,0 +1,289 @@
+<?php
+
+namespace App\Support\Staff;
+
+use App\Mail\NewUserEmail;
+use App\Models\User;
+use App\Support\ProfilePhoto;
+use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
+
+/**
+ * The one place a staff member's login account is created.
+ *
+ * Extracted verbatim from the five AdminController create handlers (Admin,
+ * Teacher, Accountant, Librarian, Warden), which differed only in role_id and
+ * the Admin-only school_role marker. Those handlers now call provision() and
+ * behave exactly as before (StaffCreationCharacterizationTest pins it). The
+ * professional staff workflow will call the same method and pass $withinTransaction
+ * to write the staff profile / qualifications / registrations / experience /
+ * document metadata in the SAME transaction as the user.
+ *
+ * users stays the authoritative staff identity: name, email, role_id (base
+ * role), school_id, department/designation, employment type, staff status,
+ * staff number (STF-YYYY-XXXX-XXXX) and the user_information JSON live there
+ * and are never copied elsewhere. One person = one user account; additional
+ * responsibilities are RBAC custom roles, never another user.
+ *
+ * Credentials are emailed only after the transaction has committed, so a
+ * rolled-back creation never sends a password for an account that does not exist.
+ */
+class StaffProvisioningService
+{
+    public const PHOTO_ERROR = 'Profile photo must be a JPG or PNG image of at most 4 MB.';
+    public const DUPLICATE_EMAIL_ERROR = 'Email was already taken.';
+
+    /** The base roles that have a staff creation workflow (role_id => key). */
+    public const BASE_ROLES = [2 => 'admin', 3 => 'teacher', 4 => 'accountant', 5 => 'librarian', 10 => 'warden'];
+
+    private const SCHOOL_ADMIN = 2;
+
+    /** HR Manager, as defined by SchoolAdminMiddleware's 'school_admin:hr' scope. */
+    private const HR_MANAGER = 15;
+
+    /**
+     * Base roles $actor may create — mirrors the guards on the existing create
+     * routes: Admin needs 'school_admin' (role 2); the other four 'school_admin:hr'
+     * (role 2 or HR Manager 15). Disabled or portal-blocked accounts create nothing.
+     *
+     * @return int[]
+     */
+    public static function creatableRoleIds(?User $actor): array
+    {
+        if (!$actor || $actor->account_status === 'disable' || $actor->isStaffPortalBlocked()) {
+            return [];
+        }
+
+        return match ((int) $actor->role_id) {
+            self::SCHOOL_ADMIN => array_keys(self::BASE_ROLES),
+            self::HR_MANAGER => [3, 4, 5, 10],
+            default => [],
+        };
+    }
+
+    /**
+     * Creates a staff user of $roleId in $schoolId from the staff form fields.
+     *
+     * @param  callable(User): void|null  $withinTransaction  extra writes that must commit or roll back with the user
+     * @throws StaffProvisioningException  with the exact user-facing message of the original handlers
+     */
+    public function provision(int $roleId, array $data, int $schoolId, ?callable $withinTransaction = null): User
+    {
+        if (!array_key_exists($roleId, self::BASE_ROLES)) {
+            throw new \InvalidArgumentException("Role {$roleId} has no staff creation workflow.");
+        }
+
+        // Order preserved from the original handlers: photo first, then the duplicate-email check.
+        $photo = '';
+        if (!empty($data['photo'])) {
+            $photo = ProfilePhoto::store($data['photo']);
+            if ($photo === null) {
+                throw new StaffProvisioningException(self::PHOTO_ERROR);
+            }
+        }
+
+        $info = [
+            'gender' => $data['gender'],
+            'blood_group' => $data['blood_group'],
+            'birthday' => strtotime($data['birthday']),
+            'phone' => $data['phone'],
+            'address' => $data['address'],
+            'photo' => $photo,
+        ];
+        if ($roleId === 2) {
+            $info['school_role'] = 0;   // Admin flow marker (the users.school_role column is left untouched)
+        }
+
+        // Same (case-sensitive, collection-based) duplicate check as the original handlers.
+        if (count(User::get()->where('email', $data['email'])) !== 0) {
+            throw new StaffProvisioningException(self::DUPLICATE_EMAIL_ERROR);
+        }
+
+        $password = self::resolvePassword($data);
+
+        $user = DB::transaction(function () use ($data, $roleId, $schoolId, $info, $password, $withinTransaction) {
+            $user = User::create(array_merge(self::staffFields($data), [
+                'email' => $data['email'],
+                'password' => Hash::make($password['plain']),
+                'role_id' => (string) $roleId,
+                'school_id' => $schoolId,
+                'user_information' => json_encode($info),
+                'status' => 1,
+                'code' => staff_code(),
+                'staff_status' => StaffStatus::ACTIVE,
+                'force_password_change' => $password['force_change'],
+            ]));
+
+            if ($withinTransaction) {
+                $withinTransaction($user);
+            }
+
+            return $user;
+        });
+
+        // Only reached after COMMIT.
+        $this->sendCredentials($user->email, $user->name, $password['plain']);
+
+        return $user;
+    }
+
+    /**
+     * Professional staff creation (the future full-page workflow): the user AND all
+     * professional records commit together or not at all; credentials are emailed
+     * only after COMMIT; any file already stored is deleted if anything fails.
+     *
+     * $account      the same fields as the existing forms (first/last name, email, phone,
+     *               gender, birthday, address, photo, department/designation, employment
+     *               type, password_mode/password)
+     * $profile      StaffRecordService::profileRules() fields + 'nin' (REQUIRED for new staff)
+     * $documents    [['category' => …, 'file' => UploadedFile, 'ref' => optional key], …]
+     * $qualifications / $registrations may point at one of those documents with
+     *               'evidence_document_ref' => the document's 'ref' (or list index)
+     *
+     * @throws AuthorizationException  actor may not create this base role
+     * @throws StaffRecordException     invalid input (nothing was created)
+     * @throws StaffProvisioningException  bad photo / email taken (nothing was created)
+     */
+    public function provisionProfessional(User $actor, int $roleId, array $account, array $profile, array $qualifications = [],
+        array $registrations = [], array $experiences = [], array $documents = []): User
+    {
+        if (!in_array($roleId, self::creatableRoleIds($actor), true)) {
+            throw new AuthorizationException('You may not create this type of staff member.');
+        }
+
+        $this->validateProfessional($account, $profile, $qualifications, $registrations, $experiences, $documents);
+        $account += ['gender' => '', 'blood_group' => '', 'birthday' => '', 'phone' => '', 'address' => ''];
+
+        $storedKeys = [];
+        try {
+            return $this->provision($roleId, $account, (int) $actor->school_id,
+                function (User $user) use ($actor, $profile, $qualifications, $registrations, $experiences, $documents, &$storedKeys) {
+                    $records = app(StaffRecordService::class);
+
+                    $documentIds = [];
+                    foreach ($documents as $index => $document) {
+                        $stored = $records->uploadDocument($actor, $user, $document['file'], (string) $document['category'], true);
+                        $storedKeys[] = $stored->storage_key;
+                        $documentIds[(string) ($document['ref'] ?? $index)] = $stored->id;
+                    }
+                    $withEvidence = function (array $row) use ($documentIds): array {
+                        if (isset($row['evidence_document_ref'])) {
+                            $row['evidence_document_id'] = $documentIds[(string) $row['evidence_document_ref']]
+                                ?? throw new StaffRecordException('An evidence document reference does not match an uploaded document.');
+                        }
+                        unset($row['evidence_document_ref']);
+
+                        return $row;
+                    };
+
+                    $records->saveProfile($actor, $user, $profile, true);
+                    foreach ($qualifications as $row) {
+                        $records->addQualification($actor, $user, $withEvidence($row), true);
+                    }
+                    foreach ($registrations as $row) {
+                        $records->addRegistration($actor, $user, $withEvidence($row), true);
+                    }
+                    foreach ($experiences as $row) {
+                        $records->addExperience($actor, $user, $row, true);
+                    }
+                });
+        } catch (\Throwable $e) {
+            foreach ($storedKeys as $key) {
+                StaffDocumentStorage::delete($key);
+            }
+            throw $e;
+        }
+    }
+
+    /** Everything that can be checked before anything is written. */
+    private function validateProfessional(array $account, array $profile, array $qualifications, array $registrations, array $experiences, array $documents): void
+    {
+        $errors = [];
+        $check = function (array $data, array $rules, string $prefix) use (&$errors) {
+            $validator = Validator::make(array_intersect_key($data, $rules), $rules);
+            foreach ($validator->errors()->toArray() as $field => $messages) {
+                $errors[$prefix . $field] = $messages[0];
+            }
+        };
+
+        $check($account, [
+            'first_name' => ['required', 'string', 'max:100'],
+            'last_name' => ['required', 'string', 'max:100'],
+            'email' => ['required', 'email', 'max:191'],
+            'phone' => ['required', 'string', 'max:50'],
+        ], '');
+        if (!StaffNin::isValid($profile['nin'] ?? null)) {
+            $errors['nin'] = 'A valid NIN (5 to 30 letters or digits) is required.';
+        }
+        $check($profile, StaffRecordService::profileRules(), '');
+        foreach ($qualifications as $i => $row) {
+            $check($row, StaffRecordService::qualificationRules(), "qualifications.{$i}.");
+        }
+        foreach ($registrations as $i => $row) {
+            $check($row, StaffRecordService::registrationRules(), "registrations.{$i}.");
+        }
+        foreach ($experiences as $i => $row) {
+            $check($row, StaffRecordService::experienceRules(), "experiences.{$i}.");
+        }
+        foreach ($documents as $i => $document) {
+            if (!array_key_exists((string) ($document['category'] ?? ''), \App\Models\StaffDocument::CATEGORIES) || !($document['file'] ?? null) instanceof UploadedFile) {
+                $errors["documents.{$i}"] = 'Each document needs a valid category and a file.';
+            }
+        }
+
+        if ($errors) {
+            throw new StaffRecordException('Some staff details are missing or invalid.', $errors);
+        }
+    }
+
+    /**
+     * Shared Staff Module field prep: split-name recombination plus
+     * department/designation FK and employment type. Used by every
+     * staff-role create/update so the five roles stay consistent.
+     */
+    public static function staffFields(array $data): array
+    {
+        $firstName = trim($data['first_name'] ?? '');
+        $lastName = trim($data['last_name'] ?? '');
+
+        return [
+            'name' => trim("{$firstName} {$lastName}"),
+            'first_name' => $firstName !== '' ? $firstName : null,
+            'last_name' => $lastName !== '' ? $lastName : null,
+            'department_id' => $data['department_id'] ?? null,
+            'designation_id' => $data['designation_id'] ?? null,
+            'employment_type' => $data['employment_type'] ?? null,
+        ];
+    }
+
+    /**
+     * An auto-generated temporary password (forces a change on first login) or
+     * an administrator-chosen one (no forced change). The plaintext only lives
+     * in memory long enough to hash and email — never persisted or logged.
+     */
+    public static function resolvePassword(array $data): array
+    {
+        if (($data['password_mode'] ?? 'auto') === 'manual' && !empty($data['password'])) {
+            return ['plain' => $data['password'], 'force_change' => false];
+        }
+
+        return ['plain' => Str::random(10), 'force_change' => true];
+    }
+
+    /** Emails login credentials when SMTP is configured (otherwise silently skipped, as before). */
+    public function sendCredentials(string $email, string $name, string $plainPassword): void
+    {
+        if (!empty(get_settings('smtp_user')) && get_settings('smtp_pass') && get_settings('smtp_host') && get_settings('smtp_port')) {
+            \App\Support\Mail\SafeMail::send($email, new NewUserEmail([
+                'name' => $name,
+                'email' => $email,
+                'password' => $plainPassword,
+            ]), 'staff-credentials');
+        }
+    }
+}

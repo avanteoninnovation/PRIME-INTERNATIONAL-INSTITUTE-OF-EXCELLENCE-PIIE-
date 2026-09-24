@@ -111,7 +111,7 @@ class SubscriptionActivator
         School::where('id', $payment_history->school_id)->update(['status' => 1]);
 
         if (! empty(get_settings('smtp_user')) && get_settings('smtp_pass') && get_settings('smtp_host') && get_settings('smtp_port') && $school_email) {
-            Mail::to($school_email)->send(new SuperAdminAproved($subscriptionsmail));
+            \App\Support\Mail\SafeMail::send($school_email, new SuperAdminAproved($subscriptionsmail), 'subscription-approved');
         }
     }
 }

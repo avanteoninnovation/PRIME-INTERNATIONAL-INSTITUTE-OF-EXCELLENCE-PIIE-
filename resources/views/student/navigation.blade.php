@@ -149,7 +149,7 @@
                             href="{{ route('student.routine') }}"><span>{{ get_phrase('Class Routine') }}</span></a>
                     </li>
                     <li><a class="{{ request()->is('student/subject*') ? 'active' : '' }}"
-                            href="{{ route('student.subject_list') }}"><span>{{ get_phrase('Subjects') }}</span></a>
+                            href="{{ route('student.subject_list') }}"><span>{{ academic_term('subjects', auth()->user()->school_id) }}</span></a>
                     </li>
                     <li><a class="{{ request()->is('student/syllabus*') ? 'active' : '' }}"
                             href="{{ route('student.syllabus') }}"><span>{{ get_phrase('Syllabus') }}</span></a></li>
@@ -367,12 +367,12 @@
                             </svg>
                         </div>
                         @php
-
-                            $notice_count = DB::table('noticeboard')
-                                ->where('school_id', auth()->user()->school_id)
-                                ->whereDate('start_date', '>', now()->toDateString())
-                                ->count();
-
+                            $notice_count = \Illuminate\Support\Facades\Schema::hasTable('noticeboard')
+                                ? DB::table('noticeboard')
+                                    ->where('school_id', auth()->user()->school_id)
+                                    ->whereDate('start_date', '>', now()->toDateString())
+                                    ->count()
+                                : 0;
                         @endphp
                         @if ($notice_count > 0)
                             <span class="link_name">{{ get_phrase('Back Office') }}</span>
@@ -442,13 +442,15 @@
 
                 <ul class="sub-menu">
                     @php
-                        $hasApplications = \App\Models\HostelApplication::where('student_id', auth()->user()->id)
-                            ->where('school_id', auth()->user()->school_id)
-                            ->exists();
+                        $hasApplications = \Illuminate\Support\Facades\Schema::hasTable('hostel_applications')
+                            && \App\Models\HostelApplication::where('student_id', auth()->user()->id)
+                                ->where('school_id', auth()->user()->school_id)
+                                ->exists();
 
-                        $hasHostelFees = \App\Models\HostelFee::where('student_id', auth()->user()->id)
-                            ->where('school_id', auth()->user()->school_id)
-                            ->exists();
+                        $hasHostelFees = \Illuminate\Support\Facades\Schema::hasTable('hostel_fees')
+                            && \App\Models\HostelFee::where('student_id', auth()->user()->id)
+                                ->where('school_id', auth()->user()->school_id)
+                                ->exists();
                     @endphp
 
                     @if (empty($user->menu_permission) || in_array('student.hostel.applications', $menu_permission))

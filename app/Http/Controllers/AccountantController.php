@@ -20,6 +20,8 @@ use App\Models\Chat;
 use App\Support\StudentFeeInvoiceGenerator;
 
 use Illuminate\Support\Facades\DB;
+use App\Support\ProfilePhoto;
+use App\Support\Audit\StatusChangeAudit;
 
 class AccountantController extends Controller
 {
@@ -260,18 +262,15 @@ class AccountantController extends Controller
 
             $csv_content .= $invoice_no . ', ' . $student_details['name'] . ', ' . $student_details['class_name'] . ', ' . $invoice['title'] . ', ' . currency($invoice['total_amount']) . ', ' . date('d-M-Y', $invoice['timestamp']) . ', ' . currency($invoice['paid_amount']) . ', ' . $invoice['status'];
         }
-        $txt = fopen($file, "w") or die("Unable to open file!");
-        fwrite($txt, $csv_content);
-        fclose($txt);
-
-        header('Content-Description: File Transfer');
-        header('Content-Disposition: attachment; filename=' . $file);
-        header('Expires: 0');
-        header('Cache-Control: must-revalidate');
-        header('Pragma: public');
-        header('Content-Length: ' . filesize($file));
-        header("Content-type: text/csv");
-        readfile($file);
+        // Security Phase 2F: streamed to the requester — no copy is written to
+        // the working directory (public/ under a web server) any more.
+        return response($csv_content, 200, [
+            'Content-Type'        => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="' . str_replace(['"', '/', '\\'], '', $file) . '"',
+            'Cache-Control'       => 'must-revalidate',
+            'Expires'             => '0',
+            'Pragma'              => 'public',
+        ]);
 
     }
 
@@ -311,6 +310,20 @@ class AccountantController extends Controller
         }
     }
 
+    /**
+     * Security Phase 2E: a fee/invoice (student_fee_managers row) reached by
+     * id must belong to the caller's own school.
+     */
+    private function findSchoolFeeOrFail($id): StudentFeeManager
+    {
+        return StudentFeeManager::where('id', $id)->where('school_id', auth()->user()->school_id)->firstOrFail();
+    }
+
+    /** Security Phase 2E: true when $studentId is a student (role 7) in the caller's own school. */
+    private function isSchoolStudent($studentId): bool
+    {
+        return User::where('id', $studentId)->where('school_id', auth()->user()->school_id)->where('role_id', 7)->exists();
+    }
     public function feeManagerCreate(Request $request, $value="")
     {
         $data = $request->all();
@@ -328,6 +341,9 @@ class AccountantController extends Controller
             }
 
 
+            if (!$this->isSchoolStudent($data['student_id'] ?? null)) {
+                return back()->with('error', 'Student not found.');
+            }
             $parent_id=User::find($data['student_id'])->toArray();
             $parent_id=$parent_id['parent_id'];
             $data['parent_id'] = $parent_id;
@@ -362,6 +378,7 @@ class AccountantController extends Controller
 
             $enrolments = Enrollment::where('class_id', $data['class_id'])
             ->where('section_id', $data['section_id'])
+            ->where('school_id', auth()->user()->school_id)
             ->get();
 
 
@@ -405,6 +422,7 @@ class AccountantController extends Controller
 
     public function editFeeManager($id='')
     {
+        $this->findSchoolFeeOrFail($id);
         $invoice_details = StudentFeeManager::find($id);
         // class_id 0 is the "not class-based" sentinel used for
         // Programme-track invoices (see StudentFeeInvoiceGenerator) — every
@@ -426,6 +444,10 @@ class AccountantController extends Controller
         $data = $request->all();
 
         /*GET THE PREVIOUS INVOICE DETAILS FOR GETTING THE PAID AMOUNT*/
+        $this->findSchoolFeeOrFail($id);
+        if (!$this->isSchoolStudent($data['student_id'] ?? null)) {
+            return redirect()->back()->with('error', 'Student not found.');
+        }
         $previous_invoice_data = StudentFeeManager::find($id);
 
         if ($data['paid_amount'] > $data['total_amount']) {
@@ -463,6 +485,7 @@ class AccountantController extends Controller
 
     public function studentFeeDelete($id)
     {
+        $this->findSchoolFeeOrFail($id);
         $invoice = StudentFeeManager::find($id);
         $invoice->delete();
         return redirect()->back()->with('message','You have successfully delete invoice.');
@@ -510,6 +533,7 @@ class AccountantController extends Controller
 
     public function update_offline_payment($id,$status)
     {
+        $feeBefore = $this->findSchoolFeeOrFail($id);
         $invoice = StudentFeeManager::find($id);
         if (!$invoice) {
             return redirect()->back()->with('error', 'Invoice not found.');
@@ -525,6 +549,7 @@ class AccountantController extends Controller
                 'paid_amount' =>$amount,
                 'payment_method' => 'offline']);
 
+                StatusChangeAudit::feePayment($feeBefore, 'approved');
                 return redirect()->back()->with('message','Payment Approved');
         }
         elseif($status=='decline')
@@ -535,6 +560,7 @@ class AccountantController extends Controller
                 'paid_amount' =>$amount,
                 'payment_method' => 'offline']);
 
+                StatusChangeAudit::feePayment($feeBefore, 'declined');
                 return redirect()->back()->with('message','Payment Decline');
 
 
@@ -545,6 +571,7 @@ class AccountantController extends Controller
 
     public function studentFeeinvoice(Request $request, $id)
     {
+        $this->findSchoolFeeOrFail($id);
         $invoice_details=StudentFeeManager::find($id)->toArray();
         $student_details = (new CommonController)->get_student_details_by_id($invoice_details['student_id'])->toArray();
 
@@ -569,7 +596,7 @@ class AccountantController extends Controller
             $expense_category_id = $data['expense_category_id'];
 
             $expense_categories = ExpenseCategory::where('school_id', auth()->user()->school_id)->get();
-            $selected_category = ExpenseCategory::find($expense_category_id);
+            $selected_category = ExpenseCategory::where('school_id', auth()->user()->school_id)->find($expense_category_id);
             if($expense_category_id != 'all'){
                 $expenses = Expense::where('date', '>=', $date_from)->where('date', '<=', $date_to)->where(['expense_category_id' => $expense_category_id, 'school_id' => auth()->user()->school_id])->get();
             } else {
@@ -613,7 +640,7 @@ class AccountantController extends Controller
 
     public function editExpense($id)
     {
-        $expense_details = Expense::find($id);
+        $expense_details = Expense::where('school_id', auth()->user()->school_id)->findOrFail($id);
         $expense_categories = ExpenseCategory::where('school_id', auth()->user()->school_id)->get();
         return view('accountant.expenses.edit', ['expense_categories' => $expense_categories, 'expense_details' => $expense_details]);
     }
@@ -624,7 +651,7 @@ class AccountantController extends Controller
 
         $active_session = get_school_settings(auth()->user()->school_id)->value('running_session');
 
-        Expense::where('id', $id)->update([
+        Expense::where('id', $id)->where('school_id', auth()->user()->school_id)->update([
             'expense_category_id' => $data['expense_category_id'],
             'date' => strtotime($data['date']),
             'amount' => $data['amount'],
@@ -637,7 +664,7 @@ class AccountantController extends Controller
 
     public function expenseDelete($id)
     {
-        $expense = Expense::find($id);
+        $expense = Expense::where('school_id', auth()->user()->school_id)->findOrFail($id);
         $expense->delete();
         return redirect()->back()->with('message','You have successfully delete expense.');
     }
@@ -685,7 +712,7 @@ class AccountantController extends Controller
 
     public function editExpenseCategory($id)
     {
-        $expense_category = ExpenseCategory::find($id);
+        $expense_category = ExpenseCategory::where('school_id', auth()->user()->school_id)->findOrFail($id);
         return view('accountant.expense_category.edit', ['expense_category' => $expense_category]);
     }
 
@@ -699,7 +726,7 @@ class AccountantController extends Controller
 
             $active_session = get_school_settings(auth()->user()->school_id)->value('running_session');
 
-            ExpenseCategory::where('id', $id)->update([
+            ExpenseCategory::where('id', $id)->where('school_id', auth()->user()->school_id)->update([
                 'name' => $data['name'],
                 'school_id' => auth()->user()->school_id,
                 'session_id' => $active_session,
@@ -715,7 +742,7 @@ class AccountantController extends Controller
 
     public function expenseCategoryDelete($id)
     {
-        $expense_category = ExpenseCategory::find($id);
+        $expense_category = ExpenseCategory::where('school_id', auth()->user()->school_id)->findOrFail($id);
         $expense_category->delete();
         return redirect()->back()->with('message','You have successfully delete expense category.');
     }
@@ -727,6 +754,10 @@ class AccountantController extends Controller
     function profile_update(Request $request){
         $data['name'] = $request->name;
         $data['email'] = $request->email;
+        // Security Phase 2F: a self-service profile edit must not claim another account's login email.
+        if (User::where('email', $request->email)->where('id', '!=', auth()->user()->id)->exists()) {
+            return redirect()->back()->with('error', 'Email was already taken.');
+        }
         $data['designation'] = $request->designation;
         
         $user_info['birthday'] = strtotime($request->eDefaultDateRange);
@@ -738,10 +769,11 @@ class AccountantController extends Controller
         if(empty($request->photo)){
             $user_info['photo'] = $request->old_photo;
         }else{
-            $file_name = random(10).'.png';
+            $file_name = ProfilePhoto::store($request->photo);
+            if ($file_name === null) {
+                return redirect()->back()->with('error', 'Profile photo must be a JPG or PNG image of at most 4 MB.');
+            }
             $user_info['photo'] = $file_name;
-
-            $request->photo->move(public_path('assets/uploads/user-images/'), $file_name);
         }
 
         $data['user_information'] = json_encode($user_info);
@@ -844,7 +876,7 @@ class AccountantController extends Controller
 
     public function editNoticeboard($id = "")
     {
-        $notice = Noticeboard::find($id);
+        $notice = Noticeboard::where('school_id', auth()->user()->school_id)->findOrFail($id);
         return view('accountant.noticeboard.edit', ['notice' => $notice]);
     }
 

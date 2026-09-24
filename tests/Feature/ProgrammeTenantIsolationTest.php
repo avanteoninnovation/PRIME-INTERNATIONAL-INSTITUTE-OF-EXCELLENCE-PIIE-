@@ -21,12 +21,6 @@ class ProgrammeTenantIsolationTest extends TestCase
     {
         parent::setUp();
         $this->bootAdmissionsTestSchema();
-        Schema::create('departments', function (Blueprint $table) {
-            $table->id();
-            $table->string('name');
-            $table->integer('school_id');
-            $table->timestamps();
-        });
     }
 
     public function test_admin_cannot_open_another_schools_programme_edit_modal(): void

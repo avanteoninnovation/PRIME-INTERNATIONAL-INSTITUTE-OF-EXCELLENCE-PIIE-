@@ -37,7 +37,8 @@ class GraduationController extends Controller
 
         $programmes = Programme::where('school_id', $this->school_id)->orderBy('name')->get();
         $years      = range(date('Y'), date('Y') - 5);
-        return view('admin.graduation.index', compact('apps', 'programmes', 'year', 'status', 'years'));
+        // The view reads $applications (it previously received $apps and crashed).
+        return view('admin.graduation.index', ['applications' => $apps] + compact('programmes', 'year', 'status', 'years'));
     }
 
     public function openApplyModal(Request $request)
@@ -45,7 +46,7 @@ class GraduationController extends Controller
         $id         = $request->id;
         $app        = $id ? GraduationApplication::where('school_id', $this->school_id)->findOrFail($id) : null;
         $programmes = Programme::where('school_id', $this->school_id)->where('is_active', 1)->orderBy('name')->get();
-        $students   = User::where('school_id', $this->school_id)->where('role_id', 4)->orderBy('name')->get();
+        $students   = User::where('school_id', $this->school_id)->where('role_id', 7)->orderBy('name')->get();   // 7 = Student (4 is Accountant)
         return view('admin.graduation.modal', compact('app', 'programmes', 'students'));
     }
 

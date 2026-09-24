@@ -25,11 +25,6 @@ class StaffViewedIdCardTest extends TestCase
         parent::setUp();
         $this->bootAdmissionsTestSchema();
 
-        Schema::create('roles', function (Blueprint $table) {
-            $table->increments('role_id');
-            $table->string('name');
-            $table->unsignedBigInteger('school_id')->default(0);
-        });
         DB::table('roles')->insert(['role_id' => 7, 'name' => 'Student', 'school_id' => 0]);
     }
 
@@ -89,5 +84,32 @@ class StaffViewedIdCardTest extends TestCase
         $response->assertOk();
         $response->assertSee('Viewed Student');
         $response->assertSee('PIIE-ID-' . str_pad((string) $student->id, 6, '0', STR_PAD_LEFT));
+    }
+
+    /** Security Phase 2G: a parent's ID card view is limited to their own children in their own school. */
+    public function test_parent_cannot_view_another_schools_student_id_card(): void
+    {
+        $parent = $this->makeParentUser($this->makeSchool());
+        $foreignSchool = $this->makeSchool();
+        $foreignStudent = $this->makeStudent($foreignSchool, $this->makeParentUser($foreignSchool)->id);
+        $foreignStudent->forceFill(['name' => 'Foreign Pupil Zq'])->save();
+
+        $response = $this->actingAs($parent)->get(route('parent.student.id_card', $foreignStudent->id));
+
+        $response->assertNotFound();
+        $response->assertDontSee('Foreign Pupil Zq');
+    }
+
+    public function test_parent_cannot_view_a_same_school_student_who_is_not_their_child(): void
+    {
+        $schoolId = $this->makeSchool();
+        $parent = $this->makeParentUser($schoolId);
+        $other = $this->makeStudent($schoolId, $this->makeParentUser($schoolId)->id);
+        $other->forceFill(['name' => 'Other Family Zq'])->save();
+
+        $response = $this->actingAs($parent)->get(route('parent.student.id_card', $other->id));
+
+        $response->assertNotFound();
+        $response->assertDontSee('Other Family Zq');
     }
 }

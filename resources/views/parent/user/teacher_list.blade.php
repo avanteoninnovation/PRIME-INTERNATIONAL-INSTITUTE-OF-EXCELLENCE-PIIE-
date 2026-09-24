@@ -104,7 +104,7 @@ use App\Models\Department;;
 				        	<?php $department = Department::find($teacher['department_id']); ?>
 				            <tr>
 				                <td>{{ $teacher['name'] }}</td>
-				                <td>{{ $department['name'] }}</td>
+				                <td>{{ $department['name'] ?? '' }}</td>
 				                <td>{{ $teacher['designation'] }}</td>
 				            </tr>
 				        @endforeach
@@ -139,7 +139,7 @@ use App\Models\Department;;
 	            <tr>
 	            	<td scope="row"><p class="row-number">{{ $teachers->firstItem() + $key }}</p></td>
 	                <td><strong>{{ $teacher['name'] }}</strong></td>
-	                <td>{{ $department['name'] }}</td>
+	                <td>{{ $department['name'] ?? '' }}</td>
 	                <td>{{ $teacher['designation'] }}</td>
 	            </tr>
 	        @endforeach

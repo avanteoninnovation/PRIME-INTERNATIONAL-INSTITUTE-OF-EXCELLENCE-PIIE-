@@ -84,7 +84,7 @@ class ApiController extends Controller
     //student logout function
     public function logout(Request $request)
     {
-    	auth()->user()->tokens()->delete;
+    	auth()->user()->tokens()->delete();
 
     	return response()->json([
             'message' => 'Logged out successfully.',
@@ -650,6 +650,31 @@ class ApiController extends Controller
 
         return response($response, 201);
 
+    }
+
+    /**
+     * A short-lived, single-use, signed link that opens the web payment page for one of
+     * the authenticated student's own fees — replacing the legacy deep link that carried
+     * the user's password in the URL (see App\Support\Payments\PaymentHandoff).
+     */
+    public function paymentLink(Request $request)
+    {
+        $validator = Validator::make($request->all(), ['fee_id' => 'required|integer|min:1']);
+        if ($validator->fails()) {
+            return response(['message' => 'A valid fee_id is required.', 'errors' => $validator->errors()], 422);
+        }
+
+        $student = auth('sanctum')->user();
+        // Same ownership rule as the web payment page (StudentController::findOwnFeeOrFail).
+        $fee = StudentFeeManager::where('id', (int) $request->input('fee_id'))
+            ->where('student_id', $student->id)
+            ->where('school_id', $student->school_id)
+            ->first();
+        if (!$fee) {
+            return response(['message' => 'Fee not found.'], 404);
+        }
+
+        return response(\App\Support\Payments\PaymentHandoff::issue($student, $fee), 201);
     }
 
     public function fee_list(Request $request)

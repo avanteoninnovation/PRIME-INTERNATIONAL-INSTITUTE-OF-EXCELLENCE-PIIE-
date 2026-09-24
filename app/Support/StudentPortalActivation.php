@@ -26,7 +26,7 @@ class StudentPortalActivation
         $programme = $programmeId ? Programme::find($programmeId) : null;
         $intake    = $intakeSessionId ? IntakeSession::find($intakeSessionId) : null;
 
-        Mail::to($student->email)->send(new StudentPortalActivationEmail([
+        \App\Support\Mail\SafeMail::send($student->email, new StudentPortalActivationEmail([
             'name'      => $student->name,
             'email'     => $student->email,
             'password'  => $plainPassword,

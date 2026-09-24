@@ -32,6 +32,7 @@ use App\Models\Programme;
 use App\Models\Routine;
 use App\Models\Section;
 use App\Models\StudentFeeManager;
+use App\Support\Admissions\ApplicationDocuments;
 use App\Models\StudentProfile;
 use App\Models\StudentRequest;
 use App\Models\Subject;
@@ -44,6 +45,10 @@ use PDF;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use App\Support\ProfilePhoto;
+use App\Support\Audit\StatusChangeAudit;
+use App\Support\SafeUpload;
+use App\Support\Clubs\ClubTenancy;
 
 class StudentController extends Controller
 {
@@ -419,8 +424,8 @@ class StudentController extends Controller
 
         $documentPath = null;
         if ($request->hasFile('document')) {
-            $fileName = time() . '_' . $request->file('document')->getClientOriginalName();
-            $request->file('document')->move(public_path('assets/uploads/student_transfers'), $fileName);
+            $fileName = SafeUpload::store($request->file('document'), public_path('assets/uploads/student_transfers'), ApplicationDocuments::ALLOWED_EXTENSIONS, ApplicationDocuments::MAX_FILE_MB * 1024) ?? abort(422, 'This file type is not allowed.');
+            // stored by SafeUpload::store() above
             $documentPath = 'assets/uploads/student_transfers/' . $fileName;
         }
 
@@ -499,6 +504,10 @@ class StudentController extends Controller
 
     public function dailyAttendanceFilter_csv(Request $request)
     {
+        // The export encodes month/year in its first query key; without it answer with a validation error, never HTTP 500.
+        if (empty($request->all())) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['month' => get_phrase('Choose a month to export.')]);
+        }
 
         $data = $request->all();
 
@@ -570,18 +579,15 @@ class StudentController extends Controller
             }
         }
 
-        $txt = fopen($file, "w") or die("Unable to open file!");
-        fwrite($txt, $csv_content);
-        fclose($txt);
-
-        header('Content-Description: File Transfer');
-        header('Content-Disposition: attachment; filename=' . $file);
-        header('Expires: 0');
-        header('Cache-Control: must-revalidate');
-        header('Pragma: public');
-        header('Content-Length: ' . filesize($file));
-        header("Content-type: text/csv");
-        readfile($file);
+        // Security Phase 2F: streamed to the requester — no copy is written to
+        // the working directory (public/ under a web server) any more.
+        return response($csv_content, 200, [
+            'Content-Type'        => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="' . str_replace(['"', '/', '\\'], '', $file) . '"',
+            'Cache-Control'       => 'must-revalidate',
+            'Expires'             => '0',
+            'Pragma'              => 'public',
+        ]);
     }
 
     /**
@@ -778,7 +784,7 @@ class StudentController extends Controller
 
     public function editNoticeboard($id = "")
     {
-        $notice = Noticeboard::find($id);
+        $notice = Noticeboard::where('school_id', auth()->user()->school_id)->findOrFail($id);
         return view('student.noticeboard.edit', ['notice' => $notice]);
     }
 
@@ -865,22 +871,20 @@ class StudentController extends Controller
 
             $csv_content .= $invoice_no . ', ' . $student_details['name'] . ', ' . $student_details['class_name'] . ', ' . $invoice['title'] . ', ' . currency($invoice['total_amount']) . ', ' . date('d-M-Y', $invoice['timestamp']) . ', ' . currency($invoice['paid_amount']) . ', ' . $invoice['status'];
         }
-        $txt = fopen($file, "w") or die("Unable to open file!");
-        fwrite($txt, $csv_content);
-        fclose($txt);
-
-        header('Content-Description: File Transfer');
-        header('Content-Disposition: attachment; filename=' . $file);
-        header('Expires: 0');
-        header('Cache-Control: must-revalidate');
-        header('Pragma: public');
-        header('Content-Length: ' . filesize($file));
-        header("Content-type: text/csv");
-        readfile($file);
+        // Security Phase 2F: streamed to the requester — no copy is written to
+        // the working directory (public/ under a web server) any more.
+        return response($csv_content, 200, [
+            'Content-Type'        => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="' . str_replace(['"', '/', '\\'], '', $file) . '"',
+            'Cache-Control'       => 'must-revalidate',
+            'Expires'             => '0',
+            'Pragma'              => 'public',
+        ]);
     }
 
     public function FeePayment(Request $request, $id)
     {
+        $this->findOwnFeeOrFail($id);
 
         $fee_details = StudentFeeManager::where('id', $id)->first()->toArray();
         $user_info   = User::where('id', $fee_details['student_id'])->first()->toArray();
@@ -977,6 +981,7 @@ class StudentController extends Controller
 
     public function studentFeeinvoice(Request $request, $id)
     {
+        $this->findOwnFeeOrFail($id);
 
         $invoice_details = StudentFeeManager::find($id)->toArray();
         $student_details = (new CommonController)->get_student_details_by_id($invoice_details['student_id'])->toArray();
@@ -984,8 +989,22 @@ class StudentController extends Controller
         return view('student.fee_manager.invoice', ['invoice_details' => $invoice_details, 'student_details' => $student_details]);
     }
 
+    /**
+     * Security Phase 2E: a fee reached by id must be this student's own
+     * invoice — the same rule FeeManagerList() uses.
+     */
+    private function findOwnFeeOrFail($id): StudentFeeManager
+    {
+        return StudentFeeManager::where('id', $id)->where('student_id', auth()->user()->id)->where('school_id', auth()->user()->school_id)->firstOrFail();
+    }
+
     public function offlinePaymentStudent(Request $request, $id = "")
     {
+        $feeBefore = $this->findOwnFeeOrFail($id);
+        $request->validate(['document_image' => 'nullable|file|mimes:' . implode(',', ApplicationDocuments::ALLOWED_EXTENSIONS) . '|max:' . (ApplicationDocuments::MAX_FILE_MB * 1024)]);
+        if ($request->hasFile('document_image') && !in_array(strtolower($request->file('document_image')->getClientOriginalExtension()), ApplicationDocuments::ALLOWED_EXTENSIONS, true)) {
+            return redirect()->back()->with('error', 'Only PDF, JPG and PNG files are accepted.');
+        }
         $data = $request->all();
 
         if ($data['amount'] > 0) {
@@ -993,7 +1012,7 @@ class StudentController extends Controller
             $file = $data['document_image'];
 
             if ($file) {
-                $filename  = $file->getClientOriginalName();
+                $filename  = bin2hex(random_bytes(20)) . '.' . strtolower($file->getClientOriginalExtension());
                 $extension = $file->getClientOriginalExtension(); //Get extension of uploaded file
 
                 $file->move(public_path('assets/uploads/offline_payment'), $filename);
@@ -1008,6 +1027,7 @@ class StudentController extends Controller
                 'payment_method' => 'offline',
             ]);
 
+            StatusChangeAudit::feePayment($feeBefore, 'submitted');
             return redirect()->route('student.fee_manager.list')->with('message', 'offline payment requested successfully');
         } else {
             return redirect()->route('student.fee_manager.list')->with('message', 'offline payment requested fail');
@@ -1023,6 +1043,10 @@ class StudentController extends Controller
     {
         $data['name']  = $request->name;
         $data['email'] = $request->email;
+        // Security Phase 2F: a self-service profile edit must not claim another account's login email.
+        if (User::where('email', $request->email)->where('id', '!=', auth()->user()->id)->exists()) {
+            return redirect()->back()->with('error', 'Email was already taken.');
+        }
 
         $user_info['birthday']     = strtotime($request->eDefaultDateRange);
         $user_info['gender']       = $request->gender;
@@ -1033,10 +1057,11 @@ class StudentController extends Controller
         if (empty($request->photo)) {
             $user_info['photo'] = $request->old_photo;
         } else {
-            $file_name          = random(10) . '.png';
+            $file_name = ProfilePhoto::store($request->photo);
+            if ($file_name === null) {
+                return redirect()->back()->with('error', 'Profile photo must be a JPG or PNG image of at most 4 MB.');
+            }
             $user_info['photo'] = $file_name;
-
-            $request->photo->move(public_path('assets/uploads/user-images/'), $file_name);
         }
 
         $data['user_information'] = json_encode($user_info);
@@ -1309,7 +1334,7 @@ class StudentController extends Controller
     {
         $student_id = auth()->user()->id;
 
-        $appraisal = Appraisal::where('id', $id)->first();
+        $appraisal = Appraisal::where('id', $id)->where('school_id', auth()->user()->school_id)->first();
         // Check if the student has already submitted
         $submission = Appraisal_submit::where([
             ['apprasial_id', $id],
@@ -1329,7 +1354,7 @@ class StudentController extends Controller
             return redirect()->back()->with('error', 'You have already submitted this appraisal.');
         }
 
-        $appraisal  = Appraisal::findOrFail($id);
+        $appraisal  = Appraisal::where('school_id', auth()->user()->school_id)->findOrFail($id);
         $student_id = auth()->user()->id;
         $school_id  = auth()->user()->school_id;
         $answers    = $request->input('answers');
@@ -1354,9 +1379,10 @@ class StudentController extends Controller
     }
     public function applicationCreate()
     {
-        $hostels = Hostel::get();
+        // Security Phase 2I: only this school's hostels and rooms (applicationStore() only accepts those).
+        $hostels = Hostel::where('school_id', auth()->user()->school_id)->get();
 
-        $hostel_rooms = HostelRoom::where('status', 1)
+        $hostel_rooms = HostelRoom::where('school_id', auth()->user()->school_id)->where('status', 1)
             ->whereRaw('occupied < capacity')
             ->with('hostel')
             ->get();
@@ -1365,9 +1391,10 @@ class StudentController extends Controller
     }
     public function applicationStore(Request $request)
     {
+        // Security Phase 2G: the hostel and room must belong to the student's own school.
         $request->validate([
-            'hostel_id' => 'required|exists:hostels,id',
-            'room_id'   => 'required|exists:hostel_rooms,id',
+            'hostel_id' => 'required|exists:hostels,id,school_id,' . auth()->user()->school_id,
+            'room_id'   => 'required|exists:hostel_rooms,id,school_id,' . auth()->user()->school_id,
             'note'      => 'nullable|string|max:500',
         ]);
 
@@ -1406,6 +1433,73 @@ class StudentController extends Controller
         $application->save();
 
         return redirect()->route('student.hostel.applications')->with('success', get_phrase('Hostel application submitted successfully'));
+    }
+
+    /**
+     * Security Phase 2I: the student's own application, in their own school, that is still
+     * pending (status 0) — the only state the application list offers Edit and Delete for.
+     * Once staff approve or reject it, the application is staff-controlled.
+     */
+    private function findOwnPendingApplicationOrFail($id): HostelApplication
+    {
+        return HostelApplication::where('student_id', auth()->user()->id)
+            ->where('school_id', auth()->user()->school_id)
+            ->where('status', 0)
+            ->findOrFail($id);
+    }
+
+    public function applicationEdit($id)
+    {
+        $application = $this->findOwnPendingApplicationOrFail($id);
+        $hostels     = Hostel::where('school_id', auth()->user()->school_id)->get();
+
+        return view('student.hostel.applications.edit', compact('application', 'hostels'));
+    }
+
+    public function applicationUpdate(Request $request, $id)
+    {
+        $application = $this->findOwnPendingApplicationOrFail($id);
+
+        // Same rules as applicationStore().
+        $request->validate([
+            'hostel_id' => 'required|exists:hostels,id,school_id,' . auth()->user()->school_id,
+            'room_id'   => 'required|exists:hostel_rooms,id,school_id,' . auth()->user()->school_id,
+            'note'      => 'nullable|string|max:500',
+        ]);
+
+        $room = HostelRoom::where('school_id', auth()->user()->school_id)->findOrFail($request->room_id);
+        if ($room->occupied >= $room->capacity) {
+            return redirect()->back()->with('error', get_phrase('Selected room is already full'));
+        }
+
+        if ($room->hostel_id != $request->hostel_id) {
+            return redirect()->back()->with('error', get_phrase('Selected room does not belong to the chosen hostel'));
+        }
+
+        $application->hostel_id = $request->hostel_id;
+        $application->room_id   = $request->room_id;
+        $application->note      = $request->note;
+        $application->save();
+
+        return redirect()->route('student.hostel.applications')->with('success', get_phrase('Hostel application updated successfully'));
+    }
+
+    public function applicationDelete($id)
+    {
+        $this->findOwnPendingApplicationOrFail($id)->delete();
+
+        return redirect()->route('student.hostel.applications')->with('success', get_phrase('Hostel application deleted successfully'));
+    }
+
+    /** Rooms of one of this school's hostels, in the shape edit.blade.php's room picker reads. */
+    public function applicationRooms($hostel_id)
+    {
+        return response()->json(
+            HostelRoom::where('school_id', auth()->user()->school_id)
+                ->where('hostel_id', $hostel_id)
+                ->where('status', 1)
+                ->get(['id', 'room_no', 'capacity', 'occupied', 'seat_fee'])
+        );
     }
     /**
      * Show the hostel fee manager list.
@@ -1496,18 +1590,15 @@ class StudentController extends Controller
             $csv_content .= $invoice_no . ', ' . $student_details['name'] . ', ' . ($hostel ? $hostel->name : 'N/A') . ', ' . $invoice['title'] . ', ' . currency($invoice['amount']) . ', ' . date('d-M-Y', strtotime($invoice['created_at'])) . ', ' . currency($invoice['paid_amount']) . ', ' . $invoice['status'];
         }
 
-        $txt = fopen($file, "w") or die("Unable to open file!");
-        fwrite($txt, $csv_content);
-        fclose($txt);
-
-        header('Content-Description: File Transfer');
-        header('Content-Disposition: attachment; filename=' . $file);
-        header('Expires: 0');
-        header('Cache-Control: must-revalidate');
-        header('Pragma: public');
-        header('Content-Length: ' . filesize($file));
-        header("Content-type: text/csv");
-        readfile($file);
+        // Security Phase 2F: streamed to the requester — no copy is written to
+        // the working directory (public/ under a web server) any more.
+        return response($csv_content, 200, [
+            'Content-Type'        => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="' . str_replace(['"', '/', '\\'], '', $file) . '"',
+            'Cache-Control'       => 'must-revalidate',
+            'Expires'             => '0',
+            'Pragma'              => 'public',
+        ]);
     }
 
     /**
@@ -1517,7 +1608,7 @@ class StudentController extends Controller
      */
     public function hostelFeeInvoice(Request $request, $id)
     {
-        $invoice_details = HostelFee::find($id)->toArray();
+        $invoice_details = HostelFee::where('id', $id)->where('student_id', auth()->user()->id)->where('school_id', auth()->user()->school_id)->firstOrFail()->toArray();
         $student_details = (new CommonController)->get_student_details_by_id($invoice_details['student_id'])->toArray();
         $hostel          = Hostel::find($invoice_details['hostel_id']);
 
@@ -1678,10 +1769,18 @@ class StudentController extends Controller
                 ->with('message', 'Offline payment request failed');
         }
 
+        // Security Phase 2F: same proof-file policy as tuition offline payments —
+        // PDF/JPG/PNG by extension and detected content, size-capped, stored
+        // under a generated name (never the client's filename).
         $fileName = '';
         if ($request->hasFile('document_image')) {
-            $file     = $request->file('document_image');
-            $fileName = preg_replace('/[^a-zA-Z0-9._-]/', '', $file->getClientOriginalName());
+            $request->validate(['document_image' => 'file|mimes:' . implode(',', ApplicationDocuments::ALLOWED_EXTENSIONS) . '|max:' . (ApplicationDocuments::MAX_FILE_MB * 1024)]);
+            $file      = $request->file('document_image');
+            $extension = strtolower($file->getClientOriginalExtension());
+            if (!in_array($extension, ApplicationDocuments::ALLOWED_EXTENSIONS, true)) {
+                return redirect()->back()->with('error', 'Only PDF, JPG and PNG files are accepted.');
+            }
+            $fileName = bin2hex(random_bytes(20)) . '.' . $extension;
             $file->move(public_path('assets/uploads/hostel_fees'), $fileName);
         }
 
@@ -1725,51 +1824,9 @@ class StudentController extends Controller
         return redirect()->route('student.hostel_fee_manager.list')->with('message', 'Offline payment requested successfully');
     }
 
-    /**
-     * Handle successful hostel fee payment.
-     *
-     * @return \Illuminate\Http\RedirectResponse
-     */
-    public function student_hostel_fee_success_payment_student($user_data = "", $response = "")
-    {
-        $user_data = json_decode($user_data, true);
-
-        $allowedPaymentMethods = ['stripe', 'paypal', 'razorpay', 'paytm', 'flutterwave'];
-        $paymentMethod         = $user_data['payment_method'] ?? null;
-
-        if (! is_array($user_data) || empty($user_data['invoice_id']) || ! in_array($paymentMethod, $allowedPaymentMethods, true)) {
-            return redirect()->route('student.hostel_fee_manager.list')->with('error', 'Invalid payment confirmation.');
-        }
-
-        $fee = HostelFee::where('id', $user_data['invoice_id'])
-            ->where('student_id', auth()->id())
-            ->where('school_id', auth()->user()->school_id)
-            ->where('status', '!=', 'paid')
-            ->first();
-
-        if (! $fee) {
-            return redirect()->route('student.hostel_fee_manager.list')->with('error', 'Invoice not found or already paid.');
-        }
-
-        $fee->update([
-            'paid_amount'    => $fee->amount,
-            'status'         => 'paid',
-            'payment_method' => $paymentMethod,
-            'payment_date'   => date('Y-m-d H:i:s'),
-        ]);
-
-        return redirect()->route('student.hostel_fee_manager.list')->with('message', 'Payment completed successfully');
-    }
-
-    /**
-     * Handle failed hostel fee payment.
-     *
-     * @return \Illuminate\Http\RedirectResponse
-     */
-    public function student_hostel_fee_fail_payment_student($user_data = "", $response = "")
-    {
-        return redirect()->route('student.hostel_fee_manager.list')->with('error', 'Payment failed. Please try again.');
-    }
+    // student_hostel_fee_success_payment_student / student_hostel_fee_fail_payment_student removed
+    // (Security Phase 2I): legacy gateway callbacks with no caller; the success one marked the invoice
+    // paid from URL data alone. Hostel fees are paid via MarzPay (verified) or offline payment.
 
     public function hostelFeeMonthlyList()
     {
@@ -1888,7 +1945,7 @@ class StudentController extends Controller
         $search     = $request->search;
         $advisorId = $request->advisor_id;
 
-        $clubs = Club::with('advisor')
+        $clubs = ClubTenancy::clubs()->with('advisor')
             ->when($search, function ($query) use ($search) {
                 $query->where('club_name', 'LIKE', "%{$search}%");
             })
@@ -1899,7 +1956,7 @@ class StudentController extends Controller
             ->paginate(10)
             ->withQueryString();
 
-        $teachers = User::where('role_id', 3)
+        $teachers = User::where('school_id', auth()->user()->school_id)->where('role_id', 3)
             ->where('status', 1)
             ->get();
 
@@ -1914,6 +1971,8 @@ class StudentController extends Controller
 
     public function join(Club $club)
     {
+        ClubTenancy::assertOwned($club);
+
         $studentId = auth()->id();
 
         $exists = ClubMember::where('club_id', $club->id)
@@ -1934,6 +1993,8 @@ class StudentController extends Controller
     }
     public function removeRequest(Club $club)
     {
+        ClubTenancy::assertOwned($club);
+
         ClubMember::where('club_id', $club->id)
             ->where('student_id', auth()->id())
             ->where('status', 0)
@@ -1943,6 +2004,8 @@ class StudentController extends Controller
     }
     public function leave(Club $club)
     {
+        ClubTenancy::assertOwned($club);
+
         ClubMember::where('club_id', $club->id)
             ->where('student_id', auth()->id())
             ->where('status', 1)
@@ -1952,7 +2015,7 @@ class StudentController extends Controller
     }
     public function notice_index($clubId)
     {
-        $club = Club::findOrFail($clubId);
+        $club = ClubTenancy::findClubOrFail($clubId);
 
         $notices = ClubNotice::where('club_id', $clubId)
             ->orderBy('notice_date', 'desc')

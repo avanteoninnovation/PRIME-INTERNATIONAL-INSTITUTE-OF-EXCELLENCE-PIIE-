@@ -12,7 +12,7 @@
             <ul class="d-flex align-items-center eBreadcrumb-2">
               <li><a href="#">{{ get_phrase('Home') }}</a></li>
               <li><a href="#">{{ get_phrase('Users') }}</a></li>
-              <li><a href="#">{{ get_phrase('Teacher Permission') }}</a></li>
+              <li><a href="#">{{ academic_term('teacher_assignment', auth()->user()->school_id) }}</a></li>
             </ul>
           </div>
         </div>
@@ -38,14 +38,14 @@
                     </div>
 
                     <div class="col-md-3">
-                        <select name="section_id" id="section_id" class="form-select eForm-select" required >
+                        <select name="section_id" id="section_id" class="form-select eForm-select" >
                             @if(count($sections) > 0)
-                                <option value="">{{ get_phrase('Select a section') }}</option>
+                                <option value="0" {{ (int)$default_section_id === 0 ? 'selected' : '' }}>{{ get_phrase('Whole class (no section)') }}</option>
                                 @foreach($sections as $section)
                                     <option value="{{ $section->id }}" {{ (string)$section->id === (string)$default_section_id ? 'selected' : '' }}>{{ $section->name }}</option>
                                 @endforeach
                             @else
-                                <option value="">{{ get_phrase('First select a class') }}</option>
+                                <option value="0" selected>{{ get_phrase('Whole class (no section)') }}</option>
                             @endif
                         </select>
                     </div>
@@ -55,7 +55,7 @@
                     </div>
 
                     <div class="card-body permission_content">
-                        @if(!empty($default_class_id) && !empty($default_section_id))
+                        @if(!empty($default_class_id))
                             @include('admin.permission.list', ['teachers' => $teachers, 'class_id' => $default_class_id, 'section_id' => $default_section_id])
                         @else
                             <div class="empty_box center">
@@ -69,6 +69,9 @@
         </div>
     </div>
 </div>
+<div class="row mt-3"><div class="col-10 offset-md-1"><div class="alert alert-info mb-0">
+    {{ get_phrase('Teacher/Lecturer subject access is derived from the assigned class and its Subjects/Courses. Select a class, choose Whole class (no section) when sections are not used, then enable Marks for the teacher.') }}
+</div></div></div>
 <!-- End Teacher Permission area -->
 
 @if($programmes->count() > 0)
@@ -141,8 +144,8 @@
 
     function classWiseSection(classId, callback) {
         if (classId == "") {
-            $('#section_id').html('<option value="">{{ get_phrase('First select a class') }}</option>');
-            if (typeof callback === 'function') callback(false);
+            $('#section_id').html('<option value="0">{{ get_phrase('Whole class (no section)') }}</option>');
+            if (typeof callback === 'function') callback('0');
             return;
         }
 
@@ -155,8 +158,8 @@
                 $('#section_id').html(response);
 
                 // Auto-select first available section so filter can run reliably.
-                var firstSection = $('<select>' + response + '</select>').find('option[value!=""]').first().val() || '';
-                $('#section_id').val(firstSection);
+                var firstSection = $('<select>' + response + '</select>').find('option[value!=""]').first().val() || '0';
+                $('#section_id').val(firstSection || '0');
 
                 if (typeof callback === 'function') callback(firstSection);
             },
@@ -177,10 +180,7 @@
         }
 
         const loadPermissionList = function(selectedSectionId) {
-            if (selectedSectionId == "") {
-                toastr.error('{{ get_phrase('No section found for this class') }}');
-                return;
-            }
+            selectedSectionId = selectedSectionId || '0';
 
             var value = class_id + '-' + selectedSectionId;
             let url = "{{ route('admin.teacher.permission_list', ['filter' => ":value"]) }}";
@@ -196,11 +196,7 @@
 
         if (section_id == "") {
             classWiseSection(class_id, function(selectedSectionId) {
-                if (selectedSectionId != "") {
-                    loadPermissionList(selectedSectionId);
-                } else {
-                    toastr.error('{{ get_phrase('No section found for this class') }}');
-                }
+                loadPermissionList(selectedSectionId || '0');
             });
         } else {
             loadPermissionList(section_id);

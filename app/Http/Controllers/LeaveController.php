@@ -89,7 +89,8 @@ class LeaveController extends Controller
     public function myStore(Request $request)
     {
         $validated = $request->validate([
-            'leave_type_id' => 'nullable|exists:leave_types,id',
+            // Security Phase 2G: the leave type must be one of this school's own.
+            'leave_type_id' => 'nullable|exists:leave_types,id,school_id,' . $this->school_id,
             'from_date'     => 'required|date',
             'to_date'       => 'required|date|after_or_equal:from_date',
             'reason'        => 'required|string',
@@ -99,7 +100,7 @@ class LeaveController extends Controller
         $to   = \Carbon\Carbon::parse($validated['to_date']);
         $days = $from->diffInDays($to) + 1;
 
-        $lt = !empty($validated['leave_type_id']) ? LeaveType::find($validated['leave_type_id']) : null;
+        $lt = !empty($validated['leave_type_id']) ? LeaveType::where('school_id', $this->school_id)->find($validated['leave_type_id']) : null;
 
         Leavelist::create([
             'school_id'     => $this->school_id,

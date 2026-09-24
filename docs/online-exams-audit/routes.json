@@ -1,0 +1,916 @@
+[
+    {
+        "methods": [
+            "GET",
+            "HEAD"
+        ],
+        "uri": "admin\/online-exams",
+        "name": "admin.online_exams.index",
+        "action": "App\\Http\\Controllers\\OnlineExamController@index",
+        "middleware": [
+            "web",
+            "auth",
+            "admin",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "GET",
+            "HEAD"
+        ],
+        "uri": "admin\/online-exams\/create",
+        "name": "admin.online_exams.create",
+        "action": "App\\Http\\Controllers\\OnlineExamController@create",
+        "middleware": [
+            "web",
+            "auth",
+            "admin",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "GET",
+            "HEAD"
+        ],
+        "uri": "admin\/online-exams\/open_modal",
+        "name": "admin.online_exams.open_modal",
+        "action": "App\\Http\\Controllers\\OnlineExamController@openModal",
+        "middleware": [
+            "web",
+            "auth",
+            "admin",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "GET",
+            "HEAD"
+        ],
+        "uri": "admin\/online-exams\/{id}",
+        "name": "admin.online_exams.show",
+        "action": "App\\Http\\Controllers\\OnlineExamController@show",
+        "middleware": [
+            "web",
+            "auth",
+            "admin",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "GET",
+            "HEAD"
+        ],
+        "uri": "admin\/online-exams\/{id}\/edit",
+        "name": "admin.online_exams.edit",
+        "action": "App\\Http\\Controllers\\OnlineExamController@edit",
+        "middleware": [
+            "web",
+            "auth",
+            "admin",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "POST"
+        ],
+        "uri": "admin\/online-exams\/store",
+        "name": "admin.online_exams.store",
+        "action": "App\\Http\\Controllers\\OnlineExamController@store",
+        "middleware": [
+            "web",
+            "auth",
+            "admin",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "POST"
+        ],
+        "uri": "admin\/online-exams\/update\/{id}",
+        "name": "admin.online_exams.update",
+        "action": "App\\Http\\Controllers\\OnlineExamController@update",
+        "middleware": [
+            "web",
+            "auth",
+            "admin",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "GET",
+            "HEAD"
+        ],
+        "uri": "admin\/online-exams\/publish\/{id}",
+        "name": "admin.online_exams.publish",
+        "action": "App\\Http\\Controllers\\OnlineExamController@publish",
+        "middleware": [
+            "web",
+            "auth",
+            "admin",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "GET",
+            "HEAD"
+        ],
+        "uri": "admin\/online-exams\/unpublish\/{id}",
+        "name": "admin.online_exams.unpublish",
+        "action": "App\\Http\\Controllers\\OnlineExamController@unpublish",
+        "middleware": [
+            "web",
+            "auth",
+            "admin",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "POST"
+        ],
+        "uri": "admin\/online-exams\/cancel\/{id}",
+        "name": "admin.online_exams.cancel",
+        "action": "App\\Http\\Controllers\\OnlineExamController@cancel",
+        "middleware": [
+            "web",
+            "auth",
+            "admin",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "POST"
+        ],
+        "uri": "admin\/online-exams\/lock\/{id}",
+        "name": "admin.online_exams.lock",
+        "action": "App\\Http\\Controllers\\OnlineExamController@lock",
+        "middleware": [
+            "web",
+            "auth",
+            "admin",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "GET",
+            "HEAD"
+        ],
+        "uri": "admin\/online-exams\/delete\/{id}",
+        "name": "admin.online_exams.destroy",
+        "action": "App\\Http\\Controllers\\OnlineExamController@destroy",
+        "middleware": [
+            "web",
+            "auth",
+            "admin",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "GET",
+            "HEAD"
+        ],
+        "uri": "admin\/online-exams\/{id}\/questions",
+        "name": "admin.online_exams.questions",
+        "action": "App\\Http\\Controllers\\OnlineExamController@questions",
+        "middleware": [
+            "web",
+            "auth",
+            "admin",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "POST"
+        ],
+        "uri": "admin\/online-exams\/{id}\/questions\/store",
+        "name": "admin.online_exams.questions.store",
+        "action": "App\\Http\\Controllers\\OnlineExamController@storeQuestion",
+        "middleware": [
+            "web",
+            "auth",
+            "admin",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "POST"
+        ],
+        "uri": "admin\/online-exams\/questions\/update\/{id}",
+        "name": "admin.online_exams.questions.update",
+        "action": "App\\Http\\Controllers\\OnlineExamController@updateQuestion",
+        "middleware": [
+            "web",
+            "auth",
+            "admin",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "POST"
+        ],
+        "uri": "admin\/online-exams\/questions\/remove\/{id}",
+        "name": "admin.online_exams.questions.remove",
+        "action": "App\\Http\\Controllers\\OnlineExamController@deleteQuestion",
+        "middleware": [
+            "web",
+            "auth",
+            "admin",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "GET",
+            "HEAD"
+        ],
+        "uri": "admin\/online-exams\/questions\/delete\/{id}",
+        "name": "admin.online_exams.questions.destroy",
+        "action": "App\\Http\\Controllers\\OnlineExamController@destroyQuestion",
+        "middleware": [
+            "web",
+            "auth",
+            "admin",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "GET",
+            "HEAD"
+        ],
+        "uri": "admin\/online-exams\/{id}\/submissions",
+        "name": "admin.online_exams.submissions",
+        "action": "App\\Http\\Controllers\\OnlineExamController@submissions",
+        "middleware": [
+            "web",
+            "auth",
+            "admin",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "GET",
+            "HEAD"
+        ],
+        "uri": "admin\/online-exams\/{id}\/results",
+        "name": "admin.online_exams.results",
+        "action": "App\\Http\\Controllers\\OnlineExamController@results",
+        "middleware": [
+            "web",
+            "auth",
+            "admin",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "GET",
+            "HEAD"
+        ],
+        "uri": "admin\/online-exams\/{id}\/proctoring\/{submission}",
+        "name": "admin.online_exams.proctoring.review",
+        "action": "App\\Http\\Controllers\\OnlineExamController@reviewProctoring",
+        "middleware": [
+            "web",
+            "auth",
+            "admin",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "POST"
+        ],
+        "uri": "admin\/online-exams\/answers\/{answer}\/manual-mark",
+        "name": "admin.online_exams.answers.manual_mark",
+        "action": "App\\Http\\Controllers\\OnlineExamController@manualMarking",
+        "middleware": [
+            "web",
+            "auth",
+            "admin",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "POST"
+        ],
+        "uri": "admin\/online-exams\/submissions\/{submission}\/finalize",
+        "name": "admin.online_exams.submissions.finalize",
+        "action": "App\\Http\\Controllers\\OnlineExamController@finalizeResult",
+        "middleware": [
+            "web",
+            "auth",
+            "admin",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "GET",
+            "HEAD"
+        ],
+        "uri": "admin\/question-bank",
+        "name": "admin.question_bank.index",
+        "action": "App\\Http\\Controllers\\OnlineExamController@questionBank",
+        "middleware": [
+            "web",
+            "auth",
+            "admin",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "GET",
+            "HEAD"
+        ],
+        "uri": "admin\/question-bank\/modal",
+        "name": "admin.question_bank.modal",
+        "action": "App\\Http\\Controllers\\OnlineExamController@bankModal",
+        "middleware": [
+            "web",
+            "auth",
+            "admin",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "POST"
+        ],
+        "uri": "admin\/question-bank\/store",
+        "name": "admin.question_bank.store",
+        "action": "App\\Http\\Controllers\\OnlineExamController@storeBankQuestion",
+        "middleware": [
+            "web",
+            "auth",
+            "admin",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "GET",
+            "HEAD"
+        ],
+        "uri": "admin\/question-bank\/delete\/{id}",
+        "name": "admin.question_bank.delete",
+        "action": "App\\Http\\Controllers\\OnlineExamController@destroyBankQuestion",
+        "middleware": [
+            "web",
+            "auth",
+            "admin",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "GET",
+            "HEAD"
+        ],
+        "uri": "admin\/online-exams\/{id}\/question_modal",
+        "name": "admin.online_exams.question_modal",
+        "action": "App\\Http\\Controllers\\OnlineExamController@questionModal",
+        "middleware": [
+            "web",
+            "auth",
+            "admin",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "GET",
+            "HEAD"
+        ],
+        "uri": "student\/online-exams",
+        "name": "student.online_exam.list",
+        "action": "App\\Http\\Controllers\\OnlineExamController@studentExams",
+        "middleware": [
+            "web",
+            "auth",
+            "student",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "GET",
+            "HEAD"
+        ],
+        "uri": "student\/online-exams\/{id}\/instructions",
+        "name": "student.online_exam.instructions",
+        "action": "App\\Http\\Controllers\\OnlineExamController@instructions",
+        "middleware": [
+            "web",
+            "auth",
+            "student",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "POST"
+        ],
+        "uri": "student\/online-exams\/{id}\/start",
+        "name": "student.online_exam.start",
+        "action": "App\\Http\\Controllers\\OnlineExamController@start",
+        "middleware": [
+            "web",
+            "auth",
+            "student",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "GET",
+            "HEAD"
+        ],
+        "uri": "student\/online-exams\/submissions\/{submission}\/resume",
+        "name": "student.online_exam.resume",
+        "action": "App\\Http\\Controllers\\OnlineExamController@resume",
+        "middleware": [
+            "web",
+            "auth",
+            "student",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "POST"
+        ],
+        "uri": "student\/online-exams\/submissions\/{submission}\/readiness",
+        "name": "student.online_exam.readiness",
+        "action": "App\\Http\\Controllers\\OnlineExamController@readiness",
+        "middleware": [
+            "web",
+            "auth",
+            "student",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "POST"
+        ],
+        "uri": "student\/online-exams\/submissions\/{submission}\/save-answer",
+        "name": "student.online_exam.save_answer",
+        "action": "App\\Http\\Controllers\\OnlineExamController@saveAnswer",
+        "middleware": [
+            "web",
+            "auth",
+            "student",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "POST"
+        ],
+        "uri": "student\/online-exams\/submissions\/{submission}\/heartbeat",
+        "name": "student.online_exam.heartbeat",
+        "action": "App\\Http\\Controllers\\OnlineExamController@heartbeat",
+        "middleware": [
+            "web",
+            "auth",
+            "student",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "POST"
+        ],
+        "uri": "student\/online-exams\/submissions\/{submission}\/proctoring-event",
+        "name": "student.online_exam.proctoring_event",
+        "action": "App\\Http\\Controllers\\OnlineExamController@proctoringEvent",
+        "middleware": [
+            "web",
+            "auth",
+            "student",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "POST"
+        ],
+        "uri": "student\/online-exams\/submissions\/{submission}\/timeout-submit",
+        "name": "student.online_exam.timeout_submit",
+        "action": "App\\Http\\Controllers\\OnlineExamController@timeoutSubmit",
+        "middleware": [
+            "web",
+            "auth",
+            "student",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "GET",
+            "HEAD"
+        ],
+        "uri": "student\/online-exams\/{id}\/take",
+        "name": "student.online_exam.take",
+        "action": "App\\Http\\Controllers\\OnlineExamController@takeExam",
+        "middleware": [
+            "web",
+            "auth",
+            "student",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "POST"
+        ],
+        "uri": "student\/online-exams\/{id}\/submit",
+        "name": "student.online_exam.submit",
+        "action": "App\\Http\\Controllers\\OnlineExamController@submitExam",
+        "middleware": [
+            "web",
+            "auth",
+            "student",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "GET",
+            "HEAD"
+        ],
+        "uri": "student\/online-exams\/result\/{id}",
+        "name": "student.online_exam.result",
+        "action": "App\\Http\\Controllers\\OnlineExamController@examResult",
+        "middleware": [
+            "web",
+            "auth",
+            "student",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "GET",
+            "HEAD"
+        ],
+        "uri": "teacher\/online-exams",
+        "name": "teacher.online_exams.index",
+        "action": "App\\Http\\Controllers\\OnlineExamController@teacherIndex",
+        "middleware": [
+            "web",
+            "auth",
+            "teacher",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "GET",
+            "HEAD"
+        ],
+        "uri": "teacher\/online-exams\/create",
+        "name": "teacher.online_exams.create",
+        "action": "App\\Http\\Controllers\\OnlineExamController@teacherCreate",
+        "middleware": [
+            "web",
+            "auth",
+            "teacher",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "POST"
+        ],
+        "uri": "teacher\/online-exams",
+        "name": "teacher.online_exams.store",
+        "action": "App\\Http\\Controllers\\OnlineExamController@teacherStore",
+        "middleware": [
+            "web",
+            "auth",
+            "teacher",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "GET",
+            "HEAD"
+        ],
+        "uri": "teacher\/online-exams\/{exam}",
+        "name": "teacher.online_exams.show",
+        "action": "App\\Http\\Controllers\\OnlineExamController@teacherShow",
+        "middleware": [
+            "web",
+            "auth",
+            "teacher",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "GET",
+            "HEAD"
+        ],
+        "uri": "teacher\/online-exams\/{exam}\/edit",
+        "name": "teacher.online_exams.edit",
+        "action": "App\\Http\\Controllers\\OnlineExamController@teacherEdit",
+        "middleware": [
+            "web",
+            "auth",
+            "teacher",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "PUT"
+        ],
+        "uri": "teacher\/online-exams\/{exam}",
+        "name": "teacher.online_exams.update",
+        "action": "App\\Http\\Controllers\\OnlineExamController@teacherUpdate",
+        "middleware": [
+            "web",
+            "auth",
+            "teacher",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "DELETE"
+        ],
+        "uri": "teacher\/online-exams\/{exam}",
+        "name": "teacher.online_exams.destroy",
+        "action": "App\\Http\\Controllers\\OnlineExamController@teacherDestroy",
+        "middleware": [
+            "web",
+            "auth",
+            "teacher",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "GET",
+            "HEAD"
+        ],
+        "uri": "teacher\/online-exams\/{exam}\/preview",
+        "name": "teacher.online_exams.preview",
+        "action": "App\\Http\\Controllers\\OnlineExamController@teacherPreview",
+        "middleware": [
+            "web",
+            "auth",
+            "teacher",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "POST"
+        ],
+        "uri": "teacher\/online-exams\/{exam}\/submit-review",
+        "name": "teacher.online_exams.submit_review",
+        "action": "App\\Http\\Controllers\\OnlineExamController@teacherSubmitForReview",
+        "middleware": [
+            "web",
+            "auth",
+            "teacher",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "POST"
+        ],
+        "uri": "teacher\/online-exams\/{exam}\/publish",
+        "name": "teacher.online_exams.publish",
+        "action": "App\\Http\\Controllers\\OnlineExamController@teacherPublish",
+        "middleware": [
+            "web",
+            "auth",
+            "teacher",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "POST"
+        ],
+        "uri": "teacher\/online-exams\/{exam}\/unpublish",
+        "name": "teacher.online_exams.unpublish",
+        "action": "App\\Http\\Controllers\\OnlineExamController@teacherUnpublish",
+        "middleware": [
+            "web",
+            "auth",
+            "teacher",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "POST"
+        ],
+        "uri": "teacher\/online-exams\/{exam}\/cancel",
+        "name": "teacher.online_exams.cancel",
+        "action": "App\\Http\\Controllers\\OnlineExamController@teacherCancel",
+        "middleware": [
+            "web",
+            "auth",
+            "teacher",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "GET",
+            "HEAD"
+        ],
+        "uri": "teacher\/online-exams\/{exam}\/questions",
+        "name": "teacher.online_exams.questions.index",
+        "action": "App\\Http\\Controllers\\OnlineExamController@teacherQuestions",
+        "middleware": [
+            "web",
+            "auth",
+            "teacher",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "POST"
+        ],
+        "uri": "teacher\/online-exams\/{exam}\/questions",
+        "name": "teacher.online_exams.questions.store",
+        "action": "App\\Http\\Controllers\\OnlineExamController@teacherStoreQuestion",
+        "middleware": [
+            "web",
+            "auth",
+            "teacher",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "PUT"
+        ],
+        "uri": "teacher\/online-exams\/questions\/{question}",
+        "name": "teacher.online_exams.questions.update",
+        "action": "App\\Http\\Controllers\\OnlineExamController@teacherUpdateQuestion",
+        "middleware": [
+            "web",
+            "auth",
+            "teacher",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "DELETE"
+        ],
+        "uri": "teacher\/online-exams\/questions\/{question}",
+        "name": "teacher.online_exams.questions.destroy",
+        "action": "App\\Http\\Controllers\\OnlineExamController@teacherDeleteQuestion",
+        "middleware": [
+            "web",
+            "auth",
+            "teacher",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "POST"
+        ],
+        "uri": "teacher\/online-exams\/{exam}\/questions\/reorder",
+        "name": "teacher.online_exams.questions.reorder",
+        "action": "App\\Http\\Controllers\\OnlineExamController@teacherReorderQuestions",
+        "middleware": [
+            "web",
+            "auth",
+            "teacher",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "GET",
+            "HEAD"
+        ],
+        "uri": "teacher\/online-exams\/question-bank",
+        "name": "teacher.online_exams.question_bank",
+        "action": "App\\Http\\Controllers\\OnlineExamController@teacherQuestionBank",
+        "middleware": [
+            "web",
+            "auth",
+            "teacher",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "POST"
+        ],
+        "uri": "teacher\/online-exams\/{exam}\/question-bank\/import",
+        "name": "teacher.online_exams.question_bank.import",
+        "action": "App\\Http\\Controllers\\OnlineExamController@teacherImportQuestion",
+        "middleware": [
+            "web",
+            "auth",
+            "teacher",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "GET",
+            "HEAD"
+        ],
+        "uri": "teacher\/online-exams\/{exam}\/attempts",
+        "name": "teacher.online_exams.attempts",
+        "action": "App\\Http\\Controllers\\OnlineExamController@teacherAttempts",
+        "middleware": [
+            "web",
+            "auth",
+            "teacher",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "GET",
+            "HEAD"
+        ],
+        "uri": "teacher\/online-exams\/{exam}\/results",
+        "name": "teacher.online_exams.results",
+        "action": "App\\Http\\Controllers\\OnlineExamController@teacherResults",
+        "middleware": [
+            "web",
+            "auth",
+            "teacher",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "GET",
+            "HEAD"
+        ],
+        "uri": "teacher\/online-exams\/marking\/queue",
+        "name": "teacher.online_exams.marking",
+        "action": "App\\Http\\Controllers\\OnlineExamController@teacherMarking",
+        "middleware": [
+            "web",
+            "auth",
+            "teacher",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "POST"
+        ],
+        "uri": "teacher\/online-exams\/answers\/{answer}\/mark",
+        "name": "teacher.online_exams.answers.mark",
+        "action": "App\\Http\\Controllers\\OnlineExamController@teacherMarkAnswer",
+        "middleware": [
+            "web",
+            "auth",
+            "teacher",
+            {}
+        ]
+    },
+    {
+        "methods": [
+            "POST"
+        ],
+        "uri": "teacher\/online-exams\/results\/{submission}\/finalize",
+        "name": "teacher.online_exams.results.finalize",
+        "action": "App\\Http\\Controllers\\OnlineExamController@teacherFinalizeResult",
+        "middleware": [
+            "web",
+            "auth",
+            "teacher",
+            {}
+        ]
+    }
+]

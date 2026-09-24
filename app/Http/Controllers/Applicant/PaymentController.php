@@ -76,6 +76,8 @@ class PaymentController extends BaseApplicantController
         }
 
         $file     = $request->file('proof');
+        // Security Phase 2F: the stored name keeps the client extension, so it must be one of the checked types.
+        abort_unless(in_array(strtolower($file->getClientOriginalExtension()), ['pdf', 'jpg', 'jpeg', 'png'], true), 422, 'Only PDF, JPG and PNG files are accepted.');
         $storedAs = 'pay' . $admission->id . '_' . uniqid() . '.' . strtolower($file->getClientOriginalExtension());
         $file->move($destination, $storedAs);
 
@@ -263,7 +265,7 @@ class PaymentController extends BaseApplicantController
                         ],
                     ],
                 ]],
-                'success_url' => route('applicant.payment.gateway.return', ['gateway' => 'stripe', 'payment' => $payment->id]) . '&session_id={CHECKOUT_SESSION_ID}',
+                'success_url' => route('applicant.payment.gateway.return', ['gateway' => 'stripe', 'payment' => $payment->id]) . '?session_id={CHECKOUT_SESSION_ID}',
                 'cancel_url'  => route('applicant.payment.gateway.cancel', ['gateway' => 'stripe', 'payment' => $payment->id]),
             ]);
         } catch (\Throwable $e) {
@@ -399,20 +401,36 @@ class PaymentController extends BaseApplicantController
     }
 
     /** @return array{0: bool, 1: ?string, 2: array}|null [isPaid, gatewayTxnId, gatewayPayload], or null if the provider could not be reached at all. */
+    /**
+     * Verifies the checkout session startStripe() created for THIS payment
+     * (gateway_txn_id), not whichever session id the browser was redirected
+     * back with — that value is client-controlled, and a paid session from
+     * another payment must never settle this one (Security Phase 2I). The
+     * reference, amount and currency are re-checked, as confirmFlutterwave() does.
+     */
     private function confirmStripe(Request $request, ApplicationPayment $payment): ?array
     {
         $secretKey = get_payment_keys('stripe', 'test_secret_key') ?: get_payment_keys('stripe', 'secret_live_key');
+        $sessionId = (string) $payment->gateway_txn_id;
+        $returned = $request->query('session_id');
+
+        if ($sessionId === '' || (filled($returned) && $returned !== $sessionId)) {
+            return null;
+        }
 
         try {
             \Stripe\Stripe::setApiKey($secretKey);
-            $session = \Stripe\Checkout\Session::retrieve($request->query('session_id') ?: $payment->gateway_txn_id);
+            $session = \Stripe\Checkout\Session::retrieve($sessionId);
         } catch (\Throwable $e) {
             report($e);
 
             return null;
         }
 
-        $isPaid = ($session->payment_status ?? null) === 'paid';
+        $isPaid = ($session->payment_status ?? null) === 'paid'
+            && ($session->client_reference_id ?? null) === $payment->reference
+            && (int) ($session->amount_total ?? 0) >= (int) round((float) $payment->amount * 100)
+            && strtolower((string) ($session->currency ?? '')) === strtolower((string) $payment->currency);
 
         return [
             $isPaid,

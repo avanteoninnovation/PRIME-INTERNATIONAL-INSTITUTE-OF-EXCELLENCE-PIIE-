@@ -182,6 +182,12 @@ class ApplicationDocuments
         }
 
         $extension = strtolower($file->getClientOriginalExtension());
+        // Security Phase 2F: callers' mimes rule checks the *content*; the stored name keeps the
+        // client extension, so it must itself be one of the allowed types (a real PNG named
+        // x.html / x.svg would otherwise be stored as HTML/SVG in a web-served folder).
+        if (! in_array($extension, self::ALLOWED_EXTENSIONS, true)) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['files' => 'Only PDF, JPG and PNG files are accepted.']);
+        }
         $storedAs  = 'app' . $admission->id . '_' . uniqid() . '.' . $extension;
 
         $size = $file->getSize();

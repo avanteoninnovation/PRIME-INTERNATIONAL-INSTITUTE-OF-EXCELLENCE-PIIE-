@@ -91,6 +91,23 @@ auth.json
 
 
 /config/*.php
+# Laravel cannot boot without these, so they are versioned. Each was reviewed: every
+# credential / host / key is read through env() (values live only in .env). Any OTHER
+# file in config/ stays ignored until it is reviewed and explicitly allowed here.
+# (auth.php, cache.php and services.php were already tracked before this list.)
+!/config/app.php
+!/config/broadcasting.php
+!/config/cors.php
+!/config/countries.php
+!/config/database.php
+!/config/filesystems.php
+!/config/hashing.php
+!/config/logging.php
+!/config/mail.php
+!/config/queue.php
+!/config/religions.php
+!/config/session.php
+!/config/view.php
 
 # Written at runtime by set_config() in app/Helpers/CommonHelper.php —
 # ends up holding live SMTP credentials, so it must never be committed

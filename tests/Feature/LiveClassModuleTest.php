@@ -8,6 +8,7 @@ use App\Policies\LiveClassPolicy;
 use Database\Seeders\LiveClassPermissionSeeder;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
@@ -16,6 +17,10 @@ class LiveClassModuleTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        Config::set('database.default', 'sqlite');
+        Config::set('database.connections.sqlite.database', ':memory:');
+        DB::purge('sqlite');
+        DB::reconnect('sqlite');
         $this->withoutMiddleware(\App\Http\Middleware\VerifyCsrfToken::class);
     }
 

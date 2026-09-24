@@ -247,6 +247,23 @@ class LeaveApprovalWorkflowTest extends TestCase
         ]);
     }
 
+    /** Security Phase 2G: a leave type from another school cannot be attached to a leave request. */
+    public function test_staff_cannot_submit_leave_with_another_schools_leave_type(): void
+    {
+        $teacher = $this->makeUser(3, 1);
+        $foreignType = $this->makeLeaveType(2, 'Foreign Sabbatical Zq', 10);
+
+        $this->actingAs($teacher)->post(route('staff.leave.store'), [
+            'leave_type_id' => $foreignType,
+            'from_date' => now()->addDay()->toDateString(),
+            'to_date' => now()->addDays(2)->toDateString(),
+            'reason' => 'Doctor appointment',
+        ]);
+
+        $this->assertDatabaseMissing('leavelists', ['leave_type_id' => $foreignType]);
+        $this->assertDatabaseMissing('leavelists', ['leave_type' => 'Foreign Sabbatical Zq']);
+    }
+
     public function test_staff_cannot_submit_leave_without_a_reason(): void
     {
         $teacher = $this->makeUser(3, 1);

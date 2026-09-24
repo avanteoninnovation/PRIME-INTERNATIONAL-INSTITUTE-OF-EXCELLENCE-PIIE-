@@ -22,7 +22,9 @@
             <a href="{{ route('admin.admin.export', ['search' => $search]) }}" class="export_btn bg-secondary"><i class="bi bi-download"></i> {{ get_phrase('Export CSV') }}</a>
             <a href="{{ route('admin.admin.export_excel') }}" class="export_btn bg-secondary"><i class="bi bi-download"></i> {{ get_phrase('Export Excel') }}</a>
             <a href="{{ route('admin.admin.list_pdf') }}" target="_blank" class="export_btn bg-secondary"><i class="bi bi-printer"></i> {{ get_phrase('Print / PDF') }}</a>
+            @if((int) auth()->user()->role_id === 2)
             <a href="javascript:;" class="export_btn" onclick="rightModal('{{ route('admin.open_modal') }}', 'Create Admin')">{{ get_phrase('Create Admin') }}</a>
+            @endif
           </div>
         </div>
       </div>
@@ -154,12 +156,14 @@
                             <ul
                               class="dropdown-menu dropdown-menu-end eDropdown-menu-2 eDropdown-table-action"
                             >
+                              @if((int) auth()->user()->role_id === 2)
                               <li>
                                 <a class="dropdown-item" href="javascript:;" onclick="rightModal('{{ route('admin.open_edit_modal', ['id' => $admin->id]) }}', '{{ get_phrase('Edit Admin') }}')">{{ get_phrase('Edit') }}</a>
                               </li>
+                              @endif
 
                               @if ( $key != 0)
-                                @if( auth()->user()->school_role == 1)
+                                @if( auth()->user()->school_role == 1 && auth()->user()->id != $admin->id)
                                   <li>
                                     <a class="dropdown-item" href="{{ route('admin.admin.menu_permission', ['id' => $admin->id]) }}">{{ get_phrase('Admin Permission') }}</a>
                                     
@@ -167,7 +171,7 @@
                                 @endif
                               @endif
                               
-                              @if ( $key != 0)
+                              @if ( $key != 0 && (int) auth()->user()->role_id === 2 && auth()->user()->id != $admin->id && !($admin->school_role == 1 && auth()->user()->school_role != 1))
                               <li>
                                 <a class="dropdown-item" href="javascript:;" onclick="confirmModal('{{ route('admin.admin.delete', ['id' => $admin->id]) }}', 'undefined');">{{ get_phrase('Delete') }}</a>
                               </li>
@@ -181,13 +185,15 @@
                               <li>
                                 <a class="dropdown-item" href="{{ route('admin.admin.profile_pdf', ['id' => $admin->id]) }}" target="_blank">{{ get_phrase('Profile PDF') }}</a>
                               </li>
+                              @if((int) auth()->user()->role_id === 2)
                               <li>
                                 <a class="dropdown-item" href="javascript:;" onclick="confirmModal('{{ route('admin.admin.reset_password', ['id' => $admin->id]) }}', 'undefined');">{{ get_phrase('Reset Password') }}</a>
                               </li>
                               <li>
                                 <a class="dropdown-item" href="javascript:;" onclick="confirmModal('{{ route('admin.admin.resend_activation', ['id' => $admin->id]) }}', 'undefined');">{{ get_phrase('Resend Activation') }}</a>
                               </li>
-                              @if(auth()->user()->id != $admin->id && $key != 0)
+                              @endif
+                              @if($key != 0 && (int) auth()->user()->role_id === 2 && auth()->user()->id != $admin->id && !($admin->school_role == 1 && auth()->user()->school_role != 1))
                                   @if($admin->account_status == 'disable')
                                       <li>
                                           <a class="dropdown-item" href="javascript:;" onclick="confirmModal('{{ route('admin.account_enable', ['id' => $admin->id]) }}', 'undefined');">{{ get_phrase('Enable') }}</a>

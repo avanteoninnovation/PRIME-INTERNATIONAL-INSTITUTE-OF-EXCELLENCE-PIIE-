@@ -16,6 +16,7 @@ use App\Http\Controllers\WebsiteManagementController;
 use App\Http\Controllers\WardenController;
 // New HEI Controllers
 use App\Http\Controllers\ProgrammeController;
+use App\Http\Controllers\Admin\AdmissionWizardController;
 use App\Http\Controllers\AdmissionsController;
 use App\Http\Controllers\FeeStructureController;
 use App\Http\Controllers\LeaveController;
@@ -85,6 +86,8 @@ Route::controller(HomeController::class)->group(function () {
     Route::get('download-brochure', 'downloadBrochure')->name('download.brochure');
     Route::post('school/create', 'schoolCreate')->name('school.create');
     Route::get('web_redirect_to_pay_fee', 'webRedirectToPayFee')->name('webRedirectToPayFee');
+    // Mobile → web payment handoff: temporary signed URL + single-use key (no credential in the URL).
+    Route::get('web_pay_fee/{handoff}', 'webPayFeeHandoff')->middleware('signed')->name('webPayFeeHandoff');
 });
 
 // Public ID-card verification — reachable only via a signed URL embedded
@@ -179,7 +182,7 @@ Route::controller(WebsiteManagementController::class)->middleware('auth', 'super
 });
 
 // Website management routes for School Admin
-Route::controller(WebsiteManagementController::class)->middleware('auth', 'admin')->group(function () {
+Route::controller(WebsiteManagementController::class)->middleware('auth', 'admin', 'rbac')->group(function () {
     Route::get('admin/website-management', 'adminIndex')->name('admin.website.index');
     Route::post('admin/website-management/page/store', 'storePage')->name('admin.website.page.store');
     Route::post('admin/website-management/page/update/{id}', 'updatePage')->name('admin.website.page.update');
@@ -335,12 +338,8 @@ Route::controller(SuperAdminController::class)->middleware('auth', 'superAdmin')
     Route::get('superadmin/payment/settings', 'payment_settings')->name('superadmin.payment_settings');
     Route::post('superadmin/payment/settings/update', 'update_payment_settings')->name('superadmin.update_payment_settings');
 
-    //Payment create routes
-    Route::post('PayWithPaypal/subscription', 'payWithPaypal_ForSubscription')->name('superadmin.paypal.subscription');
-    Route::post('PayWithStripe/subscription', 'PayWithStripe_ForSubscription')->name('superadmin.stripe.subscription');
-    Route::post('PayWithRazorpay/subscription', 'PayWithRazorpay_ForSubscription')->name('superadmin.razorpay.subscription');
-    Route::post('PayWithPaytm/subscription', 'PayWithPaytm_ForSubscription')->name('superadmin.paytm.subscription');
-    Route::post('subscription/paytm-callback/{success_url}/{cancle_url}/{user_data}', 'Subcription_PaytmCallback')->name('superadmin.paytm.callback');
+    // Legacy PayPal/Stripe/Razorpay/Paytm gateway routes removed (Security Phase 2I): the checkout pages use MarzPay + offline payment only, the legacy gateway partials are never included and the controller methods never existed.
+
 
     //Profile
     Route::get('superadmin/profile', 'profile')->name('superadmin.profile');
@@ -355,7 +354,7 @@ Route::controller(SuperAdminController::class)->middleware('auth', 'superAdmin')
 //Superadmin routes end here
 
 //Admin routes are here
-Route::controller(AdminController::class)->middleware('admin', 'auth')->group(function () {
+Route::controller(AdminController::class)->middleware('admin', 'auth', 'rbac')->group(function () {
 
     Route::get('admin/dashboard', 'adminDashboard')->name('admin.dashboard')->middleware('role_id');
 
@@ -368,17 +367,17 @@ Route::controller(AdminController::class)->middleware('admin', 'auth')->group(fu
     //Admin users route
     Route::get('admin/admin', 'adminList')->name('admin.admin')->middleware('admin_permission');
     Route::get('admin/admin/export', 'adminListExport')->name('admin.admin.export')->middleware('admin_permission');
-    Route::get('admin/admin/create_modal', 'createModal')->name('admin.open_modal');
-    Route::post('admin/admin', 'adminCreate')->name('admin.create');
-    Route::get('admin/admin/edit_modal/{id}', 'editModal')->name('admin.open_edit_modal');
-    Route::post('admin/admin/{id}', 'adminUpdate')->name('admin.update');
-    Route::get('admin/admin/delete/{id}', 'adminDelete')->name('admin.admin.delete');
+    Route::get('admin/admin/create_modal', 'createModal')->name('admin.open_modal')->middleware('school_admin');
+    Route::post('admin/admin', 'adminCreate')->name('admin.create')->middleware('school_admin');
+    Route::get('admin/admin/edit_modal/{id}', 'editModal')->name('admin.open_edit_modal')->middleware('school_admin');
+    Route::post('admin/admin/{id}', 'adminUpdate')->name('admin.update')->middleware('school_admin');
+    Route::get('admin/admin/delete/{id}', 'adminDelete')->name('admin.admin.delete')->middleware('school_admin');
     Route::get('admin/admin/admin_profile/{id}', 'adminProfile')->name('admin.admin.admin_profile');
-    Route::any('admin/user_password/', 'school_user_password')->name('admin.user_password');
-    Route::get('admin/admin/menu_permission/{id}', 'menuSettingsView')->name('admin.admin.menu_permission');
-    Route::post('admin/admin/menu_permission_update/{id}', 'menuPermissionUpdate')->name('admin.admin.menu_permission_update');
-    Route::get('admin/admin/reset-password/{id}', 'adminResetPassword')->name('admin.admin.reset_password');
-    Route::get('admin/admin/resend-activation/{id}', 'adminResendActivation')->name('admin.admin.resend_activation');
+    Route::post('admin/user_password/', 'school_user_password')->name('admin.user_password');
+    Route::get('admin/admin/menu_permission/{id}', 'menuSettingsView')->name('admin.admin.menu_permission')->middleware('school_admin:primary');
+    Route::post('admin/admin/menu_permission_update/{id}', 'menuPermissionUpdate')->name('admin.admin.menu_permission_update')->middleware('school_admin:primary');
+    Route::get('admin/admin/reset-password/{id}', 'adminResetPassword')->name('admin.admin.reset_password')->middleware('school_admin');
+    Route::get('admin/admin/resend-activation/{id}', 'adminResendActivation')->name('admin.admin.resend_activation')->middleware('school_admin');
     Route::get('admin/admin/list-pdf', 'adminListPdf')->name('admin.admin.list_pdf');
     Route::get('admin/admin/export-excel', 'adminListExportExcel')->name('admin.admin.export_excel');
     Route::get('admin/admin/profile-pdf/{id}', 'adminProfilePdf')->name('admin.admin.profile_pdf');
@@ -397,14 +396,14 @@ Route::controller(AdminController::class)->middleware('admin', 'auth')->group(fu
     //Teacher users route
     Route::get('admin/teacher', 'teacherList')->name('admin.teacher')->middleware('admin_permission');
     Route::get('admin/teacher/export', 'teacherListExport')->name('admin.teacher.export')->middleware('admin_permission');
-    Route::get('admin/teacher/create_modal', 'createTeacherModal')->name('admin.teacher.open_modal');
-    Route::post('admin/teacher', 'adminTeacherCreate')->name('admin.teacher.create');
-    Route::get('admin/teacher/edit/{id}', 'teacherEditModal')->name('admin.teacher_edit_modal');
-    Route::post('admin/teacher/{id}', 'teacherUpdate')->name('admin.teacher.update');
-    Route::get('admin/teacher/delete/{id}', 'teacherDelete')->name('admin.teacher.delete');
+    Route::get('admin/teacher/create_modal', 'createTeacherModal')->name('admin.teacher.open_modal')->middleware('school_admin:hr');
+    Route::post('admin/teacher', 'adminTeacherCreate')->name('admin.teacher.create')->middleware('school_admin:hr');
+    Route::get('admin/teacher/edit/{id}', 'teacherEditModal')->name('admin.teacher_edit_modal')->middleware('school_admin:hr');
+    Route::post('admin/teacher/{id}', 'teacherUpdate')->name('admin.teacher.update')->middleware('school_admin:hr');
+    Route::get('admin/teacher/delete/{id}', 'teacherDelete')->name('admin.teacher.delete')->middleware('school_admin:hr');
     Route::get('admin/teacher/teacher_profile/{id}', 'teacherProfile')->name('admin.teacher.teacher_profile');
-    Route::get('admin/teacher/reset-password/{id}', 'teacherResetPassword')->name('admin.teacher.reset_password');
-    Route::get('admin/teacher/resend-activation/{id}', 'teacherResendActivation')->name('admin.teacher.resend_activation');
+    Route::get('admin/teacher/reset-password/{id}', 'teacherResetPassword')->name('admin.teacher.reset_password')->middleware('school_admin');
+    Route::get('admin/teacher/resend-activation/{id}', 'teacherResendActivation')->name('admin.teacher.resend_activation')->middleware('school_admin');
     Route::get('admin/teacher/list-pdf', 'teacherListPdf')->name('admin.teacher.list_pdf');
     Route::get('admin/teacher/export-excel', 'teacherListExportExcel')->name('admin.teacher.export_excel');
     Route::get('admin/teacher/profile-pdf/{id}', 'teacherProfilePdf')->name('admin.teacher.profile_pdf');
@@ -412,14 +411,14 @@ Route::controller(AdminController::class)->middleware('admin', 'auth')->group(fu
     //Accountant users route
     Route::get('admin/accountant', 'accountantList')->name('admin.accountant')->middleware('admin_permission');
     Route::get('admin/accountant/export', 'accountantListExport')->name('admin.accountant.export')->middleware('admin_permission');
-    Route::get('admin/accountant/create_modal', 'createAccountantModal')->name('admin.accountant.open_modal');
-    Route::post('admin/accountant', 'accountantCreate')->name('admin.accountant.create');
-    Route::get('admin/accountant/edit/{id}', 'accountantEditModal')->name('admin.accountant_edit_modal');
-    Route::post('admin/accountant/{id}', 'accountantUpdate')->name('admin.accountant.update');
-    Route::get('admin/accountant/delete/{id}', 'accountantDelete')->name('admin.accountant.delete');
+    Route::get('admin/accountant/create_modal', 'createAccountantModal')->name('admin.accountant.open_modal')->middleware('school_admin:hr');
+    Route::post('admin/accountant', 'accountantCreate')->name('admin.accountant.create')->middleware('school_admin:hr');
+    Route::get('admin/accountant/edit/{id}', 'accountantEditModal')->name('admin.accountant_edit_modal')->middleware('school_admin:hr');
+    Route::post('admin/accountant/{id}', 'accountantUpdate')->name('admin.accountant.update')->middleware('school_admin:hr');
+    Route::get('admin/accountant/delete/{id}', 'accountantDelete')->name('admin.accountant.delete')->middleware('school_admin:hr');
     Route::get('admin/accountant/accountant_profile/{id}', 'accountantProfile')->name('admin.accountant.accountant_profile');
-    Route::get('admin/accountant/reset-password/{id}', 'accountantResetPassword')->name('admin.accountant.reset_password');
-    Route::get('admin/accountant/resend-activation/{id}', 'accountantResendActivation')->name('admin.accountant.resend_activation');
+    Route::get('admin/accountant/reset-password/{id}', 'accountantResetPassword')->name('admin.accountant.reset_password')->middleware('school_admin');
+    Route::get('admin/accountant/resend-activation/{id}', 'accountantResendActivation')->name('admin.accountant.resend_activation')->middleware('school_admin');
     Route::get('admin/accountant/list-pdf', 'accountantListPdf')->name('admin.accountant.list_pdf');
     Route::get('admin/accountant/export-excel', 'accountantListExportExcel')->name('admin.accountant.export_excel');
     Route::get('admin/accountant/profile-pdf/{id}', 'accountantProfilePdf')->name('admin.accountant.profile_pdf');
@@ -427,14 +426,14 @@ Route::controller(AdminController::class)->middleware('admin', 'auth')->group(fu
     //Librarian users route
     Route::get('admin/librarian', 'librarianList')->name('admin.librarian')->middleware('admin_permission');
     Route::get('admin/librarian/export', 'librarianListExport')->name('admin.librarian.export')->middleware('admin_permission');
-    Route::get('admin/librarian/create_modal', 'createLibrarianModal')->name('admin.librarian.open_modal');
-    Route::post('admin/librarian', 'librarianCreate')->name('admin.librarian.create');
-    Route::get('admin/librarian/edit/{id}', 'librarianEditModal')->name('admin.librarian_edit_modal');
-    Route::post('admin/librarian/{id}', 'librarianUpdate')->name('admin.librarian.update');
-    Route::get('admin/librarian/delete/{id}', 'librarianDelete')->name('admin.librarian.delete');
+    Route::get('admin/librarian/create_modal', 'createLibrarianModal')->name('admin.librarian.open_modal')->middleware('school_admin:hr');
+    Route::post('admin/librarian', 'librarianCreate')->name('admin.librarian.create')->middleware('school_admin:hr');
+    Route::get('admin/librarian/edit/{id}', 'librarianEditModal')->name('admin.librarian_edit_modal')->middleware('school_admin:hr');
+    Route::post('admin/librarian/{id}', 'librarianUpdate')->name('admin.librarian.update')->middleware('school_admin:hr');
+    Route::get('admin/librarian/delete/{id}', 'librarianDelete')->name('admin.librarian.delete')->middleware('school_admin:hr');
     Route::get('admin/librarian/librarian_profile/{id}', 'librarianProfile')->name('admin.librarian.librarian_profile');
-    Route::get('admin/librarian/reset-password/{id}', 'librarianResetPassword')->name('admin.librarian.reset_password');
-    Route::get('admin/librarian/resend-activation/{id}', 'librarianResendActivation')->name('admin.librarian.resend_activation');
+    Route::get('admin/librarian/reset-password/{id}', 'librarianResetPassword')->name('admin.librarian.reset_password')->middleware('school_admin');
+    Route::get('admin/librarian/resend-activation/{id}', 'librarianResendActivation')->name('admin.librarian.resend_activation')->middleware('school_admin');
     Route::get('admin/librarian/list-pdf', 'librarianListPdf')->name('admin.librarian.list_pdf');
     Route::get('admin/librarian/export-excel', 'librarianListExportExcel')->name('admin.librarian.export_excel');
     Route::get('admin/librarian/profile-pdf/{id}', 'librarianProfilePdf')->name('admin.librarian.profile_pdf');
@@ -467,14 +466,14 @@ Route::controller(AdminController::class)->middleware('admin', 'auth')->group(fu
     //Warden users route
     Route::get('admin/warden', 'wardenList')->name('admin.warden')->middleware('admin_permission');
     Route::get('admin/warden/export', 'wardenListExport')->name('admin.warden.export')->middleware('admin_permission');
-    Route::post('admin/warden', 'wardenCreate')->name('admin.warden.create');
-    Route::get('admin/warden/create', 'createWarden')->name('admin.warden.create_form');
-    Route::get('admin/warden/edit/{id}', 'wardenEditModal')->name('admin.warden_edit_modal');
-    Route::post('admin/warden/{id}', 'wardenUpdate')->name('admin.warden.update');
-    Route::get('admin/warden/delete/{id}', 'wardenDelete')->name('admin.warden.delete');
+    Route::post('admin/warden', 'wardenCreate')->name('admin.warden.create')->middleware('school_admin:hr');
+    Route::get('admin/warden/create', 'createWarden')->name('admin.warden.create_form')->middleware('school_admin:hr');
+    Route::get('admin/warden/edit/{id}', 'wardenEditModal')->name('admin.warden_edit_modal')->middleware('school_admin:hr');
+    Route::post('admin/warden/{id}', 'wardenUpdate')->name('admin.warden.update')->middleware('school_admin:hr');
+    Route::get('admin/warden/delete/{id}', 'wardenDelete')->name('admin.warden.delete')->middleware('school_admin:hr');
     Route::get('admin/warden/warden_profile/{id}', 'wardenProfile')->name('admin.warden.warden_profile');
-    Route::get('admin/warden/reset-password/{id}', 'wardenResetPassword')->name('admin.warden.reset_password');
-    Route::get('admin/warden/resend-activation/{id}', 'wardenResendActivation')->name('admin.warden.resend_activation');
+    Route::get('admin/warden/reset-password/{id}', 'wardenResetPassword')->name('admin.warden.reset_password')->middleware('school_admin');
+    Route::get('admin/warden/resend-activation/{id}', 'wardenResendActivation')->name('admin.warden.resend_activation')->middleware('school_admin');
     Route::get('admin/warden/list-pdf', 'wardenListPdf')->name('admin.warden.list_pdf');
     Route::get('admin/warden/export-excel', 'wardenListExportExcel')->name('admin.warden.export_excel');
     Route::get('admin/warden/profile-pdf/{id}', 'wardenProfilePdf')->name('admin.warden.profile_pdf');
@@ -628,8 +627,7 @@ Route::controller(AdminController::class)->middleware('admin', 'auth')->group(fu
 
     //Accounting route
     Route::get('admin/student_fee/delete/{id}/{status}', 'update_offline_payment')->name('admin.update_offline_payment');
-    Route::get('admin/subscription/payment/success/{user_data}/{response}', 'admin_subscription_fee_success_payment')->name('admin_subscription_fee_success_payment');
-    Route::get('admin/subscription/payment/fail/{user_data}/{response}', 'admin_subscription_fee_fail_payment')->name('admin_subscription_fee_fail_payment');
+    // Legacy PayPal/Stripe/Razorpay/Paytm gateway routes removed (Security Phase 2I): the checkout pages use MarzPay + offline payment only, the legacy gateway partials are never included and the controller methods never existed.
     Route::get('admin/subscription/payment/trail', 'admin_free_subcription')->name('admin_free_subcription');
     Route::post('admin/subscription/offline/payment/{id}', 'admin_subscription_offline_payment')->name('admin.admin_subscription_offline_payment');
 
@@ -742,7 +740,7 @@ Route::controller(AdminController::class)->middleware('admin', 'auth')->group(fu
 
     //Settings routes
     Route::get('admin/settings/payment', 'paymentSettings')->name('admin.settings.payment')->middleware('admin_permission');
-    Route::post('admin/settings/payment/post', 'paymentSettings_post')->name('admin.settings.payment_post');
+    Route::post('admin/settings/payment/post', 'paymentSettings_post')->name('admin.settings.payment_post')->middleware('admin_permission');
     Route::get('admin/settings/school', 'schoolSettings')->name('admin.settings.school')->middleware('admin_permission');
     Route::post('admin/settings/school', 'schoolUpdate')->name('admin.school.update');
 
@@ -953,9 +951,8 @@ Route::controller(ParentController::class)->middleware('parent', 'auth')->group(
     Route::get('parent/child/syllabus', 'syllabusList')->name('parent.syllabus_list');
     Route::get('parent/child/syllabus/list', 'syllabusList_by_student_name')->name('parent.syllabusList_by_student_name');
 
-    //Online payment routes
-    Route::get('parent/payment/success/{user_data}/{response}', 'student_fee_success_payment')->name('parent.student_fee_success_payment');
-    Route::get('parent/payment/fail/{user_data}/{response}', 'student_fee_fail_payment')->name('parent.student_fee_fail_payment');
+    // Legacy PayPal/Stripe/Razorpay/Paytm gateway routes removed (Security Phase 2I): the checkout pages use MarzPay + offline payment only, the legacy gateway partials are never included and the controller methods never existed.
+
 
     //Offline payment routes
     Route::post('parent/student_fee/offline_payment/{id}', 'offlinePayment')->name('parent.offline_payment');
@@ -1057,8 +1054,7 @@ Route::controller(StudentController::class)->middleware('student', 'auth')->grou
     Route::post('student/fee_manager/payment/{id}/marzpay/start', 'startMarzpayTuitionPayment')->name('student.payment.marzpay.start');
     Route::get('student/fee_manager/payment/{id}/marzpay/status', 'checkMarzpayTuitionStatus')->name('student.payment.marzpay.status');
     Route::get('student/fee_manager/export/{date_from}/{date_to}/{selected_status}', 'feeManagerExport')->name('student.fee_manager.export');
-    Route::get('student/payment/success/{user_data}/{response}', 'student_fee_success_payment_student')->name('student.student_fee_success_payment_student');
-    Route::get('student/payment/fail/{user_data}/{response}', 'student_fee_fail_payment_student')->name('student.student_fee_fail_payment_student');
+    // Legacy PayPal/Stripe/Razorpay/Paytm gateway routes removed (Security Phase 2I): the checkout pages use MarzPay + offline payment only, the legacy gateway partials are never included and the controller methods never existed.
     Route::post('student/student_fee/offline_payment/{id}', 'offlinePaymentStudent')->name('student.offline_payment');
     Route::get('student/student_fee/invoice/{id}', 'studentFeeinvoice')->name('student.studentFeeinvoice');
 
@@ -1083,6 +1079,7 @@ Route::controller(StudentController::class)->middleware('student', 'auth')->grou
     Route::get('student/hostel-applications', 'hostelApplications')->name('student.hostel.applications');
     Route::get('student/hostel-applications/create', 'applicationCreate')->name('student.hostel.applications.create');
     Route::post('student/hostel-applications/store', 'applicationStore')->name('student.hostel.applications.store');
+    Route::get('student/hostel-applications/get-rooms/{hostel_id}', 'applicationRooms')->name('student.hostel.applications.rooms');
     Route::get('student/hostel-applications/{id}/edit', 'applicationEdit')->name('student.hostel.applications.edit');
     Route::post('student/hostel-applications/{id}/update', 'applicationUpdate')->name('student.hostel.applications.update');
     Route::get('student/hostel-applications/{id}/delete', 'applicationDelete')->name('student.hostel.applications.delete');
@@ -1093,15 +1090,16 @@ Route::controller(StudentController::class)->middleware('student', 'auth')->grou
     Route::post('student/hostel_fee_payment/{id}/marzpay/start', 'startMarzpayHostelPayment')->name('student.hostel.payment.marzpay.start');
     Route::get('student/hostel_fee_payment/{id}/marzpay/status', 'checkMarzpayHostelStatus')->name('student.hostel.payment.marzpay.status');
     Route::get('student/hostel_fee_manager/export/{date_from}/{date_to}/{selected_status}', 'hostelFeeManagerExport')->name('student.hostel_fee_manager.export');
-    Route::get('student/hostel_payment/success/{user_data}/{response}', 'student_hostel_fee_success_payment_student')->name('student.student_hostel_fee_success_payment_student');
-    Route::get('student/hostel_payment/fail/{user_data}/{response}', 'student_hostel_fee_fail_payment_student')->name('student.student_hostel_fee_fail_payment_student');
+    // Legacy hostel-fee gateway callbacks removed (Security Phase 2I): nothing linked to them and the success
+    // callback marked the invoice paid from URL data alone. Hostel fees are paid via MarzPay or offline payment.
     Route::post('student/hostel_fee/offline_payment', 'offlinePaymentHostel')->name('student.offline.payment.hostel');
     Route::get('student/hostel_fee/invoice/{id}', 'hostelFeeInvoice')->name('student.hostel_fee.invoice');
     Route::get('student/hostel_fee/pay/{month}/{year}', 'payMonthlyFee')->name('student.hostel_fee.pay_monthly');
 
     // Club Management
     Route::get('student/club/list', 'club')->name('student.club.list');
-    Route::post('student/club/toggle-status/{id}', 'toggleStatus')->name('student.club.toggle_status');
+    // student.club.toggle_status removed: StudentController has no toggleStatus and students do not manage
+    // club status (they join / cancel a request / leave, below); club status is managed by admin and teacher.
     Route::get('student/club/join/{club}', 'join')->name('club.join');
     Route::get('student/club/remove-request/{club}', 'removeRequest')->name('club.removeRequest');
     Route::get('student/club/leave/{club}', 'leave')->name('club.leave');
@@ -1248,11 +1246,8 @@ Route::controller(WardenController::class)->middleware('warden', 'auth')->group(
 
     // Hostel Room
     Route::get('warden/hostel-room-list', 'hostel_room_list')->name('warden.hostel.room_list');
-    Route::get('warden/hostel-room-create', 'create_hostel_room')->name('warden.hostel.create_room');
-    Route::post('warden/hostel-room-store', 'store_hostel_room')->name('warden.hostel.store_room');
-    Route::get('warden/hostel-room-edit/{id}', 'edit_hostel_room')->name('warden.hostel.edit_room');
-    Route::post('warden/hostel-room-update/{id}', 'update_hostel_room')->name('warden.hostel.update_room');
-    Route::get('warden/hostel-room-delete/{id}', 'delete_hostel_room')->name('warden.hostel.delete_room');
+    // Room create/edit/delete routes removed: WardenController never had those methods (every call was a 500)
+    // and the Warden room page is read-only; rooms are managed in the admin portal.
 
     // Hostel Room Allocation
     Route::get('warden/hostel-room-allocation-list', 'hostel_room_allocation_list')->name('warden.hostel.allocation_list');
@@ -1360,7 +1355,7 @@ Route::controller(InstallController::class)->middleware('is_installed')->group(f
 // ═══════════════════════════════════════════════════════════════
 
 // ── Programmes ────────────────────────────────────────────────
-Route::controller(ProgrammeController::class)->middleware('auth', 'admin')->group(function () {
+Route::controller(ProgrammeController::class)->middleware('auth', 'admin', 'rbac')->group(function () {
     Route::get('admin/programmes',                  'index')->name('admin.programmes.index');
     Route::get('admin/programmes/export',           'exportCsv')->name('admin.programmes.export');
     Route::get('admin/programmes/open_modal',       'openModal')->name('admin.programmes.open_modal');
@@ -1371,7 +1366,7 @@ Route::controller(ProgrammeController::class)->middleware('auth', 'admin')->grou
 });
 
 // ── Admissions ────────────────────────────────────────────────
-Route::controller(AdmissionsController::class)->middleware('auth', 'admin')->group(function () {
+Route::controller(AdmissionsController::class)->middleware('auth', 'admin', 'rbac')->group(function () {
     // Applications
     Route::get('admin/hei-admissions',                         'index')->name('admin.hei_admissions.index');
     Route::get('admin/hei-admissions/open_modal',              'openModal')->name('admin.hei_admissions.open_modal');
@@ -1387,6 +1382,9 @@ Route::controller(AdmissionsController::class)->middleware('auth', 'admin')->gro
     Route::post('admin/hei-admissions/review/{id}/notes',      'saveNotes')->name('admin.hei_admissions.notes');
     Route::post('admin/hei-admissions/document/{id}/review',   'reviewDocument')->name('admin.hei_admissions.document.review');
     Route::post('admin/hei-admissions/payment/{id}/review',    'reviewPayment')->name('admin.hei_admissions.payment.review');
+    Route::post('admin/hei-admissions/payment/{id}/request',   'sendPaymentRequest')->name('admin.hei_admissions.payment.request');
+    Route::post('admin/hei-admissions/payment/{id}/record',    'recordPayment')->name('admin.hei_admissions.payment.record');
+    Route::post('admin/hei-admissions/payment/{id}/waive',     'waiveFee')->name('admin.hei_admissions.payment.waive');
     // Document requirements
     Route::get('admin/admissions-documents',                   'documentRequirements')->name('admin.admissions_documents.index');
     Route::post('admin/admissions-documents/store',            'storeDocumentRequirement')->name('admin.admissions_documents.store');
@@ -1409,8 +1407,25 @@ Route::controller(AdmissionsController::class)->middleware('auth', 'admin')->gro
     Route::get('admin/admissions-agents/export',               'exportAgentsCsv')->name('admin.admissions_agents.export');
 });
 
+// ── Staff-entry Admission Wizard ──────────────────────────────
+// The admin-side counterpart of the Applicant Portal's 5-step wizard —
+// same Admission model/workflow, reached from "New Student Admission"
+// instead of the public /apply flow. Academic assignment (Step 6) is not
+// here — it is the existing admin.hei_admissions.review screen, shared
+// with online-application decisions.
+Route::controller(AdmissionWizardController::class)->middleware('auth', 'admin', 'rbac')->group(function () {
+    Route::get('admin/hei-admissions/wizard/create',              'create')->name('admin.hei_admissions.wizard.create');
+    Route::get('admin/hei-admissions/wizard/{id}/{step}',         'step')->name('admin.hei_admissions.wizard.step');
+    Route::post('admin/hei-admissions/wizard/{id}/personal',      'savePersonal')->name('admin.hei_admissions.wizard.personal');
+    Route::post('admin/hei-admissions/wizard/{id}/programme',     'saveProgramme')->name('admin.hei_admissions.wizard.programme');
+    Route::post('admin/hei-admissions/wizard/{id}/education',     'saveEducation')->name('admin.hei_admissions.wizard.education');
+    Route::post('admin/hei-admissions/wizard/{id}/documents',            'saveDocument')->name('admin.hei_admissions.wizard.documents.store');
+    Route::post('admin/hei-admissions/wizard/{id}/documents/{documentId}/delete', 'destroyDocument')->name('admin.hei_admissions.wizard.documents.destroy');
+    Route::post('admin/hei-admissions/wizard/{id}/submit',        'submit')->name('admin.hei_admissions.wizard.submit');
+});
+
 // ── Fee Structures ────────────────────────────────────────────
-Route::controller(FeeStructureController::class)->middleware('auth', 'admin')->group(function () {
+Route::controller(FeeStructureController::class)->middleware('auth', 'admin', 'rbac')->group(function () {
     Route::get('admin/fee-structures',              'index')->name('admin.fee_structures.index');
     Route::get('admin/fee-structures/open_modal',   'openModal')->name('admin.fee_structures.open_modal');
     Route::post('admin/fee-structures/store',       'store')->name('admin.fee_structures.store');
@@ -1440,7 +1455,7 @@ Route::controller(LeaveController::class)->middleware('auth', 'staff')->group(fu
 });
 
 // ── Online Exams / CBT ────────────────────────────────────────
-Route::controller(OnlineExamController::class)->middleware('auth', 'admin')->group(function () {
+Route::controller(OnlineExamController::class)->middleware('auth', 'admin', 'rbac')->group(function () {
     Route::get('admin/online-exams',                         'index')->name('admin.online_exams.index');
     Route::get('admin/online-exams/create',                  'create')->name('admin.online_exams.create');
     // Must stay above the admin.online_exams.show {id} route below — Laravel
@@ -1558,7 +1573,7 @@ Route::controller(OnlineExamController::class)->middleware('auth', 'teacher')->g
 });
 
 // ── Assignments (admin/teacher) ───────────────────────────────
-Route::controller(AssignmentController::class)->middleware('auth', 'admin')->group(function () {
+Route::controller(AssignmentController::class)->middleware('auth', 'admin', 'rbac')->group(function () {
     Route::get('admin/assignments',                            'index')->name('admin.assignments.index');
     Route::get('admin/assignments/open_modal',                 'openModal')->name('admin.assignments.open_modal');
     Route::post('admin/assignments/store',                     'store')->name('admin.assignments.store');
@@ -1576,7 +1591,7 @@ Route::controller(AssignmentController::class)->middleware('auth', 'student')->g
 });
 
 // ── Live Classes ──────────────────────────────────────────────
-Route::controller(LiveClassController::class)->middleware('auth', 'admin')->group(function () {
+Route::controller(LiveClassController::class)->middleware('auth', 'admin', 'rbac')->group(function () {
     Route::get('admin/live-classes',                   'index')->name('admin.live_classes.index');
     Route::get('admin/live-classes/create',            'create')->name('admin.live_classes.create');
     Route::post('admin/live-classes',                  'store')->name('admin.live_classes.store');
@@ -1647,7 +1662,7 @@ Route::controller(LiveClassController::class)->middleware('auth', 'teacher')->gr
 });
 
 // ── Academic Calendar ─────────────────────────────────────────
-Route::controller(AcademicCalendarController::class)->middleware('auth', 'admin')->group(function () {
+Route::controller(AcademicCalendarController::class)->middleware('auth', 'admin', 'rbac')->group(function () {
     Route::get('admin/academic-calendar',              'index')->name('admin.academic_calendar.index');
     Route::get('admin/academic-calendar/open_modal',   'openModal')->name('admin.academic_calendar.open_modal');
     Route::post('admin/academic-calendar/store',       'store')->name('admin.academic_calendar.store');
@@ -1660,7 +1675,7 @@ Route::get('calendar/events.json', [AcademicCalendarController::class, 'eventsJs
     ->middleware('auth')->name('calendar.events_json');
 
 // ── Payroll ───────────────────────────────────────────────────
-Route::controller(PayrollController::class)->middleware('auth', 'admin')->group(function () {
+Route::controller(PayrollController::class)->middleware('auth', 'admin', 'rbac')->group(function () {
     Route::get('admin/payroll',                      'index')->name('admin.payroll.index');
     Route::post('admin/payroll/generate',            'generate')->name('admin.payroll.generate');
     Route::get('admin/payroll/approve/{id}',         'approve')->name('admin.payroll.approve');
@@ -1677,7 +1692,7 @@ Route::controller(PayrollController::class)->middleware('auth', 'teacher')->grou
 });
 
 // ── Graduation ────────────────────────────────────────────────
-Route::controller(GraduationController::class)->middleware('auth', 'admin')->group(function () {
+Route::controller(GraduationController::class)->middleware('auth', 'admin', 'rbac')->group(function () {
     Route::get('admin/graduation',               'index')->name('admin.graduation.index');
     Route::get('admin/graduation/open_modal',    'openApplyModal')->name('admin.graduation.open_modal');
     Route::post('admin/graduation/store',        'store')->name('admin.graduation.store');
@@ -1692,7 +1707,7 @@ Route::controller(GraduationController::class)->middleware('auth', 'student')->g
 });
 
 // ── Assets ────────────────────────────────────────────────────
-Route::controller(AssetController::class)->middleware('auth', 'admin')->group(function () {
+Route::controller(AssetController::class)->middleware('auth', 'admin', 'rbac')->group(function () {
     Route::get('admin/assets',                        'index')->name('admin.assets.index');
     Route::get('admin/assets/open_modal',             'openModal')->name('admin.assets.open_modal');
     Route::post('admin/assets/store',                 'store')->name('admin.assets.store');
@@ -1706,7 +1721,7 @@ Route::controller(AssetController::class)->middleware('auth', 'admin')->group(fu
 });
 
 // ── Procurement ───────────────────────────────────────────────
-Route::controller(ProcurementController::class)->middleware('auth', 'admin')->group(function () {
+Route::controller(ProcurementController::class)->middleware('auth', 'admin', 'rbac')->group(function () {
     Route::get('admin/procurement',                'index')->name('admin.procurement.index');
     Route::get('admin/procurement/open_modal',     'openModal')->name('admin.procurement.open_modal');
     Route::post('admin/procurement/store',         'store')->name('admin.procurement.store');
@@ -1717,14 +1732,14 @@ Route::controller(ProcurementController::class)->middleware('auth', 'admin')->gr
 
 // ── Audit Log ─────────────────────────────────────────────────
 Route::controller(AuditLogController::class)->middleware('auth')->group(function () {
-    Route::get('admin/audit-log', 'index')->name('admin.audit_log.index')->middleware('admin');
-    Route::get('admin/audit-log/{id}', 'show')->name('admin.audit_log.show')->middleware('admin');
+    Route::get('admin/audit-log', 'index')->name('admin.audit_log.index')->middleware('admin', 'rbac');
+    Route::get('admin/audit-log/{id}', 'show')->name('admin.audit_log.show')->middleware('admin', 'rbac');
     Route::get('superadmin/audit-log', 'index')->name('superadmin.audit_log.index')->middleware('superAdmin');
     Route::get('superadmin/audit-log/{id}', 'show')->name('superadmin.audit_log.show')->middleware('superAdmin');
 });
 
 // ── Transcripts ───────────────────────────────────────────────
-Route::middleware(['auth', 'admin'])->controller(\App\Http\Controllers\TranscriptController::class)->group(function () {
+Route::middleware(['auth', 'admin', 'rbac'])->controller(\App\Http\Controllers\TranscriptController::class)->group(function () {
     Route::get('admin/transcripts',              'index')->name('admin.transcripts.index');
     Route::get('admin/transcripts/search',       'search')->name('admin.transcripts.search');
     Route::get('admin/transcripts/{id}/view',    'show')->name('admin.transcripts.show');
@@ -1732,13 +1747,13 @@ Route::middleware(['auth', 'admin'])->controller(\App\Http\Controllers\Transcrip
 });
 
 // ── Student Affairs (requests review) ──────────────────────────
-Route::middleware(['auth', 'admin'])->controller(\App\Http\Controllers\StudentRequestController::class)->group(function () {
+Route::middleware(['auth', 'admin', 'rbac'])->controller(\App\Http\Controllers\StudentRequestController::class)->group(function () {
     Route::get('admin/student-requests',          'index')->name('admin.student_requests.index');
     Route::post('admin/student-requests/{id}',    'update')->name('admin.student_requests.update');
 });
 
 // ── Elections / Voting ──────────────────────────────────────────
-Route::middleware(['auth', 'admin'])->controller(\App\Http\Controllers\ElectionController::class)->group(function () {
+Route::middleware(['auth', 'admin', 'rbac'])->controller(\App\Http\Controllers\ElectionController::class)->group(function () {
     Route::get('admin/elections',                       'index')->name('admin.elections.index');
     Route::get('admin/elections/create',                'create')->name('admin.elections.create');
     Route::post('admin/elections',                      'store')->name('admin.elections.store');
@@ -1749,7 +1764,7 @@ Route::middleware(['auth', 'admin'])->controller(\App\Http\Controllers\ElectionC
 });
 
 // ── Reports & Analytics ───────────────────────────────────────
-Route::middleware(['auth', 'admin'])->controller(\App\Http\Controllers\ReportsController::class)->group(function () {
+Route::middleware(['auth', 'admin', 'rbac'])->controller(\App\Http\Controllers\ReportsController::class)->group(function () {
     Route::get('admin/reports',                  'index')->name('admin.reports.index');
     Route::get('admin/reports/students',         'studentsReport')->name('admin.reports.students');
     Route::get('admin/reports/finance',          'financeReport')->name('admin.reports.finance');
@@ -1759,15 +1774,49 @@ Route::middleware(['auth', 'admin'])->controller(\App\Http\Controllers\ReportsCo
 });
 
 // ── Enhanced Settings ─────────────────────────────────────────
-Route::middleware(['auth', 'admin'])->controller(\App\Http\Controllers\EnhancedSettingsController::class)->group(function () {
+Route::middleware(['auth', 'admin', 'rbac'])->controller(\App\Http\Controllers\EnhancedSettingsController::class)->group(function () {
     Route::get('admin/settings/academic',        'academic')->name('admin.settings.academic');
     Route::post('admin/settings/academic/save',  'saveAcademic')->name('admin.settings.academic.save');
     Route::get('admin/settings/notifications',   'notifications')->name('admin.settings.notifications');
     Route::post('admin/settings/notifications/save', 'saveNotifications')->name('admin.settings.notifications.save');
     Route::get('admin/settings/permissions',     'permissions')->name('admin.settings.permissions');
-    Route::post('admin/settings/permissions/save','savePermissions')->name('admin.settings.permissions.save');
+    Route::post('admin/settings/permissions/save','savePermissions')->name('admin.settings.permissions.save')->middleware('school_admin');
     Route::get('admin/settings/backup',          'backup')->name('admin.settings.backup');
     Route::post('admin/settings/backup/run',     'runBackup')->name('admin.settings.backup.run');
     Route::get('admin/settings/api',             'apiSettings')->name('admin.settings.api');
     Route::post('admin/settings/api/regenerate', 'regenerateKey')->name('admin.settings.api.regenerate');
+});
+
+// RBAC Phase 3B — Administration → Roles & Permissions (School Admin only: every route below is
+// mapped to a non-delegable RBAC permission in app/Support/Permissions/registry.php). State
+// changes use POST/PUT/DELETE; school scope always comes from the signed-in administrator.
+Route::middleware(['auth', 'admin', 'rbac'])->controller(\App\Http\Controllers\Admin\RolePermissionController::class)->group(function () {
+    Route::get('admin/roles-permissions', 'rolesIndex')->name('admin.rbac.roles.index');
+    Route::get('admin/roles-permissions/roles/create', 'roleCreate')->name('admin.rbac.roles.create');
+    Route::post('admin/roles-permissions/roles', 'roleStore')->name('admin.rbac.roles.store');
+    Route::get('admin/roles-permissions/roles/{id}', 'roleShow')->name('admin.rbac.roles.show');
+    Route::get('admin/roles-permissions/roles/{id}/edit', 'roleEdit')->name('admin.rbac.roles.edit');
+    Route::put('admin/roles-permissions/roles/{id}', 'roleUpdate')->name('admin.rbac.roles.update');
+    Route::post('admin/roles-permissions/roles/{id}/duplicate', 'roleDuplicate')->name('admin.rbac.roles.duplicate');
+    Route::post('admin/roles-permissions/roles/{id}/status', 'roleStatus')->name('admin.rbac.roles.status');
+    Route::delete('admin/roles-permissions/roles/{id}', 'roleDestroy')->name('admin.rbac.roles.destroy');
+
+    Route::get('admin/roles-permissions/staff', 'staffIndex')->name('admin.rbac.staff.index');
+    Route::get('admin/roles-permissions/staff/{id}', 'staffShow')->name('admin.rbac.staff.show');
+    Route::post('admin/roles-permissions/staff/{id}/roles', 'staffAssignRole')->name('admin.rbac.staff.roles.assign');
+    Route::delete('admin/roles-permissions/staff/{id}/roles/{roleId}', 'staffRemoveRole')->name('admin.rbac.staff.roles.remove');
+    Route::post('admin/roles-permissions/staff/{id}/permissions', 'staffGrant')->name('admin.rbac.staff.permissions.grant');
+    Route::delete('admin/roles-permissions/staff/{id}/permissions', 'staffRevokeAll')->name('admin.rbac.staff.permissions.clear');
+    Route::delete('admin/roles-permissions/staff/{id}/permissions/{permission}', 'staffRevoke')->name('admin.rbac.staff.permissions.revoke');
+});
+
+// Staff → Add Staff: a launcher into the existing per-role create workflows (no creation logic of
+// its own). Same 'school_admin:hr' guard as the create routes it opens.
+Route::middleware(['auth', 'admin', 'rbac', 'school_admin:hr'])->group(function () {
+    Route::get('admin/staff/add', [\App\Http\Controllers\Admin\StaffLauncherController::class, 'index'])->name('admin.staff.add');
+});
+
+// Protected staff documents: served by database id only (staff.documents.view, own school; 404 otherwise).
+Route::middleware(['auth', 'admin', 'rbac'])->group(function () {
+    Route::get('admin/staff/documents/{id}/download', [\App\Http\Controllers\Admin\StaffDocumentController::class, 'download'])->name('admin.staff.documents.download');
 });

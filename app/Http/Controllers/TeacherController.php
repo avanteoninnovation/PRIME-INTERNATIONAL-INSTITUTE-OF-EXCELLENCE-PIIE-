@@ -36,6 +36,9 @@ use App\Models\ClubMember;
 use App\Models\ClubNotice;
 use Illuminate\Foundation\Auth\User as AuthUser;
 use Stripe\Exception\PermissionException;
+use App\Support\ProfilePhoto;
+use App\Support\SafeUpload;
+use App\Support\Clubs\ClubTenancy;
 
 
 class TeacherController extends Controller
@@ -76,6 +79,8 @@ class TeacherController extends Controller
 
     public function marksFilter(Request $request)
     {
+        // Filter parameters are required; without them answer with a validation error (302 back / 422), never HTTP 500.
+        $request->validate(['exam_category_id' => 'present', 'class_id' => 'present', 'section_id' => 'present', 'subject_id' => 'present', 'session_id' => 'present']);
         $data = $request->all();
 
         $page_data['exam_category_id'] = $data['exam_category_id'];
@@ -84,10 +89,13 @@ class TeacherController extends Controller
         $page_data['subject_id'] = $data['subject_id'];
         $page_data['session_id'] = $data['session_id'];
 
-        $page_data['class_name'] = Classes::find($data['class_id'])->name;
-        $page_data['section_name'] = Section::find($data['section_id'])->name;
-        $page_data['subject_name'] = Subject::find($data['subject_id'])->name;
-        $page_data['session_title'] = Session::find($data['session_id'])->session_title;
+        // Pre-RBAC cleanup: these ids come from the request — resolve them within this school
+        // (a section through its class), so another school's names are never echoed.
+        $class = Classes::where('school_id', auth()->user()->school_id)->findOrFail($data['class_id']);
+        $page_data['class_name'] = $class->name;
+        $page_data['section_name'] = Section::where('class_id', $class->id)->findOrFail($data['section_id'])->name;
+        $page_data['subject_name'] = Subject::where('school_id', auth()->user()->school_id)->findOrFail($data['subject_id'])->name;
+        $page_data['session_title'] = Session::where('school_id', auth()->user()->school_id)->findOrFail($data['session_id'])->session_title;
 
         $enroll_students = Enrollment::where('class_id', $page_data['class_id'])
             ->where('section_id', $page_data['section_id'])
@@ -172,6 +180,8 @@ class TeacherController extends Controller
 
     public function routineList(Request $request)
     {
+        // Filter parameters are required; without them answer with a validation error (302 back / 422), never HTTP 500.
+        $request->validate(['class_id' => 'present', 'section_id' => 'present']);
         $data = $request->all();
 
         $class_id = $data['class_id'];
@@ -276,6 +286,8 @@ class TeacherController extends Controller
 
     public function gradebookList(Request $request)
     {
+        // Filter parameters are required; without them answer with a validation error (302 back / 422), never HTTP 500.
+        $request->validate(['class_id' => 'present', 'section_id' => 'present', 'exam_category_id' => 'present']);
         $data = $request->all();
 
         $active_session = get_school_settings(auth()->user()->school_id)->value('running_session');
@@ -313,6 +325,8 @@ class TeacherController extends Controller
 
     public function class_wise_section_for_syllabus(Request $request)
     {
+        // Filter parameters are required; without them answer with a validation error (302 back / 422), never HTTP 500.
+        $request->validate(['classId' => 'present']);
         $data = $request->all();
         $permissions = TeacherPermission::where('class_id', $data['classId'])->where('teacher_id', auth()->user()->id)->get()->toArray();
         $permitted_sections = array();
@@ -333,6 +347,8 @@ class TeacherController extends Controller
 
     public function syllabus_details(Request $request)
     {
+        // Filter parameters are required; without them answer with a validation error (302 back / 422), never HTTP 500.
+        $request->validate(['class_id' => 'present', 'section_id' => 'present']);
         $data = $request->all();
         $syllabuses = Syllabus::where('class_id', $data['class_id'])
             ->where('section_id', $data['section_id'])
@@ -365,10 +381,7 @@ class TeacherController extends Controller
         $file = $data['syllabus_file'];
 
         if ($file) {
-            $filename = $file->getClientOriginalName();
-            $extension = $file->getClientOriginalExtension(); //Get extension of uploaded file
-
-            $file->move(public_path('assets/uploads/syllabus/'), $filename);
+            $filename = SafeUpload::store($file, public_path('assets/uploads/syllabus/'), null) ?? abort(422, 'This file type is not allowed.');
 
             $filepath = asset('assets/uploads/syllabus/' . $filename);
         }
@@ -388,7 +401,7 @@ class TeacherController extends Controller
 
     public function syllabusDelete($id = '')
     {
-        $syllabus = Syllabus::find($id);
+        $syllabus = Syllabus::where('school_id', auth()->user()->school_id)->findOrFail($id);
         $syllabus->delete();
         return redirect()->back()->with('message', 'You have successfully delete syllabus.');
     }
@@ -402,6 +415,10 @@ class TeacherController extends Controller
     {
         $data['name'] = $request->name;
         $data['email'] = $request->email;
+        // Security Phase 2F: a self-service profile edit must not claim another account's login email.
+        if (User::where('email', $request->email)->where('id', '!=', auth()->user()->id)->exists()) {
+            return redirect()->back()->with('error', 'Email was already taken.');
+        }
         $data['designation'] = $request->designation;
 
         $user_info['birthday'] = strtotime($request->eDefaultDateRange);
@@ -413,10 +430,11 @@ class TeacherController extends Controller
         if (empty($request->photo)) {
             $user_info['photo'] = $request->old_photo;
         } else {
-            $file_name = random(10) . '.png';
+            $file_name = ProfilePhoto::store($request->photo);
+            if ($file_name === null) {
+                return redirect()->back()->with('error', 'Profile photo must be a JPG or PNG image of at most 4 MB.');
+            }
             $user_info['photo'] = $file_name;
-
-            $request->photo->move(public_path('assets/uploads/user-images/'), $file_name);
         }
 
         $data['user_information'] = json_encode($user_info);
@@ -525,7 +543,7 @@ class TeacherController extends Controller
 
     public function editNoticeboard($id = "")
     {
-        $notice = Noticeboard::find($id);
+        $notice = Noticeboard::where('school_id', auth()->user()->school_id)->findOrFail($id);
         return view('teacher.noticeboard.edit', ['notice' => $notice]);
     }
 
@@ -577,6 +595,8 @@ class TeacherController extends Controller
 
     public function dailyAttendanceFilter(Request $request)
     {
+        // Filter parameters are required; without them answer with a validation error (302 back / 422), never HTTP 500.
+        $request->validate(['month' => 'present', 'year' => 'present', 'class_id' => 'present', 'section_id' => 'present']);
         $data = $request->all();
 
         $date = '01 ' . $data['month'] . ' ' . $data['year'];
@@ -624,6 +644,8 @@ class TeacherController extends Controller
 
     public function studentListAttendance(Request $request)
     {
+        // Filter parameters are required; without them answer with a validation error (302 back / 422), never HTTP 500.
+        $request->validate(['date' => 'present', 'class_id' => 'present', 'section_id' => 'present']);
         $data = $request->all();
 
         $page_data['attendance_date'] = $data['date'];
@@ -671,6 +693,10 @@ class TeacherController extends Controller
 
     public function dailyAttendanceFilter_csv(Request $request)
     {
+        // The export encodes month/year in its first query key; without it answer with a validation error, never HTTP 500.
+        if (empty($request->all())) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['month' => get_phrase('Choose a month to export.')]);
+        }
 
         $data = $request->all();
 
@@ -747,18 +773,15 @@ class TeacherController extends Controller
             }
         }
 
-        $txt = fopen($file, "w") or die("Unable to open file!");
-        fwrite($txt, $csv_content);
-        fclose($txt);
-
-        header('Content-Description: File Transfer');
-        header('Content-Disposition: attachment; filename=' . $file);
-        header('Expires: 0');
-        header('Cache-Control: must-revalidate');
-        header('Pragma: public');
-        header('Content-Length: ' . filesize($file));
-        header("Content-type: text/csv");
-        readfile($file);
+        // Security Phase 2F: streamed to the requester — no copy is written to
+        // the working directory (public/ under a web server) any more.
+        return response($csv_content, 200, [
+            'Content-Type'        => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="' . str_replace(['"', '/', '\\'], '', $file) . '"',
+            'Cache-Control'       => 'must-revalidate',
+            'Expires'             => '0',
+            'Pragma'              => 'public',
+        ]);
     }
 
     public function feedback_list()
@@ -801,7 +824,7 @@ class TeacherController extends Controller
     public function edit_feedback($id)
     {
 
-        $feedback = Feedback::find($id);
+        $feedback = Feedback::where('school_id', auth()->user()->school_id)->findOrFail($id);
         $classes = Classes::get()->where('school_id', auth()->user()->school_id);
         return view('teacher.feedback.edit_feedback', ['classes' => $classes],  ['feedback' => $feedback]);
     }
@@ -812,14 +835,14 @@ class TeacherController extends Controller
 
         unset($data['_token']);
 
-        Feedback::where('id', $id)->update($data);
+        Feedback::where('id', $id)->where('school_id', auth()->user()->school_id)->update($data);
 
         return redirect()->back()->with('message', 'You have successfully update feedback.');
     }
 
     public function delete_feedback($id)
     {
-        Feedback::where('id', $id)->delete();
+        Feedback::where('id', $id)->where('school_id', auth()->user()->school_id)->delete();
         return redirect()->back()->with('message', 'Delete successfully.');
     }
 
@@ -1004,7 +1027,7 @@ class TeacherController extends Controller
         $search     = $request->search;
         $advisorId = $request->advisor_id;
 
-        $clubs = Club::with('advisor')
+        $clubs = ClubTenancy::clubs()->with('advisor')
             ->when($search, function ($query) use ($search) {
                 $query->where('club_name', 'LIKE', "%{$search}%");
             })
@@ -1015,7 +1038,7 @@ class TeacherController extends Controller
             ->paginate(10)
             ->withQueryString();
 
-        $teachers = User::where('role_id', 3)
+        $teachers = User::where('school_id', auth()->user()->school_id)->where('role_id', 3)
             ->where('status', 1)
             ->get();
 
@@ -1030,7 +1053,7 @@ class TeacherController extends Controller
 
     public function createClub()
     {
-        $teachers = User::where('role_id', 3)
+        $teachers = User::where('school_id', auth()->user()->school_id)->where('role_id', 3)
             ->where('status', 1)
             ->get();
         return view('teacher.club.create_club', compact('teachers'));
@@ -1040,10 +1063,10 @@ class TeacherController extends Controller
     {
         $request->validate([
             'club_name'  => 'required|string|max:255',
-            'advisor_id' => 'nullable|exists:users,id',
+            'advisor_id' => 'nullable|' . ClubTenancy::schoolUserRule(),
             'status'    => 'nullable|in:0,1',
         ]);
-        Club::create([
+        ClubTenancy::createClub([
             'club_name'   => $request->club_name,
             'advisor_id'  => $request->advisor_id,
             'description' => $request->description,
@@ -1056,7 +1079,7 @@ class TeacherController extends Controller
 
     public function toggleStatus($id)
     {
-        $club = Club::findOrFail($id);
+        $club = ClubTenancy::findClubOrFail($id);
         $club->status = !$club->status;
         $club->save();
 
@@ -1067,14 +1090,15 @@ class TeacherController extends Controller
 
     public function editClub($id)
     {
-        $club = Club::findOrFail($id);
-        $teachers = User::where('role_id', 3)->get();
+        $club = ClubTenancy::findClubOrFail($id);
+        $teachers = User::where('school_id', auth()->user()->school_id)->where('role_id', 3)->get();
         return view('teacher.club.edit_club', compact('club', 'teachers'));
     }
 
     public function updateClub(Request $request, $id)
     {
-        $club = Club::findOrFail($id);
+        $club = ClubTenancy::findClubOrFail($id);
+        $request->validate(['advisor_id' => 'nullable|' . ClubTenancy::schoolUserRule()]);
         $club->update($request->all());
 
         return redirect()->route('teacher.club.list')
@@ -1082,11 +1106,13 @@ class TeacherController extends Controller
     }
     public function deleteClub($id)
     {
-        Club::findOrFail($id)->delete();
+        ClubTenancy::findClubOrFail($id)->delete();
         return back()->with('success', 'Club deleted');
     }
     public function clubMembers(Request $request, Club $club)
     {
+        ClubTenancy::assertOwned($club);
+
         $search     = $request->search;
         $class_id   = $request->class_id;
         $section_id = $request->section_id;
@@ -1121,7 +1147,9 @@ class TeacherController extends Controller
     }
     public function addMemberForm(Club $club)
     {
-        $students = User::where('role_id', 7)
+        ClubTenancy::assertOwned($club);
+
+        $students = User::where('school_id', auth()->user()->school_id)->where('role_id', 7)
             ->whereNotIn('id', function ($q) use ($club) {
                 $q->select('student_id')
                     ->from('club_members')
@@ -1137,8 +1165,8 @@ class TeacherController extends Controller
     public function storeMember(Request $request)
     {
         $request->validate([
-            'club_id'    => 'required|exists:clubs,id',
-            'student_id' => 'required|exists:users,id',
+            'club_id'    => 'required|exists:clubs,id,school_id,' . ClubTenancy::schoolId(),
+            'student_id' => 'required|' . ClubTenancy::schoolUserRule(),
         ]);
 
         $member = ClubMember::where('club_id', $request->club_id)
@@ -1161,6 +1189,8 @@ class TeacherController extends Controller
     }
     public function searchMembers(Request $request, $clubId)
     {
+        ClubTenancy::findClubOrFail($clubId);
+
         $search = $request->q ?? '';
 
         $members = ClubMember::with('student')
@@ -1188,7 +1218,7 @@ class TeacherController extends Controller
         $search  = $request->q;
         $clubId  = $request->club_id;
 
-        $students = User::where('role_id', 7)
+        $students = User::where('school_id', auth()->user()->school_id)->where('role_id', 7)
             ->where(function ($query) use ($search) {
                 $query->where('name', 'LIKE', "%{$search}%")
                     ->orWhere('email', 'LIKE', "%{$search}%");
@@ -1212,7 +1242,7 @@ class TeacherController extends Controller
     }
     public function approveMember($id)
     {
-        ClubMember::where('id', $id)->update([
+        ClubTenancy::findMemberOrFail($id)->update([
             'status' => 1,
         ]);
 
@@ -1220,7 +1250,7 @@ class TeacherController extends Controller
     }
     public function member_disable($id)
     {
-        ClubMember::where('id', $id)->update([
+        ClubTenancy::findMemberOrFail($id)->update([
             'status' => 0,
         ]);
 
@@ -1229,18 +1259,20 @@ class TeacherController extends Controller
 
     public function rejectMember($id)
     {
-        ClubMember::where('id', $id)->update(['status' => 2]);
+        ClubTenancy::findMemberOrFail($id)->update(['status' => 2]);
         return back()->with('success', 'Rejected');
     }
     public function deleteMember($id)
     {
-        ClubMember::where('id', $id)->delete();
+        ClubTenancy::findMemberOrFail($id)->delete();
         return back()->with('success', 'Member removed');
     }
 
 
     public function notice1_index(Club $club)
     {
+        ClubTenancy::assertOwned($club);
+
         $notices = ClubNotice::where('club_id', $club->id)
             ->latest()
             ->get();
@@ -1251,13 +1283,15 @@ class TeacherController extends Controller
 
     public function notice_create(Club $club)
     {
+        ClubTenancy::assertOwned($club);
+
         return view('teacher.club.notice.create', compact('club'));
     }
 
     public function notice_store(Request $request)
     {
         $data = $request->validate([
-            'club_id' => 'required',
+            'club_id' => 'required|exists:clubs,id,school_id,' . ClubTenancy::schoolId(),
             'title' => 'required',
             'description' => 'nullable|required',
             'notice_date' => 'required',
@@ -1267,9 +1301,7 @@ class TeacherController extends Controller
 
         if (! empty($data['image'])) {
 
-            $imageName = time() . '.' . $data['image']->extension();
-
-            $data['image']->move(public_path('assets/uploads/club/'), $imageName);
+            $imageName = SafeUpload::store($data['image'], public_path('assets/uploads/club/'), SafeUpload::IMAGES) ?? abort(422, 'This file type is not allowed.');
 
             $data['image'] = $imageName;
         }
@@ -1288,13 +1320,15 @@ class TeacherController extends Controller
 
     public function notice_edit(ClubNotice $notice)
     {
+        ClubTenancy::findNoticeOrFail($notice->id);
+
         return view('teacher.club.notice.edit', compact('notice'));
     }
 
 
     public function notice_update(Request $request, $id)
     {
-        $notice = ClubNotice::findOrFail($id);
+        $notice = ClubTenancy::findNoticeOrFail($id);
 
         $data = $request->validate([
             'title' => 'required',
@@ -1309,8 +1343,7 @@ class TeacherController extends Controller
             if ($notice->image && file_exists(public_path('assets/uploads/club/' . $notice->image))) {
                 unlink(public_path('assets/uploads/club/' . $notice->image));
             }
-            $imageName = time() . '.' . $request->image->extension();
-            $request->image->move(public_path('assets/uploads/club/'), $imageName);
+            $imageName = SafeUpload::store($request->image, public_path('assets/uploads/club/'), SafeUpload::IMAGES) ?? abort(422, 'This file type is not allowed.');
 
             $data['image'] = $imageName;
         }
@@ -1322,7 +1355,7 @@ class TeacherController extends Controller
 
     public function notice_delete($id)
     {
-        ClubNotice::where('id', $id)->delete();
+        ClubTenancy::findNoticeOrFail($id)->delete();
         return back()->with('success', 'Notice deleted');
     }
 }

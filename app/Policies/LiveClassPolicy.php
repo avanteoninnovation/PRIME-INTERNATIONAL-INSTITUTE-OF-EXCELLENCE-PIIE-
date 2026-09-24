@@ -4,9 +4,16 @@ namespace App\Policies;
 
 use App\Models\LiveClass;
 use App\Models\User;
+use App\Support\Permissions\PermissionService;
 
 class LiveClassPolicy
 {
+    /** Base-role rules, unchanged; also read by PermissionService for the live_classes.* permissions. */
+    public const STAFF_ROLES = [1, 2, 3, 4, 5, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19];
+    public const CREATE_ROLES = [1, 2, 3, 10, 12, 14];
+    public const MANAGE_ALL_ROLES = [1, 2, 10, 12, 14];
+    public const PLATFORM_ROLES = [1, 2, 14];
+
     public function viewAny(User $user): bool
     {
         if ((int) $user->role_id === 7) {
@@ -39,7 +46,7 @@ class LiveClassPolicy
             return false;
         }
 
-        return in_array((int) $user->role_id, [1, 2, 3, 10, 12, 14], true);
+        return in_array((int) $user->role_id, self::CREATE_ROLES, true) || $this->granted($user, 'live_classes.create');
     }
 
     public function update(User $user, LiveClass $liveClass): bool
@@ -93,18 +100,24 @@ class LiveClassPolicy
             return false;
         }
 
-        return in_array((int) $user->role_id, [1, 2, 14], true);
+        return in_array((int) $user->role_id, self::PLATFORM_ROLES, true) || $this->granted($user, 'live_classes.platforms');
     }
 
     private function isStaff(User $user): bool
     {
-        return in_array((int) $user->role_id, [1, 2, 3, 4, 5, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19], true)
+        return in_array((int) $user->role_id, self::STAFF_ROLES, true)
             && $user->account_status !== 'disable';
     }
 
     private function canManageAll(User $user): bool
     {
-        return in_array((int) $user->role_id, [1, 2, 10, 12, 14], true);
+        return in_array((int) $user->role_id, self::MANAGE_ALL_ROLES, true) || $this->granted($user, 'live_classes.manage_all');
+    }
+
+    /** RBAC Phase 3A: a delegated grant (own school only) is one more way in; school checks above still apply. */
+    private function granted(User $user, string $key): bool
+    {
+        return app(PermissionService::class)->hasGrant($user, $key);
     }
 
     private function hasMenuPermission(User $user, string $routeKey): bool

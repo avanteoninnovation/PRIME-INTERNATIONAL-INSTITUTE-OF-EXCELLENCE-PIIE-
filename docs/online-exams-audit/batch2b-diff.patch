@@ -1,0 +1,805 @@
+﻿diff --git a/docs/online-exams-audit/rollback-batch2b/app/Http/Controllers/OnlineExamController.php b/app/Http/Controllers/OnlineExamController.php
+index c237be6..5b5f1ee 100644
+--- a/docs/online-exams-audit/rollback-batch2b/app/Http/Controllers/OnlineExamController.php
++++ b/app/Http/Controllers/OnlineExamController.php
+@@ -1375,6 +1375,7 @@ class OnlineExamController extends Controller
+             return [$answer->question_id => [
+                 'selected_option' => $answer->selected_option,
+                 'answer_text' => $answer->answer_text,
++                'answer_revision' => $answer->answer_revision,
+                 'updated_at' => optional($answer->updated_at)->toIso8601String(),
+             ]];
+         })->all();
+@@ -1457,6 +1458,11 @@ class OnlineExamController extends Controller
+                 ->lockForUpdate()
+                 ->firstOrFail();
+ 
++            abort_unless((int) $lockedSubmission->student_id === (int) Auth::id()
++                && (int) $lockedSubmission->school_id === (int) $this->school_id
++                && $lockedSubmission->exam
++                && (int) $lockedSubmission->exam->school_id === (int) $this->school_id, 403);
++
+             if ($lockedSubmission->status !== OnlineExamSubmission::STATUS_IN_PROGRESS) {
+                 abort(422, 'Submission is not active.');
+             }
+@@ -1473,32 +1479,54 @@ class OnlineExamController extends Controller
+                 abort(422, 'Question does not belong to this exam.');
+             }
+ 
+-            $answer = OnlineExamAnswer::updateOrCreate(
+-                [
++            // The parent lock serializes saves even when the answer does not yet exist.
++            // Finalization takes the same lock; keep all checks and writes inside it.
++            $answer = OnlineExamAnswer::where('submission_id', $lockedSubmission->id)
++                ->where('question_id', $question->id)->lockForUpdate()->first();
++            $revision = (int) $validated['answer_revision'];
++            $payload = [
++                'selected_option' => $validated['selected_option'] ?? null,
++                'answer_text' => $validated['answer_text'] ?? null,
++            ];
++            $status = 'success';
++            if ($answer && $revision <= $answer->answer_revision) {
++                $identical = $answer->selected_option === $payload['selected_option']
++                    && $answer->answer_text === $payload['answer_text'];
++                if ($revision < $answer->answer_revision || !$identical) {
++                    return [
++                        'status' => $revision < $answer->answer_revision ? 'stale' : 'conflict',
++                        'submission_id' => $lockedSubmission->id,
++                        'question_id' => $question->id,
++                        'answer_revision' => $answer->answer_revision,
++                        'selected_option' => $answer->selected_option,
++                        'answer_text' => $answer->answer_text,
++                    ];
++                }
++                $status = 'idempotent';
++            } else {
++                $answer = $answer ?: new OnlineExamAnswer([
+                     'submission_id' => $lockedSubmission->id,
+                     'question_id' => $question->id,
+-                ],
+-                [
+-                    'selected_option' => $validated['selected_option'] ?? null,
+-                    'answer_text' => $validated['answer_text'] ?? null,
+-                ]
+-            );
++                ]);
++                $answer->fill($payload + ['answer_revision' => $revision])->save();
++            }
+ 
+             $lockedSubmission->update([
+                 'last_activity_at' => now(),
+             ]);
+ 
+             return [
+-                'status' => 'success',
++                'status' => $status,
+                 'submission_id' => $lockedSubmission->id,
+                 'question_id' => $question->id,
++                'answer_revision' => $answer->answer_revision,
+                 'answer_updated_at' => optional($answer->fresh()->updated_at)->toIso8601String(),
+                 'expires_at' => optional($lockedSubmission->expires_at)->toDateTimeString(),
+                 'server_time' => now()->toDateTimeString(),
+             ];
+         });
+ 
+-        return response()->json($responseData);
++        return response()->json($responseData, in_array($responseData['status'], ['stale', 'conflict'], true) ? 409 : 200);
+     }
+ 
+     public function heartbeat($submissionId)
+diff --git a/docs/online-exams-audit/rollback-batch2b/app/Http/Requests/OnlineExam/SaveOnlineExamAnswerRequest.php b/app/Http/Requests/OnlineExam/SaveOnlineExamAnswerRequest.php
+index 7586876..d5a920f 100644
+--- a/docs/online-exams-audit/rollback-batch2b/app/Http/Requests/OnlineExam/SaveOnlineExamAnswerRequest.php
++++ b/app/Http/Requests/OnlineExam/SaveOnlineExamAnswerRequest.php
+@@ -22,7 +22,9 @@ class SaveOnlineExamAnswerRequest extends FormRequest
+ 
+         return $this->submission
+             && (int) $this->submission->student_id === (int) $user->id
+-            && (int) $this->submission->school_id === (int) $user->school_id;
++            && (int) $this->submission->school_id === (int) $user->school_id
++            && $this->submission->exam
++            && (int) $this->submission->exam->school_id === (int) $user->school_id;
+     }
+ 
+     public function rules(): array
+@@ -30,6 +32,7 @@ class SaveOnlineExamAnswerRequest extends FormRequest
+         return [
+             'submission_id' => ['required', 'integer', 'exists:online_exam_submissions,id'],
+             'question_id' => ['required', 'integer', 'exists:online_exam_questions,id'],
++            'answer_revision' => ['required', 'integer', 'min:0', 'max:4294967295'],
+             'selected_option' => ['nullable', 'string', 'max:10'],
+             'answer_text' => ['nullable', 'string'],
+             'answers' => ['nullable', 'array'],
+@@ -49,6 +52,10 @@ class SaveOnlineExamAnswerRequest extends FormRequest
+                 return;
+             }
+ 
++            if ((int) $this->input('submission_id') !== (int) $this->submission->id) {
++                $validator->errors()->add('submission_id', 'Submission must match the route.');
++            }
++
+             if ($this->submission->status !== OnlineExamSubmission::STATUS_IN_PROGRESS) {
+                 $validator->errors()->add('submission_id', 'Submission is not in progress.');
+                 return;
+diff --git a/docs/online-exams-audit/rollback-batch2b/app/Models/OnlineExamAnswer.php b/app/Models/OnlineExamAnswer.php
+index 0f4631a..89a71f9 100644
+--- a/docs/online-exams-audit/rollback-batch2b/app/Models/OnlineExamAnswer.php
++++ b/app/Models/OnlineExamAnswer.php
+@@ -11,6 +11,7 @@ class OnlineExamAnswer extends Model
+     protected $fillable = [
+         'submission_id',
+         'question_id',
++        'answer_revision',
+         'selected_option',
+         'answer_text',
+         'awarded_marks',
+@@ -21,6 +22,7 @@ class OnlineExamAnswer extends Model
+     ];
+ 
+     protected $casts = [
++        'answer_revision' => 'integer',
+         'awarded_marks' => 'decimal:2',
+         'is_correct' => 'boolean',
+         'marked_at' => 'datetime',
+diff --git a/docs/online-exams-audit/rollback-batch2b/resources/views/student/online_exam/take.blade.php b/resources/views/student/online_exam/take.blade.php
+index 984b3a4..77deaf0 100644
+--- a/docs/online-exams-audit/rollback-batch2b/resources/views/student/online_exam/take.blade.php
++++ b/resources/views/student/online_exam/take.blade.php
+@@ -325,6 +325,12 @@
+     var dirtyQuestions = {};
+     var savingQuestions = {};
+     var answerRevisions = {};
++    var acknowledgedRevisions = {};
++    var revisionConflicts = {};
++    var lastWrittenRecovery = {};
++    Object.keys(serverAnswers).forEach(function (id) {
++        answerRevisions[id] = acknowledgedRevisions[id] = Number(serverAnswers[id].answer_revision || 0);
++    });
+     var debounceTimers = {};
+ 
+     function setStatus(questionId, state) {
+@@ -354,13 +360,26 @@
+             var raw = window.localStorage.getItem(recoveryKey);
+             recoveryState = raw ? JSON.parse(raw) : {};
+             if (!recoveryState || typeof recoveryState !== 'object') recoveryState = {};
++            lastWrittenRecovery = JSON.parse(JSON.stringify(recoveryState));
+         } catch (e) { recoveryState = {}; }
+     }
+ 
+     function writeRecovery() {
+         try {
+-            if (Object.keys(recoveryState).length === 0) window.localStorage.removeItem(recoveryKey);
+-            else window.localStorage.setItem(recoveryKey, JSON.stringify(recoveryState));
++            var stored = JSON.parse(window.localStorage.getItem(recoveryKey) || '{}');
++            if (!stored || typeof stored !== 'object') stored = {};
++            Object.keys(lastWrittenRecovery).forEach(function (id) {
++                // An acknowledgement in this tab must not erase another tab's draft.
++                if (!recoveryState[id] && JSON.stringify(stored[id]) === JSON.stringify(lastWrittenRecovery[id])) {
++                    delete stored[id];
++                }
++            });
++            Object.keys(recoveryState).forEach(function (id) {
++                if (JSON.stringify(recoveryState[id]) !== JSON.stringify(lastWrittenRecovery[id])) stored[id] = recoveryState[id];
++            });
++            if (Object.keys(stored).length === 0) window.localStorage.removeItem(recoveryKey);
++            else window.localStorage.setItem(recoveryKey, JSON.stringify(stored));
++            lastWrittenRecovery = JSON.parse(JSON.stringify(recoveryState));
+         } catch (e) { /* private browsing or quota limits: server autosave still applies */ }
+     }
+ 
+@@ -406,6 +425,7 @@
+             selected_option: value.selected_option,
+             answer_text: value.answer_text,
+             revision: answerRevisions[questionId] || 0,
++            acknowledged_revision: acknowledgedRevisions[questionId] || 0,
+             server_updated_at: previous && Object.prototype.hasOwnProperty.call(previous, 'server_updated_at')
+                 ? previous.server_updated_at
+                 : ((serverAnswers[questionId] || {}).updated_at || null),
+@@ -427,14 +447,16 @@
+         Object.keys(recoveryState).forEach(function (questionId) {
+             var local = recoveryState[questionId];
+             var server = serverAnswers[questionId] || {};
+-            if (!local || local.server_updated_at !== (server.updated_at || null)) {
+-                // A different server timestamp means the server has newer state.
+-                delete recoveryState[questionId];
+-                return;
+-            }
++            if (!local) return;
+             applyRecoveredValue(questionId, local);
+             answerRevisions[questionId] = Math.max(answerRevisions[questionId] || 0, local.revision || 1);
+             dirtyQuestions[questionId] = true;
++            // Old timestamp-only drafts require explicit reconciliation as well.
++            if (!Number.isInteger(local.acknowledged_revision)
++                || Number(server.answer_revision || 0) > local.acknowledged_revision) {
++                showRevisionConflict(questionId, server);
++                return;
++            }
+             setStatus(questionId, 'retrying');
+             markNavAnswered(questionId);
+         });
+@@ -460,6 +482,7 @@
+     }
+ 
+     function saveQuestion(questionId) {
++        if (revisionConflicts[questionId]) return;
+         var value = currentValueFor(questionId);
+         if (!value) return;
+ 
+@@ -485,12 +508,18 @@
+             body: JSON.stringify({
+                 submission_id: submissionId,
+                 question_id: questionId,
++                answer_revision: requestRevision,
+                 selected_option: value.selected_option,
+                 answer_text: value.answer_text,
+             }),
+         })
+-        .then(function (r) {
++        .then(async function (r) {
++            var data = await r.json();
+             savingQuestions[questionId] = false;
++            if (r.status === 409) {
++                showRevisionConflict(questionId, data);
++                return;
++            }
+             if (r.status === 422) {
+                 // Expired or submission no longer active — stop trying and
+                 // let the timer/heartbeat path handle finalising.
+@@ -503,6 +532,13 @@
+                 scheduleRetry(questionId);
+                 return;
+             }
++            acknowledgedRevisions[questionId] = Number(data.answer_revision);
++            serverAnswers[questionId] = {
++                selected_option: value.selected_option,
++                answer_text: value.answer_text,
++                answer_revision: Number(data.answer_revision),
++                updated_at: data.answer_updated_at,
++            };
+             if ((answerRevisions[questionId] || 0) !== requestRevision) {
+                 dirtyQuestions[questionId] = true;
+                 setStatus(questionId, 'retrying');
+@@ -515,15 +551,6 @@
+             writeRecovery();
+             setStatus(questionId, 'saved');
+             markNavAnswered(questionId);
+-            r.json().then(function (data) {
+-                if (data.answer_updated_at) {
+-                    serverAnswers[questionId] = {
+-                        selected_option: value.selected_option,
+-                        answer_text: value.answer_text,
+-                        updated_at: data.answer_updated_at,
+-                    };
+-                }
+-            }).catch(function () {});
+         })
+         .catch(function () {
+             savingQuestions[questionId] = false;
+@@ -532,7 +559,49 @@
+         });
+     }
+ 
++    function showRevisionConflict(questionId, server) {
++        serverAnswers[questionId] = server;
++        revisionConflicts[questionId] = true;
++        dirtyQuestions[questionId] = true;
++        setStatus(questionId, 'failed');
++        var container = document.getElementById('save-status-' + questionId);
++        if (!container) return;
++        container.textContent = 'Answer conflict. Your draft is kept on this device. ';
++        function choice(label, keepLocal) {
++            var button = document.createElement('button');
++            button.type = 'button';
++            button.className = 'btn btn-sm btn-outline-secondary ms-1';
++            button.textContent = label;
++            button.addEventListener('click', function () {
++                var revision = Number(server.answer_revision || 0);
++                acknowledgedRevisions[questionId] = revision;
++                answerRevisions[questionId] = Math.max(answerRevisions[questionId] || 0, revision);
++                delete revisionConflicts[questionId];
++                if (keepLocal) {
++                    if (answerRevisions[questionId] >= 4294967295) {
++                        showRevisionConflict(questionId, server);
++                        return;
++                    }
++                    answerRevisions[questionId]++;
++                    rememberLocalAnswer(questionId, currentValueFor(questionId));
++                    saveQuestion(questionId);
++                } else {
++                    applyRecoveredValue(questionId, server);
++                    answerRevisions[questionId] = revision;
++                    dirtyQuestions[questionId] = false;
++                    delete recoveryState[questionId];
++                    writeRecovery();
++                    setStatus(questionId, 'saved');
++                }
++            });
++            container.appendChild(button);
++        }
++        choice('Use server answer', false);
++        choice('Save my draft', true);
++    }
++
+     function scheduleRetry(questionId) {
++        if (revisionConflicts[questionId]) return;
+         if (retryTimers[questionId]) return;
+         var attempt = retryAttempts[questionId] || 0;
+         var delay = Math.min(30000, 1000 * Math.pow(2, attempt));
+@@ -554,6 +623,7 @@
+                 dirtyQuestions[questionId] = true;
+                 rememberLocalAnswer(questionId, currentValueFor(questionId));
+                 setStatus(questionId, 'dirty');
++                if (revisionConflicts[questionId]) showRevisionConflict(questionId, serverAnswers[questionId]);
+                 saveQuestion(questionId);
+             });
+ 
+@@ -566,6 +636,7 @@
+                 dirtyQuestions[questionId] = true;
+                 rememberLocalAnswer(questionId, currentValueFor(questionId));
+                 setStatus(questionId, 'dirty');
++                if (revisionConflicts[questionId]) showRevisionConflict(questionId, serverAnswers[questionId]);
+ 
+                 clearTimeout(debounceTimers[questionId]);
+                 debounceTimers[questionId] = setTimeout(function () {
+@@ -630,12 +701,12 @@
+             return;
+         }
+ 
+-        clearInterval(timerInterval);
+         flushPendingSaves().then(function (saved) {
+             if (!saved) {
+                 window.alert("{{ get_phrase('Some answers have not been saved. Please reconnect and try again.') }}");
+                 return;
+             }
++            clearInterval(timerInterval);
+             submitViaForm('finalSubmitForm');
+         });
+     });
+diff --git a/docs/online-exams-audit/rollback-batch2b/tests/Feature/Support/OnlineExamTestHelper.php b/tests/Feature/Support/OnlineExamTestHelper.php
+index e0c4691..6f3820e 100644
+--- a/docs/online-exams-audit/rollback-batch2b/tests/Feature/Support/OnlineExamTestHelper.php
++++ b/tests/Feature/Support/OnlineExamTestHelper.php
+@@ -193,6 +193,8 @@ trait OnlineExamTestHelper
+             $table->unique(['submission_id', 'question_id']);
+         });
+ 
++        (require database_path('migrations/2026_09_19_000004_add_answer_revision_to_online_exam_answers.php'))->up();
++
+         Schema::create('online_exam_proctoring_events', function (Blueprint $table) {
+             $table->id();
+             $table->unsignedBigInteger('submission_id')->index();
+diff --git a/docs/online-exams-audit/rollback-batch2b/tests/Feature/OnlineExamBatch1RegressionTest.php b/tests/Feature/OnlineExamBatch1RegressionTest.php
+index c411c03..c148118 100644
+--- a/docs/online-exams-audit/rollback-batch2b/tests/Feature/OnlineExamBatch1RegressionTest.php
++++ b/tests/Feature/OnlineExamBatch1RegressionTest.php
+@@ -39,8 +39,8 @@ class OnlineExamBatch1RegressionTest extends TestCase
+         $submission = $this->makeSubmission(['online_exam_id' => $exam, 'student_id' => $student->id, 'school_id' => 1]);
+ 
+         $route = route('student.online_exam.save_answer', $submission);
+-        $this->actingAs($student)->postJson($route, ['submission_id' => $submission, 'question_id' => $question, 'selected_option' => 'a'])->assertOk();
+-        $this->actingAs($student)->postJson($route, ['submission_id' => $submission, 'question_id' => $question, 'selected_option' => null, 'answer_text' => null])->assertOk();
++        $this->actingAs($student)->postJson($route, ['submission_id' => $submission, 'question_id' => $question, 'selected_option' => 'a', 'answer_revision' => 1])->assertOk();
++        $this->actingAs($student)->postJson($route, ['submission_id' => $submission, 'question_id' => $question, 'selected_option' => null, 'answer_text' => null, 'answer_revision' => 2])->assertOk();
+         $this->assertDatabaseCount('online_exam_answers', 1);
+         $this->assertDatabaseHas('online_exam_answers', ['submission_id' => $submission, 'question_id' => $question, 'selected_option' => null, 'answer_text' => null]);
+     }
+diff --git a/docs/online-exams-audit/rollback-batch2b/tests/Feature/OnlineExamBatch2AReliabilityTest.php b/tests/Feature/OnlineExamBatch2AReliabilityTest.php
+index 6e98798..25af861 100644
+--- a/docs/online-exams-audit/rollback-batch2b/tests/Feature/OnlineExamBatch2AReliabilityTest.php
++++ b/tests/Feature/OnlineExamBatch2AReliabilityTest.php
+@@ -98,10 +98,12 @@ class OnlineExamBatch2AReliabilityTest extends TestCase
+         $submission = $this->makeSubmission(['online_exam_id' => $exam, 'student_id' => $student->id, 'school_id' => 1]);
+ 
+         $this->actingAs($student)->postJson(route('student.online_exam.save_answer', $submission), [
++            'answer_revision' => 1,
+             'submission_id' => $submission, 'question_id' => $question, 'selected_option' => 'a',
+         ])->assertOk()->assertJsonStructure(['answer_updated_at']);
+ 
+         $this->actingAs($otherStudent)->postJson(route('student.online_exam.save_answer', $submission), [
++            'answer_revision' => 1,
+             'submission_id' => $submission, 'question_id' => $question, 'selected_option' => 'b',
+         ])->assertForbidden();
+     }
+@@ -119,12 +121,13 @@ class OnlineExamBatch2AReliabilityTest extends TestCase
+         $this->assertDatabaseHas('online_exam_submissions', ['id' => $submission, 'status' => 'finalized', 'score' => 5]);
+     }
+ 
+-    public function test_recovery_contract_is_scoped_and_reconciles_against_server_timestamp(): void
++    public function test_recovery_contract_is_scoped_and_reconciles_against_server_revision(): void
+     {
+         $script = file_get_contents(resource_path('views/student/online_exam/take.blade.php'));
+         $this->assertStringContainsString('piie.exam.recovery.v1.', $script);
+         $this->assertStringContainsString('student_id', $script);
+         $this->assertStringContainsString('server_updated_at', $script);
++        $this->assertStringContainsString('acknowledged_revision', $script);
+         $this->assertStringContainsString('localStorage', $script);
+         $this->assertStringContainsString('Another exam tab is open', $script);
+     }
+diff --git a/docs/online-exams-audit/rollback-batch2b/tests/Feature/OnlineExamControllerSecurityTest.php b/tests/Feature/OnlineExamControllerSecurityTest.php
+index af5f07f..041214a 100644
+--- a/docs/online-exams-audit/rollback-batch2b/tests/Feature/OnlineExamControllerSecurityTest.php
++++ b/tests/Feature/OnlineExamControllerSecurityTest.php
+@@ -75,6 +75,7 @@ class OnlineExamControllerSecurityTest extends TestCase
+ 
+         $this->actingAs($student)
+             ->postJson(route('student.online_exam.save_answer', $submissionId), [
++                'answer_revision' => 1,
+                 'submission_id' => $submissionId,
+                 'question_id' => $questionId,
+                 'selected_option' => 'A',
+@@ -112,6 +113,7 @@ class OnlineExamControllerSecurityTest extends TestCase
+ 
+         $this->actingAs($student)
+             ->postJson(route('student.online_exam.save_answer', $submissionId), [
++                'answer_revision' => 1,
+                 'submission_id' => $submissionId,
+                 'question_id' => $questionFromExamB,
+                 'selected_option' => 'A',
+@@ -152,6 +154,7 @@ class OnlineExamControllerSecurityTest extends TestCase
+ 
+         $saveResponse = $this->actingAs($student)
+             ->postJson(route('student.online_exam.save_answer', $submissionId), [
++                'answer_revision' => 1,
+                 'submission_id' => $submissionId,
+                 'question_id' => $questionId,
+                 'selected_option' => 'A',
+diff --git a/database/migrations/2026_09_19_000004_add_answer_revision_to_online_exam_answers.php b/database/migrations/2026_09_19_000004_add_answer_revision_to_online_exam_answers.php
+new file mode 100644
+index 0000000..76b0e73
+--- /dev/null
++++ b/database/migrations/2026_09_19_000004_add_answer_revision_to_online_exam_answers.php
+@@ -0,0 +1,21 @@
++<?php
++
++use Illuminate\Database\Migrations\Migration;
++use Illuminate\Database\Schema\Blueprint;
++use Illuminate\Support\Facades\Schema;
++
++return new class extends Migration {
++    public function up(): void
++    {
++        Schema::table('online_exam_answers', function (Blueprint $table) {
++            $table->unsignedInteger('answer_revision')->default(0);
++        });
++    }
++
++    public function down(): void
++    {
++        Schema::table('online_exam_answers', function (Blueprint $table) {
++            $table->dropColumn('answer_revision');
++        });
++    }
++};
+diff --git a/tests/Feature/OnlineExamBatch2BRevisionTest.php b/tests/Feature/OnlineExamBatch2BRevisionTest.php
+new file mode 100644
+index 0000000..e4c990c
+--- /dev/null
++++ b/tests/Feature/OnlineExamBatch2BRevisionTest.php
+@@ -0,0 +1,183 @@
++<?php
++
++namespace Tests\Feature;
++
++use Illuminate\Support\Facades\DB;
++use Illuminate\Support\Facades\Schema;
++use Tests\Feature\Support\OnlineExamTestHelper;
++use Tests\TestCase;
++
++class OnlineExamBatch2BRevisionTest extends TestCase
++{
++    use OnlineExamTestHelper;
++
++    private $student;
++    private int $exam;
++    private int $question;
++    private int $submission;
++
++    protected function setUp(): void
++    {
++        parent::setUp();
++        $this->bootOnlineExamTestSchema();
++        $this->student = $this->makeUser(7, 1);
++        $this->exam = $this->makeExam();
++        $this->question = $this->makeQuestion($this->exam);
++        $this->submission = $this->makeSubmission(['online_exam_id' => $this->exam, 'student_id' => $this->student->id, 'school_id' => 1]);
++        $this->actingAs($this->student);
++    }
++
++    private function saveRevision($revision, ?string $option = 'a', array $extra = [])
++    {
++        return $this->postJson(route('student.online_exam.save_answer', $this->submission), $extra + [
++            'submission_id' => $this->submission, 'question_id' => $this->question,
++            'answer_revision' => $revision, 'selected_option' => $option,
++        ]);
++    }
++
++    public function test_first_and_higher_revisions_are_accepted_with_authoritative_metadata(): void
++    {
++        $this->saveRevision(1)->assertOk()->assertJsonPath('answer_revision', 1)
++            ->assertJsonStructure(['status', 'submission_id', 'question_id', 'answer_revision', 'answer_updated_at', 'server_time', 'expires_at']);
++        $this->saveRevision(6, 'b')->assertOk()->assertJsonPath('answer_revision', 6);
++        $this->assertDatabaseCount('online_exam_answers', 1);
++        $this->assertDatabaseHas('online_exam_answers', ['answer_revision' => 6, 'selected_option' => 'b']);
++    }
++
++    public function test_tab_b_revision_six_before_tab_a_revision_five_cannot_be_overwritten(): void
++    {
++        $this->saveRevision(6, 'b')->assertOk();
++        $before = DB::table('online_exam_answers')->first();
++        $this->saveRevision(5, 'a')->assertStatus(409)->assertExactJson([
++            'status' => 'stale', 'submission_id' => $this->submission, 'question_id' => $this->question,
++            'answer_revision' => 6, 'selected_option' => 'b', 'answer_text' => null,
++        ]);
++        $this->assertEquals($before, DB::table('online_exam_answers')->first());
++    }
++
++    public function test_equal_identical_is_idempotent_without_touching_answer_timestamp(): void
++    {
++        $this->saveRevision(4)->assertOk();
++        $before = DB::table('online_exam_answers')->first();
++        $this->travel(2)->seconds();
++        $this->saveRevision(4)->assertOk()->assertJsonPath('status', 'idempotent');
++        $this->assertEquals($before, DB::table('online_exam_answers')->first());
++    }
++
++    public function test_equal_different_payload_conflicts_and_lower_revision_is_stale(): void
++    {
++        $this->saveRevision(4)->assertOk();
++        $this->saveRevision(4, 'b')->assertStatus(409)->assertJsonPath('status', 'conflict');
++        $this->saveRevision(3)->assertStatus(409)->assertJsonPath('status', 'stale');
++        $this->assertDatabaseHas('online_exam_answers', ['answer_revision' => 4, 'selected_option' => 'a']);
++    }
++
++    public function test_retried_first_creation_has_one_row_and_unique_constraint_remains(): void
++    {
++        $this->saveRevision(0)->assertOk();
++        $this->saveRevision(0)->assertOk()->assertJsonPath('status', 'idempotent');
++        $this->assertDatabaseCount('online_exam_answers', 1);
++        $this->expectException(\Illuminate\Database\QueryException::class);
++        DB::table('online_exam_answers')->insert(['submission_id' => $this->submission, 'question_id' => $this->question]);
++    }
++
++    public function test_another_student_and_school_cannot_read_conflict_or_write(): void
++    {
++        $this->saveRevision(4)->assertOk();
++        foreach ([$this->makeUser(7, 1), $this->makeUser(7, 2)] as $other) {
++            $this->actingAs($other);
++            $this->saveRevision(4, 'b')->assertForbidden()->assertJsonMissing(['selected_option' => 'a']);
++            $this->saveRevision(99)->assertForbidden();
++        }
++        $this->assertDatabaseHas('online_exam_answers', ['answer_revision' => 4]);
++    }
++
++    public function test_revision_cannot_bypass_finalization_or_expiry(): void
++    {
++        $this->saveRevision(1)->assertOk();
++        foreach (['finalized', 'submitted', 'timed_out', 'pending_manual', 'result_published'] as $status) {
++            DB::table('online_exam_submissions')->where('id', $this->submission)->update(['status' => $status]);
++            $this->saveRevision(99, 'b')->assertStatus(422);
++        }
++        DB::table('online_exam_submissions')->where('id', $this->submission)->update(['status' => 'in_progress', 'expires_at' => now()->subSecond()]);
++        $this->saveRevision(99, 'b')->assertStatus(422);
++        $this->assertDatabaseHas('online_exam_answers', ['answer_revision' => 1, 'selected_option' => 'a']);
++    }
++
++    public function test_blank_clearing_requires_new_revision(): void
++    {
++        $this->saveRevision(1)->assertOk();
++        $this->saveRevision(1, null)->assertStatus(409);
++        $this->saveRevision(2, null)->assertOk();
++        $this->saveRevision(2, null)->assertOk()->assertJsonPath('status', 'idempotent');
++        $this->assertDatabaseHas('online_exam_answers', ['answer_revision' => 2, 'selected_option' => null]);
++    }
++
++    public function test_written_payload_is_part_of_equal_revision_identity(): void
++    {
++        DB::table('online_exam_questions')->where('id', $this->question)->update(['type' => 'essay']);
++        $this->saveRevision(1, null, ['answer_text' => 'First draft'])->assertOk();
++        $this->saveRevision(1, null, ['answer_text' => 'First draft'])->assertOk()->assertJsonPath('status', 'idempotent');
++        $this->saveRevision(1, null, ['answer_text' => 'Changed draft'])->assertStatus(409);
++        $this->saveRevision(2, null, ['answer_text' => ''])->assertOk();
++        $this->assertDatabaseHas('online_exam_answers', ['answer_revision' => 2, 'answer_text' => null]);
++    }
++
++    public function test_exam_school_must_match_even_if_submission_owner_matches(): void
++    {
++        DB::table('online_exams')->where('id', $this->exam)->update(['school_id' => 2]);
++        $this->saveRevision(99)->assertForbidden();
++        $this->assertDatabaseCount('online_exam_answers', 0);
++    }
++
++    public function test_heartbeat_expiry_then_timeout_blocks_late_answer(): void
++    {
++        $this->saveRevision(6)->assertOk();
++        DB::table('online_exam_submissions')->where('id', $this->submission)->update(['expires_at' => now()->subSecond()]);
++        $this->postJson(route('student.online_exam.heartbeat', $this->submission))->assertOk()->assertJsonPath('expired', true);
++        $this->saveRevision(5, 'b')->assertStatus(422);
++        $this->saveRevision(7, 'b')->assertStatus(422);
++        $this->post(route('student.online_exam.timeout_submit', $this->submission))->assertRedirect();
++        $this->assertDatabaseHas('online_exam_answers', ['answer_revision' => 6, 'selected_option' => 'a']);
++        $this->assertDatabaseMissing('online_exam_submissions', ['id' => $this->submission, 'status' => 'in_progress']);
++    }
++
++    public function test_revision_validation_and_question_and_route_boundaries(): void
++    {
++        foreach ([null, -1, 1.5, 'abc', 4294967296] as $invalid) {
++            $this->saveRevision($invalid)->assertStatus(422)->assertJsonValidationErrors('answer_revision');
++        }
++        $this->saveRevision(1, 'a', ['question_id' => $this->makeQuestion($this->makeExam())])->assertStatus(422);
++        $this->saveRevision(1, 'a', ['submission_id' => 999999])->assertStatus(422);
++        $this->saveRevision(4294967295)->assertOk();
++    }
++
++    public function test_manual_submission_blocks_late_stale_and_higher_saves(): void
++    {
++        $this->saveRevision(6)->assertOk();
++        $this->post(route('student.online_exam.submit', $this->exam), ['submission_id' => $this->submission])->assertRedirect();
++        $this->saveRevision(5, 'b')->assertStatus(422);
++        $this->saveRevision(7, 'b')->assertStatus(422);
++        $this->post(route('student.online_exam.timeout_submit', $this->submission))->assertRedirect();
++        $this->assertDatabaseHas('online_exam_answers', ['answer_revision' => 6, 'selected_option' => 'a']);
++    }
++
++    public function test_migration_round_trip_preserves_legacy_data_and_schema(): void
++    {
++        $migration = require database_path('migrations/2026_09_19_000004_add_answer_revision_to_online_exam_answers.php');
++        $migration->down();
++        $columns = DB::select('PRAGMA table_info(online_exam_answers)');
++        $indexes = DB::select('PRAGMA index_list(online_exam_answers)');
++        DB::table('online_exam_answers')->insert(['submission_id' => $this->submission, 'question_id' => $this->question, 'selected_option' => 'a', 'created_at' => now(), 'updated_at' => now()]);
++        $legacy = (array) DB::table('online_exam_answers')->first();
++        $migration->up();
++        $this->assertTrue(Schema::hasColumn('online_exam_answers', 'answer_revision'));
++        $this->assertDatabaseHas('online_exam_answers', $legacy + ['answer_revision' => 0]);
++        $this->saveRevision(0)->assertOk()->assertJsonPath('status', 'idempotent');
++        $this->saveRevision(0, 'b')->assertStatus(409);
++        $migration->down();
++        $this->assertEquals($columns, DB::select('PRAGMA table_info(online_exam_answers)'));
++        $this->assertEquals($indexes, DB::select('PRAGMA index_list(online_exam_answers)'));
++        $this->assertSame($legacy, (array) DB::table('online_exam_answers')->first());
++    }
++}
+diff --git a/tests/online-exam-revisions.test.cjs b/tests/online-exam-revisions.test.cjs
+new file mode 100644
+index 0000000..9f88826
+--- /dev/null
++++ b/tests/online-exam-revisions.test.cjs
+@@ -0,0 +1,138 @@
++// Executes the actual Blade autosave functions with deterministic browser/network doubles.
++const { test } = require('node:test');
++const assert = require('node:assert/strict');
++const fs = require('node:fs');
++const vm = require('node:vm');
++const source = fs.readFileSync('resources/views/student/online_exam/take.blade.php', 'utf8');
++const start = source.indexOf('    var dirtyQuestions = {}');
++const end = source.indexOf("    document.querySelectorAll('.exam-answer-input')", start);
++const tick = () => new Promise(resolve => setImmediate(resolve));
++
++function browser(server = {}) {
++    const requests = [], storage = new Map(), elements = new Map();
++    const textarea = { value: 'draft' };
++    const element = () => ({ textContent: '', classList: { add() {}, remove() {} }, children: [],
++        appendChild(child) { this.children.push(child); }, addEventListener(_, fn) { this.click = fn; } });
++    const ctx = {
++        serverAnswers: server, recoveryKey: 'student.exam.submission', recoveryState: {},
++        tabLeaseKey: 'lease', tabId: 'tab-a', tabConflict: false,
++        retryTimers: {}, retryAttempts: {}, submissionId: 10, csrfToken: 'csrf', saveAnswerUrl: '/save',
++        navigator: { onLine: true }, setInterval() {}, setTimeout() {},
++        window: { addEventListener() {}, localStorage: {
++            getItem(k) { return storage.get(k) || null; },
++            setItem(k, v) { storage.set(k, v); }, removeItem(k) { storage.delete(k); },
++        } },
++        document: {
++            getElementById(id) { if (!elements.has(id)) elements.set(id, element()); return elements.get(id); },
++            createElement: element, querySelectorAll() { return []; },
++            querySelector(s) { return s.startsWith('textarea') ? textarea : null; },
++        },
++        fetch(_, options) { return new Promise(resolve => requests.push({ body: JSON.parse(options.body), resolve })); },
++    };
++    vm.createContext(ctx);
++    vm.runInContext(source.slice(start, end), ctx);
++    return { ctx, requests, textarea, storage, elements,
++        respond(i, status, data) { requests[i].resolve({ status, ok: status === 200, json: async () => data }); },
++    };
++}
++
++test('edits use server revision; a delayed acknowledgement preserves and sends the current draft', async () => {
++    const b = browser({ 1: { answer_revision: 4 } });
++    const c = b.ctx;
++    c.answerRevisions[1]++;
++    c.dirtyQuestions[1] = true;
++    c.saveQuestion(1);
++    assert.equal(b.requests[0].body.answer_revision, 5);
++    c.answerRevisions[1]++;
++    b.textarea.value = 'new draft';
++    c.rememberLocalAnswer(1, c.currentValueFor(1));
++    b.respond(0, 200, { answer_revision: 5, answer_updated_at: 'server' });
++    await tick();
++    assert.equal(c.acknowledgedRevisions[1], 5);
++    assert.equal(c.dirtyQuestions[1], true);
++    assert.equal(c.recoveryState[1].revision, 6);
++    assert.equal(b.requests[1].body.answer_revision, 6);
++    b.respond(1, 200, { answer_revision: 6 });
++    await tick();
++    assert.equal(c.dirtyQuestions[1], false);
++    assert.equal(c.recoveryState[1], undefined);
++});
++
++test('tab A revision five rejected after tab B six stays unsaved and never retries automatically', async () => {
++    const b = browser({ 1: { answer_revision: 4 } });
++    b.ctx.answerRevisions[1] = 5;
++    b.ctx.saveQuestion(1);
++    b.respond(0, 409, { status: 'stale', answer_revision: 6, answer_text: 'tab B' });
++    await tick();
++    assert.equal(b.ctx.dirtyQuestions[1], true);
++    assert.equal(b.ctx.recoveryState[1].answer_text, 'draft');
++    b.ctx.saveQuestion(1);
++    assert.equal(b.requests.length, 1);
++    const buttons = b.elements.get('save-status-1').children;
++    buttons[1].click();
++    assert.equal(b.requests[1].body.answer_revision, 7);
++});
++
++test('equal-revision conflict allows explicit server choice without writing', async () => {
++    const b = browser();
++    b.ctx.answerRevisions[1] = 2;
++    b.ctx.saveQuestion(1);
++    b.respond(0, 409, { status: 'conflict', answer_revision: 2, answer_text: 'server answer' });
++    await tick();
++    b.elements.get('save-status-1').children[0].click();
++    assert.equal(b.textarea.value, 'server answer');
++    assert.equal(b.ctx.dirtyQuestions[1], false);
++    assert.equal(b.requests.length, 1);
++});
++
++test('recovery uses acknowledged revision, not timestamp, and preserves legacy/conflicting drafts', () => {
++    const b = browser({ 1: { answer_revision: 4, updated_at: 'different timestamp' } });
++    b.storage.set(b.ctx.recoveryKey, JSON.stringify({ 1: { revision: 5, acknowledged_revision: 4, answer_text: 'recover', server_updated_at: 'old' } }));
++    b.ctx.recoverLocalAnswers();
++    assert.equal(b.requests[0].body.answer_revision, 5);
++    assert.equal(b.textarea.value, 'recover');
++    for (const local of [{ revision: 5, acknowledged_revision: 3 }, { revision: 1, server_updated_at: 'old' }]) {
++        const conflict = browser({ 1: { answer_revision: 4 } });
++        conflict.storage.set(conflict.ctx.recoveryKey, JSON.stringify({ 1: { ...local, answer_text: 'kept' } }));
++        conflict.ctx.recoverLocalAnswers();
++        assert.equal(conflict.requests.length, 0);
++        assert.equal(conflict.ctx.revisionConflicts[1], true);
++        assert.equal(conflict.ctx.recoveryState[1].answer_text, 'kept');
++    }
++});
++
++test('finalized or expired rejection retains recovery and never acknowledges the answer', async () => {
++    const b = browser();
++    b.ctx.answerRevisions[1] = 1;
++    b.ctx.saveQuestion(1);
++    b.respond(0, 422, { message: 'Submission is not active' });
++    await tick();
++    assert.equal(b.ctx.dirtyQuestions[1], true);
++    assert.equal(b.ctx.recoveryState[1].revision, 1);
++    assert.equal(b.ctx.acknowledgedRevisions[1], undefined);
++});
++
++test('pending save flush waits for acknowledgement', async () => {
++    const b = browser();
++    let callbacks = [];
++    b.ctx.setTimeout = fn => callbacks.push(fn);
++    const flush = source.slice(source.indexOf('    function flushPendingSaves()'), source.indexOf("    document.getElementById('finalSubmitBtn')"));
++    vm.runInContext(flush, b.ctx);
++    b.ctx.answerRevisions[1] = 1;
++    b.ctx.dirtyQuestions[1] = true;
++    const flushed = b.ctx.flushPendingSaves();
++    b.respond(0, 200, { answer_revision: 1 });
++    await tick();
++    callbacks.shift()();
++    assert.equal(await flushed, true);
++});
++
++test('an acknowledgement cannot remove a different draft written by another tab', async () => {
++    const b = browser();
++    b.ctx.answerRevisions[1] = 5;
++    b.ctx.saveQuestion(1);
++    b.storage.set(b.ctx.recoveryKey, JSON.stringify({ 1: { revision: 6, acknowledged_revision: 4, answer_text: 'tab B pending' } }));
++    b.respond(0, 200, { answer_revision: 5 });
++    await tick();
++    assert.equal(JSON.parse(b.storage.get(b.ctx.recoveryKey))[1].revision, 6);
++});

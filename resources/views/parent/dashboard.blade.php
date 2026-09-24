@@ -9,7 +9,7 @@
        $currently_session_id = DB::table('sessions')->where('status', 1)->value('id');
    
        foreach($all_classes as $class){
-           $total_student += DB::table('enrollments')->where('session_id', $currently_session_id)->where('class_id', $class->id)->where('school_id', auth()->user()->school_id)->get()->count();
+           $total_student += DB::table('enrollment')->where('session_id', $currently_session_id)->where('class_id', $class->id)->where('school_id', auth()->user()->school_id)->get()->count();
    
            $start_date = strtotime(date('d M Y'));
            $end_date = $start_date + 86400;

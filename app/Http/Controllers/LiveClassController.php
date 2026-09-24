@@ -655,15 +655,21 @@ class LiveClassController extends Controller
             }
 
             $prefix = $isRecording ? 'lcr' : 'lcm';
+            // Security Phase 2F: the stored name keeps the client extension, so it must be an allowed one too
+            // (the mimes rule above only checks content).
+            abort_unless(in_array(strtolower($file->getClientOriginalExtension()), $allowedExtensions, true), 422, 'This file type is not allowed.');
             $storedAs = $prefix . $liveClass->id . '_' . uniqid() . '.' . strtolower($file->getClientOriginalExtension());
-            $file->move($destination, $storedAs);
 
+            // Read the metadata before move(): afterwards the temporary upload no longer
+            // exists, so getMimeType()/getSize() failed for every real (non-fake) file.
             $payload += [
                 'original_name' => mb_substr($file->getClientOriginalName(), 0, 255),
                 'stored_name' => $storedAs,
                 'mime_type' => $file->getMimeType(),
                 'size_bytes' => $file->getSize() ?: 0,
             ];
+
+            $file->move($destination, $storedAs);
         } else {
             $payload['link_url'] = $validated['link_url'];
         }
@@ -975,6 +981,51 @@ class LiveClassController extends Controller
         return '';
     }
 
+    /**
+     * Calls a meeting provider (Zoom / Google Meet). If the provider cannot be reached at all —
+     * network, DNS, TLS certificate verification — the request fails as a normal validation
+     * error on meeting_url (input kept, nothing saved) instead of an HTTP 500. The failure is
+     * logged server-side with its class and school only: no tokens, secrets or response bodies.
+     * A reachable provider that refuses the request still returns null (existing behaviour).
+     */
+    private function callMeetingProvider(string $provider, callable $call): ?string
+    {
+        try {
+            return $call();
+        } catch (\Illuminate\Http\Client\ConnectionException | \Illuminate\Http\Client\RequestException | \GuzzleHttp\Exception\TransferException $e) {
+            \Illuminate\Support\Facades\Log::warning("Live class: {$provider} API could not be reached", [
+                'exception' => get_class($e),
+                'school_id' => auth()->user()->school_id ?? null,
+                'user_id' => auth()->id(),
+            ]);
+
+            throw ValidationException::withMessages([
+                'meeting_url' => get_phrase($provider . ' could not be reached right now, so the class was not saved. Please try again shortly, or paste a meeting link to schedule it now.'),
+            ]);
+        }
+    }
+
+    /**
+     * The error for "no meeting link came back": not configured (setup message), or configured
+     * but the provider refused / failed / answered without a link (HTTP 401/403/404/429/5xx,
+     * expired or invalid credentials, malformed response). Nothing is saved; logged without secrets.
+     */
+    private function meetingLinkFailure(string $platform, string $label, string $notConfiguredMessage): ValidationException
+    {
+        if (!$this->platformIsConfigured($platform)) {
+            return ValidationException::withMessages(['meeting_url' => get_phrase($notConfiguredMessage)]);
+        }
+
+        \Illuminate\Support\Facades\Log::warning("Live class: {$label} API returned no meeting link", [
+            'school_id' => auth()->user()->school_id ?? null,
+            'user_id' => auth()->id(),
+        ]);
+
+        return ValidationException::withMessages([
+            'meeting_url' => get_phrase($label . ' did not create a meeting link, so the class was not saved. The service may be temporarily unavailable, or its connection settings may need attention from the system administrator. Please try again shortly, or paste a meeting link to schedule it now.'),
+        ]);
+    }
+
     private function resolveMeetingUrl(string $platform, string $title, Carbon $scheduledAt, Carbon $endsAt, string $timezone): string
     {
         if ($platform === 'jitsi') {
@@ -982,25 +1033,21 @@ class LiveClassController extends Controller
         }
 
         if ($platform === 'zoom') {
-            $url = $this->createZoomMeetingUrl($title, $scheduledAt, $endsAt, $timezone);
+            $url = $this->callMeetingProvider('Zoom', fn () => $this->createZoomMeetingUrl($title, $scheduledAt, $endsAt, $timezone));
             if (!empty($url)) {
                 return $url;
             }
 
-            throw ValidationException::withMessages([
-                'meeting_url' => get_phrase('Zoom API is not configured. Add ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID, and ZOOM_CLIENT_SECRET in your .env file.'),
-            ]);
+            throw $this->meetingLinkFailure('zoom', 'Zoom', 'Zoom API is not configured. Add ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID, and ZOOM_CLIENT_SECRET in your .env file.');
         }
 
         if ($platform === 'google_meet') {
-            $url = $this->createGoogleMeetUrl($title, $scheduledAt, $endsAt, $timezone);
+            $url = $this->callMeetingProvider('Google Meet', fn () => $this->createGoogleMeetUrl($title, $scheduledAt, $endsAt, $timezone));
             if (!empty($url)) {
                 return $url;
             }
 
-            throw ValidationException::withMessages([
-                'meeting_url' => get_phrase('Google Meet API is not configured. Add GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and GOOGLE_REFRESH_TOKEN in your .env file.'),
-            ]);
+            throw $this->meetingLinkFailure('google_meet', 'Google Meet', 'Google Meet API is not configured. Add GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and GOOGLE_REFRESH_TOKEN in your .env file.');
         }
 
         throw ValidationException::withMessages([
@@ -1018,7 +1065,7 @@ class LiveClassController extends Controller
             return null;
         }
 
-        $tokenResponse = Http::asForm()
+        $tokenResponse = Http::asForm()->connectTimeout(10)->timeout(20)
             ->withBasicAuth($clientId, $clientSecret)
             ->post('https://zoom.us/oauth/token', [
                 'grant_type' => 'account_credentials',
@@ -1035,7 +1082,7 @@ class LiveClassController extends Controller
         }
 
         $duration = max(1, $scheduledAt->diffInMinutes($endsAt));
-        $meetingResponse = Http::withToken($accessToken)
+        $meetingResponse = Http::withToken($accessToken)->connectTimeout(10)->timeout(20)
             ->acceptJson()
             ->post('https://api.zoom.us/v2/users/me/meetings', [
                 'topic' => $title,
@@ -1068,7 +1115,7 @@ class LiveClassController extends Controller
             return null;
         }
 
-        $tokenResponse = Http::asForm()->post('https://oauth2.googleapis.com/token', [
+        $tokenResponse = Http::asForm()->connectTimeout(10)->timeout(20)->post('https://oauth2.googleapis.com/token', [
             'client_id' => $clientId,
             'client_secret' => $clientSecret,
             'refresh_token' => $refreshToken,
@@ -1092,7 +1139,7 @@ class LiveClassController extends Controller
         $guestEmails = LiveClassMeetGuest::forSchool($this->school_id)->pluck('email');
         $attendees = $guestEmails->map(fn (string $email) => ['email' => $email])->values()->all();
 
-        $eventResponse = Http::withToken($accessToken)
+        $eventResponse = Http::withToken($accessToken)->connectTimeout(10)->timeout(20)
             ->acceptJson()
             ->post('https://www.googleapis.com/calendar/v3/calendars/' . urlencode($calendarId) . '/events?conferenceDataVersion=1&sendUpdates=all', [
                 'summary' => $title,

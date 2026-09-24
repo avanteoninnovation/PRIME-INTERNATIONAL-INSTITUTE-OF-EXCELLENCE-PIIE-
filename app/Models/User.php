@@ -45,7 +45,7 @@ class User extends Authenticatable
     ];
 
     /** Valid values for staff_status — the Staff Module's own employment status, separate from account_status. */
-    public const STAFF_STATUSES = ['active', 'suspended', 'inactive'];
+    public const STAFF_STATUSES = \App\Support\Staff\StaffStatus::ALL;
 
     /**
      * The attributes that should be hidden for arrays.
@@ -90,6 +90,33 @@ class User extends Authenticatable
         return $this->hasOne(StudentProfile::class, 'user_id');
     }
 
+    // Staff professional records (all optional: historical staff have none).
+
+    public function staffProfile()
+    {
+        return $this->hasOne(StaffProfile::class, 'user_id');
+    }
+
+    public function staffQualifications()
+    {
+        return $this->hasMany(StaffQualification::class, 'user_id');
+    }
+
+    public function staffProfessionalRegistrations()
+    {
+        return $this->hasMany(StaffProfessionalRegistration::class, 'user_id');
+    }
+
+    public function staffExperiences()
+    {
+        return $this->hasMany(StaffExperience::class, 'user_id');
+    }
+
+    public function staffDocuments()
+    {
+        return $this->hasMany(StaffDocument::class, 'user_id');
+    }
+
     public function department()
     {
         return $this->belongsTo(Department::class, 'department_id');
@@ -106,9 +133,15 @@ class User extends Authenticatable
      * works — kept as a separate field/check per the client's explicit
      * instruction not to conflate the two.
      */
+    /** RBAC Phase 3A: see App\Support\Permissions\PermissionService. */
+    public function hasPermission(string $key): bool
+    {
+        return app(\App\Support\Permissions\PermissionService::class)->allows($this, $key);
+    }
+
     public function isStaffPortalBlocked(): bool
     {
-        return in_array($this->staff_status, ['suspended', 'inactive'], true);
+        return \App\Support\Staff\StaffStatus::blocksPortal($this->staff_status);
     }
 
         public function liveClassesAsLecturer()

@@ -52,6 +52,7 @@ use Stripe, DB;
 use PaytmWallet;
 use File;
 use App\Mail\SuperAdminAproved;
+use App\Support\ProfilePhoto;
 
 class SuperAdminController extends Controller
 {
@@ -127,6 +128,11 @@ class SuperAdminController extends Controller
 
     public function createSchool(Request $request)
     {
+        // Uploads are checked before anything is created (a failed/invalid file must not leave a half-created school).
+        $request->validate([
+            'school_logo' => ['nullable', 'file', 'mimes:png,jpg,jpeg,gif,webp', 'max:4096'],
+            'photo' => ['nullable', 'file', 'mimes:png,jpg,jpeg', 'max:4096'],
+        ]);
         $data = $request->all();
         $school_email = $data['school_email'];
         $admin_email = $data['admin_email'];
@@ -146,7 +152,7 @@ class SuperAdminController extends Controller
         ]);
         
         if($request->school_logo){
-            $ext = $request->school_logo->getClientOriginalExtension();
+            $ext = $request->school_logo->extension();   // from the validated content, not the client's file name
             $newFileName = time().'.'.$ext;
             $request->school_logo->move(public_path('assets/uploads/school_logo'),$newFileName); // This will save file in a folder.  
             $school->school_logo =$newFileName;
@@ -198,7 +204,7 @@ class SuperAdminController extends Controller
             ]);
         }
         if(!empty(get_settings('smtp_user')) && (get_settings('smtp_pass')) && (get_settings('smtp_host')) && (get_settings('smtp_port'))){
-            Mail::to($data['admin_email'])->send(new SchoolEmail($data));
+            \App\Support\Mail\SafeMail::send($data['admin_email'], new SchoolEmail($data), 'school-registration');
         }
             return redirect()->back()->with('message','School created successfully');
         } else {
@@ -538,6 +544,12 @@ class SuperAdminController extends Controller
 
     public function systemUpdate(Request $request)
     {
+        // Files are checked before any setting is written (no partial update on an invalid upload).
+        $request->validate([
+            'email_logo' => ['nullable', 'file', 'mimes:png,jpg,jpeg,gif,webp', 'max:4096'], 'socialLogo1' => ['nullable', 'file', 'mimes:png,jpg,jpeg,gif,webp', 'max:4096'], 'socialLogo2' => ['nullable', 'file', 'mimes:png,jpg,jpeg,gif,webp', 'max:4096'], 'socialLogo3' => ['nullable', 'file', 'mimes:png,jpg,jpeg,gif,webp', 'max:4096'],
+            'front_logo' => ['nullable', 'file', 'mimes:png,jpg,jpeg,gif,webp', 'max:4096'],
+            'off_pay_ins_file' => ['nullable', 'file', 'mimes:jpg,png,pdf', 'max:10240'],
+        ]);
         $data = $request->all();
 
         unset($data['_token']);
@@ -978,6 +990,10 @@ class SuperAdminController extends Controller
     function profile_update(Request $request){
         $data['name'] = $request->name;
         $data['email'] = $request->email;
+        // Security Phase 2F: a self-service profile edit must not claim another account's login email.
+        if (User::where('email', $request->email)->where('id', '!=', auth()->user()->id)->exists()) {
+            return redirect()->back()->with('error', 'Email was already taken.');
+        }
         $data['designation'] = $request->designation;
         
         $user_info['birthday'] = strtotime($request->eDefaultDateRange);
@@ -989,10 +1005,11 @@ class SuperAdminController extends Controller
         if(empty($request->photo)){
             $user_info['photo'] = $request->old_photo;
         }else{
-            $file_name = random(10).'.png';
+            $file_name = ProfilePhoto::store($request->photo);
+            if ($file_name === null) {
+                return redirect()->back()->with('error', 'Profile photo must be a JPG or PNG image of at most 4 MB.');
+            }
             $user_info['photo'] = $file_name;
-
-            $request->photo->move(public_path('assets/uploads/user-images/'), $file_name);
         }
 
         $data['user_information'] = json_encode($user_info);
@@ -1039,6 +1056,10 @@ class SuperAdminController extends Controller
 
     //logo update
     function update_logo(Request $request){
+        $request->validate([
+            'dark_logo' => ['nullable', 'file', 'mimes:png,jpg,jpeg,gif,webp', 'max:4096'], 'light_logo' => ['nullable', 'file', 'mimes:png,jpg,jpeg,gif,webp', 'max:4096'], 'white_logo' => ['nullable', 'file', 'mimes:png,jpg,jpeg,gif,webp', 'max:4096'],
+            'favicon' => ['nullable', 'file', 'mimes:png,jpg,jpeg,gif,webp,ico', 'max:1024'],
+        ]);
         $dark_logo = time().'1.png';
         $light_logo = time().'2.png';
         $favicon = time().'3.png';

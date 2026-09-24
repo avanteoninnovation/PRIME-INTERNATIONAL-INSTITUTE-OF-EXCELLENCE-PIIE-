@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::table('users', function (Blueprint $table) {
             if (!Schema::hasColumn('users', 'account_status')) {
-                $table->string('account_status', 20)->default('active')->after('status');
+                $table->string('account_status', 20)->default('active');
             }
             if (!Schema::hasColumn('users', 'documents')) {
                 $table->text('documents')->nullable()->after('account_status');
@@ -50,11 +50,13 @@ return new class extends Migration
             }
         });
 
-        Schema::table('addons', function (Blueprint $table) {
-            if (!Schema::hasColumn('addons', 'parent_id')) {
-                $table->unsignedBigInteger('parent_id')->nullable()->after('unique_identifier');
-            }
-        });
+        if (Schema::hasTable('addons')) {
+            Schema::table('addons', function (Blueprint $table) {
+                if (!Schema::hasColumn('addons', 'parent_id')) {
+                    $table->unsignedBigInteger('parent_id')->nullable();
+                }
+            });
+        }
 
         if (Schema::hasTable('grades')) {
             Schema::table('grades', function (Blueprint $table) {
@@ -110,11 +112,13 @@ return new class extends Migration
             }
         });
 
-        Schema::table('addons', function (Blueprint $table) {
-            if (Schema::hasColumn('addons', 'parent_id')) {
-                $table->dropColumn('parent_id');
-            }
-        });
+        if (Schema::hasTable('addons')) {
+            Schema::table('addons', function (Blueprint $table) {
+                if (Schema::hasColumn('addons', 'parent_id')) {
+                    $table->dropColumn('parent_id');
+                }
+            });
+        }
 
         if (Schema::hasTable('grades') && Schema::hasColumn('grades', 'total_marks')) {
             Schema::table('grades', function (Blueprint $table) {

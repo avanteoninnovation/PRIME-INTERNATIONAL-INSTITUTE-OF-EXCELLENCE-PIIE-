@@ -62,6 +62,9 @@ class AdminPermission
             'admin.exam_mark.open_modal',
             'admin.add.exam_mark',
         ],
+        'admin.settings.payment' => [
+            'admin.settings.payment_post',
+        ],
         'admin.marks' => [
             'admin.marks.list',
             'admin.marks.list_pdf',

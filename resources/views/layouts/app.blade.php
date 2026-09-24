@@ -8,7 +8,7 @@
     // purely higher_ed school — those use Programmes/Courses instead.
     // 'k12' and 'mixed' schools (and the 'k12' column default) see it.
     $schoolType = \Illuminate\Support\Facades\DB::table('schools')->where('id', $user->school_id)->value('school_type') ?? 'k12';
-    $canSeeClasses = $schoolType !== 'higher_ed';
+    $canSeeClasses = true;
     // Symmetric to $canSeeClasses: Programmes/Courses don't apply to a
     // purely k12 school. 'higher_ed' and 'mixed' schools see them.
     $canSeeProgrammes = $schoolType !== 'k12';

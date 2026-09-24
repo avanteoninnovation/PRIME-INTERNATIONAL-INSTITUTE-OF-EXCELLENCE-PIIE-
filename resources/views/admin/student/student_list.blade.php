@@ -119,7 +119,7 @@ $menu_permission = (empty($user->menu_permission) || $user->menu_permission == '
                         @endif
                         <div>
                           <label for="class_id" class="eForm-label"
-                            >{{ get_phrase('Class') }}</label
+                            >{{ academic_term('class', auth()->user()->school_id) }}</label
                           >
                           <select
                             class="form-select" name="class_id"
@@ -133,7 +133,7 @@ $menu_permission = (empty($user->menu_permission) || $user->menu_permission == '
                         </div>
                         <div>
                           <label for="section_id" class="eForm-label"
-                            >{{ get_phrase('Section') }}</label
+                            >{{ academic_term('section', auth()->user()->school_id) }}</label
                           >
                           <select
                             class="form-select"
@@ -207,16 +207,16 @@ $menu_permission = (empty($user->menu_permission) || $user->menu_permission == '
                               <h4>{{ $student->name }}</h4>
                               <p>
                                 @if(!empty($student_details->class_name))
-                                <span>{{ get_phrase('Class') }}:</span> {{ $student_details->class_name }}
+                                <span>{{ academic_term('class', auth()->user()->school_id) }}:</span> {{ $student_details->class_name }}
                                 <br>
-                                <span>{{ get_phrase('Section') }}:</span> {{ $student_details->section_name }}
+                                <span>{{ academic_term('section', auth()->user()->school_id) }}:</span> {{ $student_details->section_name }}
                                 @elseif(!empty($student_details->programme_name))
-                                <span>{{ get_phrase('Programme') }}:</span> {{ $student_details->programme_name }}
+                                <span>{{ academic_term('programme', auth()->user()->school_id) }}:</span> {{ $student_details->programme_name }}
                                 @else
-                                <span>{{ get_phrase('Class') }}:</span>
+                                <span>{{ academic_term('class', auth()->user()->school_id) }}:</span>
                                  {{ get_phrase('Removed') }}
                                  <br>
-                                <span>{{ get_phrase('Section') }}:</span>
+                                <span>{{ academic_term('section', auth()->user()->school_id) }}:</span>
                                 {{ get_phrase('Removed') }}
                                 @endif
                               </p>

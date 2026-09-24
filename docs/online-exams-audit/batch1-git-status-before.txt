@@ -1,0 +1,41 @@
+ M bootstrap/cache/services.php
+ M database/migrations/2014_10_12_000000_create_users_table.php
+ M database/migrations/2019_08_19_000000_create_failed_jobs_table.php
+ M database/migrations/2019_12_14_000001_create_personal_access_tokens_table.php
+ M database/migrations/2022_05_16_051816_create_roles_table.php
+ M database/migrations/2022_05_23_051110_create_classes_table.php
+ M database/migrations/2022_05_23_103150_create_exams_table.php
+ M database/migrations/2022_05_23_103742_create_subjects_table.php
+ M database/migrations/2022_05_23_103954_create_schools_table.php
+ M database/migrations/2022_05_23_104212_create_sessions_table.php
+ M database/migrations/2022_05_24_091631_create_grades_table.php
+ M database/migrations/2022_05_26_061601_create_departments_table.php
+ M database/migrations/2022_05_26_105522_create_class_rooms_table.php
+ M database/migrations/2022_05_29_054550_create_sections_table.php
+ M database/migrations/2022_05_30_104457_create_enrollment_table.php
+ M database/migrations/2022_06_08_075645_create_daily_attendances_table.php
+ M database/migrations/2022_06_12_091246_create_routines_table.php
+ M database/migrations/2022_06_12_125535_create_syllabuses_table.php
+ M database/migrations/2022_06_14_103325_create_student_fee_managers_table.php
+ M database/migrations/2022_06_15_070514_create_expense_categories_table.php
+ M database/migrations/2022_06_15_091115_create_expenses_table.php
+ M database/migrations/2022_06_20_114122_create_books_table.php
+ M database/migrations/2022_06_20_115550_create_book_issues_table.php
+ M database/migrations/2022_06_21_110604_create_noticeboard_table.php
+ M database/migrations/2022_06_22_103223_create_frontend_events_table.php
+ M database/migrations/2022_06_26_104315_create_exam_categories_table.php
+ M database/migrations/2022_06_27_151826_create_subscriptions_table.php
+ M database/migrations/2022_06_27_155414_create_packages_table.php
+ M database/migrations/2022_07_05_163602_create_global_settings_table.php
+ M database/migrations/2022_07_24_134113_create_teacher_permissions_table.php
+ M database/migrations/2026_06_24_000001_create_website_management_tables.php
+ M database/migrations/2026_06_27_000002_ensure_website_management_schema_integrity.php
+ M database/migrations/2026_06_27_000003_add_page_header_and_navigation_fields_to_website_pages.php
+ M database/migrations/2026_07_26_140000_add_missing_columns_found_in_schema_audit.php
+ M database/migrations/2026_07_26_160002_seed_primary_school_id_setting.php
+?? database/migrations/2026_09_19_000001_create_language_table.php
+?? database/migrations/2026_09_19_000002_restore_school_setup_columns.php
+?? database/migrations/2026_09_19_000003_restore_portal_support_tables.php
+?? database/seeders/PiieLocalSetupSeeder.php
+?? docs/
+?? storage/app/piie-table-inventory.json

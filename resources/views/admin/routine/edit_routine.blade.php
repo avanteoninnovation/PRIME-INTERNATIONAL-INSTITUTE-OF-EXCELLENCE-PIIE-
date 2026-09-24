@@ -4,7 +4,8 @@ use App\Models\Section;
 use App\Models\Subject;
 use App\Models\Session;
 
-$active_session = Session::where('status', 1)->first();
+// Sessions are school-owned: this school's active session (Pre-RBAC cleanup).
+$active_session = Session::where('school_id', auth()->user()->school_id)->where('status', 1)->first();
 
 ?>
 <form method="POST" class="d-block ajaxForm" action="{{ route('admin.routine.update', ['id' => $routine->id ]) }}">

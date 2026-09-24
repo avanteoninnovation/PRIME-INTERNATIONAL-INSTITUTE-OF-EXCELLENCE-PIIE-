@@ -239,6 +239,49 @@ class ApplicantNotifier
         ]);
     }
 
+    /**
+     * The staff-entry counterpart of the online applicant simply reaching
+     * the payment step themselves: an administrator entered this
+     * application, so the candidate needs to be told it exists and given a
+     * way to pay. $portalUrl is a one-time reset-password link into the
+     * applicant portal (see ApplicantPortalAccess) — the same portal, same
+     * payment page, same gateways an online applicant would use.
+     *
+     * $isReminder only changes the subject/copy; it is never a second
+     * payment record or a second application (see
+     * AdmissionsController::resendPaymentInstructions()).
+     */
+    public static function staffEntryPaymentRequest(Admission $admission, string $portalUrl, bool $isReminder = false): bool
+    {
+        $amount = ApplicationFee::amountFor($admission);
+
+        return self::send($admission->email, [
+            'subject'  => ($isReminder
+                ? get_phrase('Reminder: application fee payment required')
+                : get_phrase('An application has been created for you')) . ' — ' . $admission->app_number,
+            'heading'  => $isReminder
+                ? get_phrase('Your application fee is still outstanding')
+                : get_phrase('An application has been created for you'),
+            'greeting' => get_phrase('Dear') . ' ' . $admission->full_name . ',',
+            'paragraphs' => [
+                $isReminder
+                    ? get_phrase('This is a reminder that your application fee has not yet been received. Use the link below to sign in and complete payment.')
+                    : get_phrase('An application has been created for you at') . ' ' . (get_settings('system_title') ?: 'the institution') . '. ' . get_phrase('Use the link below to set up access to your applicant portal, where you can review your details and pay your application fee.'),
+            ],
+            'details' => array_filter([
+                get_phrase('Application Number') => $admission->app_number,
+                get_phrase('Programme')          => optional($admission->programme)->name,
+                get_phrase('Application Fee')    => $amount > 0 ? ApplicationFee::format($amount) : get_phrase('None for this intake'),
+                get_phrase('Payment Reference')  => $admission->app_number,
+                get_phrase('Payment Status')     => ucfirst($admission->fee_status),
+            ]),
+            'cta_label'   => get_phrase('Set Up Access & Pay'),
+            'cta_url'     => $portalUrl,
+            'footer_note' => get_phrase('This link is personal to you and expires after use or after 60 minutes, whichever comes first. If you were not expecting this email, please contact the admissions office.'),
+            'school_id'   => $admission->school_id,
+        ]);
+    }
+
     public static function passwordReset(Applicant $applicant, string $token): bool
     {
         return self::send($applicant->email, [

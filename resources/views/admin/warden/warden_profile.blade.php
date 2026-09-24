@@ -116,6 +116,7 @@
                 role="tabpanel"
                 aria-labelledby="pills-jProfile-tab"
               >
+                @if((int) auth()->user()->role_id === 2)
                 <form action="{{route('admin.user_password')}}" method="post">
                     @CSRF
                     <div class="fpb-7">
@@ -134,6 +135,7 @@
                         </div>
                     </div> 
                 </form>  
+                @endif
               </div>
             </div>
       </div>

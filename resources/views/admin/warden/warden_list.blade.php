@@ -20,7 +20,9 @@
                         <a href="{{ route('admin.warden.export', ['search' => $search]) }}" class="export_btn bg-secondary"><i class="bi bi-download"></i> {{ get_phrase('Export CSV') }}</a>
                         <a href="{{ route('admin.warden.export_excel') }}" class="export_btn bg-secondary"><i class="bi bi-download"></i> {{ get_phrase('Export Excel') }}</a>
                         <a href="{{ route('admin.warden.list_pdf') }}" target="_blank" class="export_btn bg-secondary"><i class="bi bi-printer"></i> {{ get_phrase('Print / PDF') }}</a>
+                        @if(in_array((int) auth()->user()->role_id, [2, 15], true))
                         <a href="javascript:;" class="export_btn" onclick="rightModal('{{ route('admin.warden.create_form') }}', '{{ get_phrase('Create Warden') }}')">{{ get_phrase('Create Warden') }}</a>
+                        @endif
                     </div>
                 </div>
             </div>
@@ -119,12 +121,16 @@
                                                     {{ get_phrase('Actions') }}
                                                 </button>
                                                 <ul class="dropdown-menu dropdown-menu-end eDropdown-menu-2 eDropdown-table-action">
+                                                    @if(in_array((int) auth()->user()->role_id, [2, 15], true))
                                                     <li>
                                                         <a class="dropdown-item" href="javascript:;" onclick="rightModal('{{ route('admin.warden_edit_modal', ['id' => $warden->id]) }}', '{{ get_phrase('Edit Admin') }}')">{{ get_phrase('Edit') }}</a>
                                                     </li>
+                                                    @endif
+                                                    @if(in_array((int) auth()->user()->role_id, [2, 15], true))
                                                     <li>
                                                         <a class="dropdown-item" href="javascript:;" onclick="confirmModal('{{ route('admin.warden.delete', ['id' => $warden->id]) }}', 'undefined');">{{ get_phrase('Delete') }}</a>
                                                     </li>
+                                                    @endif
                                                     <li>
                                                         <a class="dropdown-item" href="javascript:;" onclick="largeModal('{{ route('admin.warden.warden_profile', ['id' => $warden->id]) }}','{{ get_phrase('Warden Profile') }}')">{{ get_phrase('Profile') }}</a>
                                                     </li>
@@ -134,12 +140,17 @@
                                                     <li>
                                                         <a class="dropdown-item" href="{{ route('admin.warden.profile_pdf', ['id' => $warden->id]) }}" target="_blank">{{ get_phrase('Profile PDF') }}</a>
                                                     </li>
+                                                    @if((int) auth()->user()->role_id === 2)
                                                     <li>
                                                         <a class="dropdown-item" href="javascript:;" onclick="confirmModal('{{ route('admin.warden.reset_password', ['id' => $warden->id]) }}', 'undefined');">{{ get_phrase('Reset Password') }}</a>
                                                     </li>
+                                                    @endif
+                                                    @if((int) auth()->user()->role_id === 2)
                                                     <li>
                                                         <a class="dropdown-item" href="javascript:;" onclick="confirmModal('{{ route('admin.warden.resend_activation', ['id' => $warden->id]) }}', 'undefined');">{{ get_phrase('Resend Activation') }}</a>
                                                     </li>
+                                                    @endif
+                                                    @if((int) auth()->user()->role_id === 2)
                                                     @if (!empty($warden->account_status == 'disable'))
                                                         <li>
                                                             <a class="dropdown-item" href="javascript:;" onclick="confirmModal('{{ route('admin.account_enable', ['id' => $warden->id]) }}', 'undefined');">{{ get_phrase('Enable') }}</a>
@@ -148,6 +159,7 @@
                                                         <li>
                                                             <a class="dropdown-item" href="javascript:;" onclick="confirmModal('{{ route('admin.account_disable', ['id' => $warden->id]) }}', 'undefined');">{{ get_phrase('Disable') }}</a>
                                                         </li>
+                                                    @endif
                                                     @endif
                                                 </ul>
                                             </div>

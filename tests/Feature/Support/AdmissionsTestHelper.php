@@ -442,6 +442,30 @@ trait AdmissionsTestHelper
         Schema::create('sessions', function (Blueprint $table) {
             $table->id();
             $table->string('session_title')->nullable();
+            $table->integer('status')->nullable();
+            $table->integer('school_id')->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('departments', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->integer('school_id');
+            $table->timestamps();
+        });
+
+        // Queried by CommonController::get_student_details_by_id() — the
+        // canonical class-based student lookup Attendance/Timetable/
+        // Subjects/Marks all read through. Shape matches the real
+        // 2022_05_16_051816_create_roles_table migration (id('role_id') as
+        // the primary key), plus a school_id column several tests seed
+        // defensively even though the real table doesn't have one — kept
+        // here so those inserts don't need to change.
+        Schema::create('roles', function (Blueprint $table) {
+            $table->id('role_id');
+            $table->string('name');
+            $table->unsignedBigInteger('school_id')->default(0);
+            $table->timestamps();
         });
 
         // School-scoped tables the (school) Admin dashboard reads from —
@@ -737,6 +761,26 @@ trait AdmissionsTestHelper
         ], $overrides));
     }
 
+    protected function makeDepartment(int $schoolId, array $overrides = []): int
+    {
+        return (int) DB::table('departments')->insertGetId(array_merge([
+            'school_id'  => $schoolId,
+            'name'       => 'Test Department',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ], $overrides));
+    }
+
+    protected function makeSection(int $classId, array $overrides = []): int
+    {
+        return (int) DB::table('sections')->insertGetId(array_merge([
+            'class_id'   => $classId,
+            'name'       => 'A',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ], $overrides));
+    }
+
     protected function makeExamCategory(int $schoolId, array $overrides = []): int
     {
         return (int) DB::table('exam_categories')->insertGetId(array_merge([
@@ -776,6 +820,17 @@ trait AdmissionsTestHelper
             'timestamp' => time(),
             'created_at' => now(),
             'updated_at' => now(),
+        ], $overrides));
+    }
+
+    protected function makeAcademicSession(int $schoolId, array $overrides = []): int
+    {
+        return (int) DB::table('sessions')->insertGetId(array_merge([
+            'school_id'     => $schoolId,
+            'session_title' => '2026/2027',
+            'status'        => 1,
+            'created_at'    => now(),
+            'updated_at'    => now(),
         ], $overrides));
     }
 

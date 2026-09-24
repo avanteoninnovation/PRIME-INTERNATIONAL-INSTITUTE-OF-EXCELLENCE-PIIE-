@@ -62,6 +62,49 @@ class AdmissionsReviewWorkflowTest extends TestCase
         $response->assertSee('Ugandan');
     }
 
+    public function test_review_screen_shows_academic_assignment_fields_for_enrolment(): void
+    {
+        $admission = $this->makeSubmittedAdmission(['status' => Admission::STATUS_ACCEPTED]);
+        $admin     = $this->makeAdminUser($this->schoolId);
+        $classId   = $this->makeClass($this->schoolId, ['name' => 'Year One']);
+        $this->makeSection($classId, ['name' => 'Stream A']);
+        $this->makeDepartment($this->schoolId, ['name' => 'Faculty of Science']);
+        $this->makeAcademicSession($this->schoolId, ['session_title' => '2026/2027']);
+
+        $response = $this->actingAs($admin)->get(route('admin.hei_admissions.review', $admission->id));
+
+        $response->assertStatus(200);
+        $response->assertSee('Academic Assignment');
+        $response->assertSee('Year One');
+        $response->assertSee('Faculty of Science');
+        $response->assertSee('2026/2027');
+    }
+
+    public function test_review_screen_shows_read_only_summary_once_already_enrolled(): void
+    {
+        $admission = $this->makeSubmittedAdmission(['status' => Admission::STATUS_ACCEPTED]);
+        $admin     = $this->makeAdminUser($this->schoolId);
+        $classId   = $this->makeClass($this->schoolId, ['name' => 'Year One']);
+        $sectionId = $this->makeSection($classId, ['name' => 'Stream A']);
+        $departmentId = $this->makeDepartment($this->schoolId);
+        $sessionId = $this->makeAcademicSession($this->schoolId);
+
+        $this->actingAs($admin)->post(route('admin.hei_admissions.status', $admission->id), [
+            'status' => 'enrolled',
+            'class_id' => $classId,
+            'section_id' => $sectionId,
+            'department_id' => $departmentId,
+            'session_id' => $sessionId,
+        ]);
+
+        $response = $this->actingAs($admin)->get(route('admin.hei_admissions.review', $admission->id));
+
+        $response->assertStatus(200);
+        $response->assertSee('Already enrolled');
+        $response->assertSee('Year One');
+        $response->assertSee('Stream A');
+    }
+
     public function test_review_screen_is_scoped_to_the_reviewers_school(): void
     {
         $otherSchoolId = $this->makeSchool(['title' => 'Other School']);

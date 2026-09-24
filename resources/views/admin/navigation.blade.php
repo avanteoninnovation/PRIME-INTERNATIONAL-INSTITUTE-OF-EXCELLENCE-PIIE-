@@ -8,7 +8,7 @@
     // purely higher_ed school — those use Programmes/Courses instead.
     // 'k12' and 'mixed' schools (and the 'k12' column default) see it.
     $schoolType = \Illuminate\Support\Facades\DB::table('schools')->where('id', $user->school_id)->value('school_type') ?? 'k12';
-    $canSeeClasses = $schoolType !== 'higher_ed';
+    $canSeeClasses = true;
     // Symmetric to $canSeeClasses: Programmes/Courses don't apply to a
     // purely k12 school. 'higher_ed' and 'mixed' schools see them.
     $canSeeProgrammes = $schoolType !== 'k12';
@@ -117,6 +117,21 @@
     if ($canViewOnlineExamsNav) {
         $canSeeClasses = true;
     }
+
+    // RBAC Phase 3B: a menu item is shown only if the user can actually open its destination.
+    // Routes mapped in the permission registry need that permission (base role, custom role or
+    // direct grant); unmapped routes (directory pages, dashboard, Online Exams / Live Classes,
+    // which keep their own checks) are unaffected. Hiding a menu is convenience only — the
+    // backend ('rbac' middleware, policies, controllers) is what enforces access.
+    // users.menu_permission remains the legacy per-user restriction layer read above; new
+    // grants never go there (they live in the RBAC tables).
+    $rbacPermissions = app(\App\Support\Permissions\PermissionService::class);
+    $navCan = function (string $routeName) use ($rbacPermissions, $user): bool {
+        $required = $rbacPermissions->routePermission($routeName);
+
+        return $required === null || $rbacPermissions->allows($user, $required);
+    };
+    $navCanAny = fn (array $routeNames): bool => collect($routeNames)->contains(fn ($routeName) => $navCan($routeName));
 @endphp
 <!DOCTYPE html>
 <html lang="en">
@@ -186,7 +201,7 @@
             </li>
 
             <!-- Students -->
-            @if(empty($user->menu_permission) || in_array('admin.student', $menu_permission) || in_array('admin.parent', $menu_permission))
+            @if((empty($user->menu_permission) || in_array('admin.student', $menu_permission) || in_array('admin.parent', $menu_permission)) && $navCan('admin.student'))
             <li class="nav-links-li {{ request()->is('admin/student*') || request()->is('admin/parent*') ? 'showMenu' : '' }}">
                 <div class="iocn-link">
                     <a href="{{ route('admin.student') }}" class="{{ request()->is('admin/student*') ? 'active' : '' }}">
@@ -203,8 +218,27 @@
             @endif
 
             <!-- Staff -->
-            @if(empty($user->menu_permission) || in_array('admin.admin', $menu_permission) || in_array('admin.teacher', $menu_permission) || in_array('admin.accountant', $menu_permission) || in_array('admin.librarian', $menu_permission) || in_array('admin.warden', $menu_permission))
-            <li class="nav-links-li {{ request()->is('admin/admin*') || request()->is('admin/teacher*') || request()->is('admin/accountant*') || request()->is('admin/librarian*') || request()->is('admin/warden*') ? 'showMenu' : '' }}">
+            @php
+                // Each Staff child keeps exactly its own visibility rule (legacy menu_permission key where it
+                // had one, plus the RBAC route check / launcher guard). The parent is shown only when at least
+                // one child is — never an empty menu, and never hidden while a child (e.g. an HR Manager's
+                // Add Staff) is available. Visibility only: the backend guards still decide access.
+                $staffLegacyKey = fn (string $key): bool => empty($user->menu_permission) || in_array($key, $menu_permission);
+                $staffNav = [
+                    'directory'   => $navCan('admin.rbac.staff.index'),
+                    'add'         => (bool) \App\Http\Controllers\Admin\StaffLauncherController::creatableTypes($user),
+                    'roles'       => $rbacPermissions->allows($user, 'roles.view'),
+                    'admin'       => $staffLegacyKey('admin.admin') && $navCan('admin.admin'),
+                    'teacher'     => $staffLegacyKey('admin.teacher') && $navCan('admin.teacher'),
+                    'accountant'  => $staffLegacyKey('admin.accountant') && $navCan('admin.accountant'),
+                    'librarian'   => $staffLegacyKey('admin.librarian') && $navCan('admin.librarian'),
+                    'warden'      => $staffLegacyKey('admin.warden') && $navCan('admin.warden'),
+                    'permission'  => $staffLegacyKey('admin.permission') && $navCan('admin.teacher.permission'),
+                    'designation' => $staffLegacyKey('admin.designation_list') && $navCan('admin.designation_list'),
+                ];
+            @endphp
+            @if(in_array(true, $staffNav, true))
+            <li class="nav-links-li {{ request()->is('admin/admin*') || request()->is('admin/teacher*') || request()->is('admin/accountant*') || request()->is('admin/librarian*') || request()->is('admin/warden*') || request()->is('admin/staff*') || request()->is('admin/roles-permissions*') ? 'showMenu' : '' }}">
                 <div class="iocn-link">
                     <a href="#" class="has-submenu">
                         <div class="sidebar_icon">
@@ -224,25 +258,36 @@
                     </span>
                 </div>
                 <ul class="sub-menu">
-                    @if(empty($user->menu_permission) || in_array('admin.admin', $menu_permission))
+                    {{-- Staff Directory / Roles & Permissions reuse the RBAC screens; Add Staff launches the existing
+                         per-role create forms. Each item is shown only when its backend guard would admit the user. --}}
+                    @if($staffNav['directory'])
+                    <li><a class="{{ request()->is('admin/roles-permissions/staff*') ? 'active' : '' }}" href="{{ route('admin.rbac.staff.index') }}"><span>{{ get_phrase('Staff Directory') }}</span></a></li>
+                    @endif
+                    @if($staffNav['add'])
+                    <li><a class="{{ request()->is('admin/staff/add*') ? 'active' : '' }}" href="{{ route('admin.staff.add') }}"><span>{{ get_phrase('Add Staff') }}</span></a></li>
+                    @endif
+                    @if($staffNav['roles'])
+                    <li><a class="{{ request()->is('admin/roles-permissions') || request()->is('admin/roles-permissions/roles*') ? 'active' : '' }}" href="{{ route('admin.rbac.roles.index') }}"><span>{{ get_phrase('Roles & Permissions') }}</span></a></li>
+                    @endif
+                    @if($staffNav['admin'])
                     <li><a class="{{ request()->is('admin/admin*') ? 'active' : '' }}" href="{{ route('admin.admin') }}"><span>{{ get_phrase('Admin') }}</span></a></li>
                     @endif
-                    @if(empty($user->menu_permission) || in_array('admin.teacher', $menu_permission))
+                    @if($staffNav['teacher'])
                     <li><a class="{{ request()->is('admin/teacher*') ? 'active' : '' }}" href="{{ route('admin.teacher') }}"><span>{{ get_phrase('Teacher') }}</span></a></li>
                     @endif
-                    @if(empty($user->menu_permission) || in_array('admin.accountant', $menu_permission))
+                    @if($staffNav['accountant'])
                     <li><a class="{{ request()->is('admin/accountant*') ? 'active' : '' }}" href="{{ route('admin.accountant') }}"><span>{{ get_phrase('Accountant') }}</span></a></li>
                     @endif
-                    @if(empty($user->menu_permission) || in_array('admin.librarian', $menu_permission))
+                    @if($staffNav['librarian'])
                     <li><a class="{{ request()->is('admin/librarian*') ? 'active' : '' }}" href="{{ route('admin.librarian') }}"><span>{{ get_phrase('Librarian') }}</span></a></li>
                     @endif
-                    @if(empty($user->menu_permission) || in_array('admin.warden', $menu_permission))
+                    @if($staffNav['warden'])
                     <li><a class="{{ request()->is('admin/warden*') ? 'active' : '' }}" href="{{ route('admin.warden') }}"><span>{{ get_phrase('Warden') }}</span></a></li>
                     @endif
-                    @if(empty($user->menu_permission) || in_array('admin.permission', $menu_permission))
+                    @if($staffNav['permission'])
                     <li><a class="{{ request()->is('admin/permission*') ? 'active' : '' }}" href="{{ route('admin.teacher.permission') }}"><span>{{ get_phrase('Teacher Permission') }}</span></a></li>
                     @endif
-                    @if(empty($user->menu_permission) || in_array('admin.designation_list', $menu_permission))
+                    @if($staffNav['designation'])
                     <li><a class="{{ request()->is('admin/designation*') ? 'active' : '' }}" href="{{ route('admin.designation_list') }}"><span>{{ get_phrase('Designation') }}</span></a></li>
                     @endif
                 </ul>
@@ -255,7 +300,7 @@
             <li class="nav-section-header">HUMAN RESOURCES</li>
 
             <!-- Leave Management -->
-            @if(empty($user->menu_permission) || in_array('admin.leave', $menu_permission))
+            @if((empty($user->menu_permission) || in_array('admin.leave', $menu_permission)) && $navCan('admin.leave.index'))
             <li class="nav-links-li {{ request()->is('admin/leave') || request()->is('admin/leave/*') ? 'showMenu' : '' }}">
                 <div class="iocn-link">
                     <a href="{{ route('admin.leave.index') }}" class="{{ request()->is('admin/leave') || request()->is('admin/leave/*') ? 'active' : '' }}">
@@ -275,6 +320,7 @@
             @endif
 
             <!-- Student Affairs Requests -->
+            @if($navCan('admin.student_requests.index'))
             <li class="nav-links-li {{ request()->is('admin/student-requests*') ? 'showMenu' : '' }}">
                 <div class="iocn-link">
                     <a href="{{ route('admin.student_requests.index') }}" class="{{ request()->is('admin/student-requests*') ? 'active' : '' }}">
@@ -285,8 +331,10 @@
                     </a>
                 </div>
             </li>
+            @endif
 
             <!-- Elections -->
+            @if($navCan('admin.elections.index'))
             <li class="nav-links-li {{ request()->is('admin/elections*') ? 'showMenu' : '' }}">
                 <div class="iocn-link">
                     <a href="{{ route('admin.elections.index') }}" class="{{ request()->is('admin/elections*') ? 'active' : '' }}">
@@ -297,9 +345,10 @@
                     </a>
                 </div>
             </li>
+            @endif
 
             <!-- Leave Types -->
-            @if(empty($user->menu_permission) || in_array('admin.leave_types', $menu_permission))
+            @if((empty($user->menu_permission) || in_array('admin.leave_types', $menu_permission)) && $navCan('admin.leave_types.index'))
             <li class="nav-links-li {{ request()->is('admin/leave-types*') ? 'showMenu' : '' }}">
                 <div class="iocn-link">
                     <a href="{{ route('admin.leave_types.index') }}" class="{{ request()->is('admin/leave-types*') ? 'active' : '' }}">
@@ -331,7 +380,7 @@
             </li>
 
             <!-- Programmes (higher_ed/mixed only — pure k12 schools have no use for degree-programme management) -->
-            @if($canSeeProgrammes)
+            @if(($canSeeProgrammes) && $navCan('admin.programmes.index'))
             <li class="nav-links-li {{ request()->is('admin/programmes*') ? 'showMenu' : '' }}">
                 <div class="iocn-link">
                     <a href="{{ route('admin.programmes.index') }}" class="{{ request()->is('admin/programmes*') ? 'active' : '' }}">
@@ -348,7 +397,7 @@
             @endif
 
             <!-- Courses (shared module — serves Class-based subjects AND Programme-based courses, so always visible regardless of academic_structure) -->
-            @if(empty($user->menu_permission) || in_array('admin.subject_list', $menu_permission))
+            @if((empty($user->menu_permission) || in_array('admin.subject_list', $menu_permission)) && $navCan('admin.subject_list'))
             <li class="nav-links-li {{ request()->is('admin/subject*') ? 'showMenu' : '' }}">
                 <div class="iocn-link">
                     <a href="{{ route('admin.subject_list') }}" class="{{ request()->is('admin/subject*') ? 'active' : '' }}">
@@ -358,7 +407,7 @@
                                 <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
                             </svg>
                         </div>
-                        <span class="link_name">{{ get_phrase('Courses') }}</span>
+                        <span class="link_name">{{ academic_term('subjects', $user->school_id) }}</span>
                     </a>
                 </div>
             </li>
@@ -370,7 +419,7 @@
             <li class="nav-section-header">ACADEMIC</li>
 
             <!-- Classes (K-12 class/section structure; hidden for higher_ed schools) -->
-            @if($canSeeClasses && (empty($user->menu_permission) || in_array('admin.class_list', $menu_permission)))
+            @if(($canSeeClasses && (empty($user->menu_permission) || in_array('admin.class_list', $menu_permission))) && $navCan('admin.class_list'))
             <li class="nav-links-li {{ request()->is('admin/class_list') || request()->is('admin/class/*') || request()->is('admin/class_create') ? 'showMenu' : '' }}">
                 <div class="iocn-link">
                     <a href="{{ route('admin.class_list') }}" class="{{ request()->is('admin/class_list') || request()->is('admin/class/*') || request()->is('admin/class_create') ? 'active' : '' }}">
@@ -386,9 +435,26 @@
                 </div>
             </li>
             @endif
+            @if((empty($user->menu_permission) || in_array('admin.teacher.permission', $menu_permission)) && $navCan('admin.teacher.permission'))
+            <li class="nav-links-li {{ request()->is('admin/permission*') ? 'showMenu' : '' }}">
+                <a href="{{ route('admin.teacher.permission') }}" class="{{ request()->is('admin/permission*') ? 'active' : '' }}">
+                    <div class="sidebar_icon"><i class="bi bi-person-workspace"></i></div>
+                    <span class="link_name">{{ academic_term('teacher_assignment', $user->school_id) }}</span>
+                </a>
+            </li>
+            @endif
+
+            @if((empty($user->menu_permission) || in_array('admin.settings.session_manager', $menu_permission)) && $navCan('admin.settings.session_manager'))
+            <li class="nav-links-li {{ request()->is('admin/session_manager*') ? 'showMenu' : '' }}">
+                <a href="{{ route('admin.settings.session_manager') }}" class="{{ request()->is('admin/session_manager*') ? 'active' : '' }}">
+                    <div class="sidebar_icon"><i class="bi bi-calendar3"></i></div>
+                    <span class="link_name">{{ get_phrase('Academic Sessions') }}</span>
+                </a>
+            </li>
+            @endif
 
             <!-- Attendance -->
-            @if(empty($user->menu_permission) || in_array('admin.daily_attendance', $menu_permission))
+            @if((empty($user->menu_permission) || in_array('admin.daily_attendance', $menu_permission)) && $navCan('admin.daily_attendance'))
             <li class="nav-links-li {{ request()->is('admin/attendance*') ? 'showMenu' : '' }}">
                 <div class="iocn-link">
                     <a href="{{ route('admin.daily_attendance') }}" class="{{ request()->is('admin/attendance*') ? 'active' : '' }}">
@@ -404,7 +470,7 @@
             @endif
 
             <!-- Online Exams -->
-            @if((empty($user->menu_permission) || in_array('admin.online_exams', $menu_permission) || in_array('admin.online_exams.index', $menu_permission)) && $canViewOnlineExamsNav)
+            @if(((empty($user->menu_permission) || in_array('admin.online_exams', $menu_permission) || in_array('admin.online_exams.index', $menu_permission)) && $canViewOnlineExamsNav) && $navCan('admin.online_exams.index'))
             <li class="nav-links-li {{ request()->is('admin/online-exams*') ? 'showMenu' : '' }}">
                 <div class="iocn-link">
                     <a href="{{ route('admin.online_exams.index') }}" class="{{ request()->is('admin/online-exams*') ? 'active' : '' }}">
@@ -420,7 +486,7 @@
             @endif
 
             <!-- Timetable -->
-            @if(empty($user->menu_permission) || in_array('admin.routine', $menu_permission))
+            @if((empty($user->menu_permission) || in_array('admin.routine', $menu_permission)) && $navCan('admin.routine'))
             <li class="nav-links-li {{ request()->is('admin/routine*') ? 'showMenu' : '' }}">
                 <div class="iocn-link">
                     <a href="{{ route('admin.routine') }}" class="{{ request()->is('admin/routine*') ? 'active' : '' }}">
@@ -439,7 +505,7 @@
             @endif
 
             <!-- Assignments -->
-            @if(empty($user->menu_permission) || in_array('admin.assignments', $menu_permission))
+            @if((empty($user->menu_permission) || in_array('admin.assignments', $menu_permission)) && $navCan('admin.assignments.index'))
             <li class="nav-links-li {{ request()->is('admin/assignments*') ? 'showMenu' : '' }}">
                 <div class="iocn-link">
                     <a href="{{ route('admin.assignments.index') }}" class="{{ request()->is('admin/assignments*') ? 'active' : '' }}">
@@ -458,7 +524,7 @@
             @endif
 
             <!-- Live Classes -->
-            @if(empty($user->menu_permission) || in_array('admin.live_classes', $menu_permission))
+            @if((empty($user->menu_permission) || in_array('admin.live_classes', $menu_permission)) && $navCan('admin.live_classes.index'))
             <li class="nav-links-li {{ request()->is('admin/live-classes*') ? 'showMenu' : '' }}">
                 <div class="iocn-link">
                     <a href="{{ route('admin.live_classes.index') }}" class="{{ request()->is('admin/live-classes*') ? 'active' : '' }}">
@@ -475,7 +541,7 @@
             @endif
 
             <!-- Marks & Results -->
-            @if(empty($user->menu_permission) || in_array('admin.gradebook', $menu_permission))
+            @if((empty($user->menu_permission) || in_array('admin.gradebook', $menu_permission)) && $navCan('admin.gradebook'))
             <li class="nav-links-li {{ request()->is('admin/gradebook*') ? 'showMenu' : '' }}">
                 <div class="iocn-link">
                     <a href="{{ route('admin.gradebook') }}" class="{{ request()->is('admin/gradebook*') ? 'active' : '' }}">
@@ -493,7 +559,7 @@
             @endif
 
             <!-- Question Bank -->
-            @if((empty($user->menu_permission) || in_array('admin.question_bank', $menu_permission) || in_array('admin.question_bank.index', $menu_permission)) && $canManageQuestionBankNav)
+            @if(((empty($user->menu_permission) || in_array('admin.question_bank', $menu_permission) || in_array('admin.question_bank.index', $menu_permission)) && $canManageQuestionBankNav) && $navCan('admin.question_bank.index'))
             <li class="nav-links-li {{ request()->is('admin/question-bank*') ? 'showMenu' : '' }}">
                 <div class="iocn-link">
                     <a href="{{ route('admin.question_bank.index') }}" class="{{ request()->is('admin/question-bank*') ? 'active' : '' }}">
@@ -513,10 +579,10 @@
             <!-- ============================================ -->
             <!-- FINANCE SECTION HEADER                       -->
             <!-- ============================================ -->
-            <li class="nav-section-header">FINANCE</li>
+            @if($navCanAny(['admin.fee_manager.list', 'admin.fee_structures.index', 'admin.offline_payment_pending', 'admin.expense.list', 'admin.payroll.index']))<li class="nav-section-header">FINANCE</li>@endif
 
             <!-- Finance -->
-            @if(empty($user->menu_permission) || in_array('admin.fee_manager.list', $menu_permission))
+            @if((empty($user->menu_permission) || in_array('admin.fee_manager.list', $menu_permission)) && $navCan('admin.fee_manager.list'))
             <li class="nav-links-li {{ request()->is('admin/fee_manager*') ? 'showMenu' : '' }}">
                 <div class="iocn-link">
                     <a href="{{ route('admin.fee_manager.list') }}" class="{{ request()->is('admin/fee_manager*') ? 'active' : '' }}">
@@ -533,7 +599,7 @@
             @endif
 
             <!-- Fee Structures -->
-            @if(empty($user->menu_permission) || in_array('admin.fee_structures', $menu_permission))
+            @if((empty($user->menu_permission) || in_array('admin.fee_structures', $menu_permission)) && $navCan('admin.fee_structures.index'))
             <li class="nav-links-li {{ request()->is('admin/fee-structures*') ? 'showMenu' : '' }}">
                 <div class="iocn-link">
                     <a href="{{ route('admin.fee_structures.index') }}" class="{{ request()->is('admin/fee-structures*') ? 'active' : '' }}">
@@ -550,7 +616,7 @@
             @endif
 
             <!-- Payments -->
-            @if(empty($user->menu_permission) || in_array('admin.offline_payment_pending', $menu_permission))
+            @if((empty($user->menu_permission) || in_array('admin.offline_payment_pending', $menu_permission)) && $navCan('admin.offline_payment_pending'))
             <li class="nav-links-li {{ request()->is('admin/offline_payment/pending*') ? 'showMenu' : '' }}">
                 <div class="iocn-link">
                     <a href="{{ route('admin.offline_payment_pending') }}" class="{{ request()->is('admin/offline_payment/pending*') ? 'active' : '' }}">
@@ -568,7 +634,7 @@
             @endif
 
             <!-- Expenses -->
-            @if(empty($user->menu_permission) || in_array('admin.expense.list', $menu_permission))
+            @if((empty($user->menu_permission) || in_array('admin.expense.list', $menu_permission)) && $navCan('admin.expense.list'))
             <li class="nav-links-li {{ request()->is('admin/expenses*') ? 'showMenu' : '' }}">
                 <div class="iocn-link">
                     <a href="{{ route('admin.expense.list') }}" class="{{ request()->is('admin/expenses*') ? 'active' : '' }}">
@@ -586,7 +652,7 @@
             @endif
 
             <!-- Payroll -->
-            @if(empty($user->menu_permission) || in_array('admin.payroll', $menu_permission))
+            @if((empty($user->menu_permission) || in_array('admin.payroll', $menu_permission)) && $navCan('admin.payroll.index'))
             <li class="nav-links-li {{ request()->is('admin/payroll*') || request()->is('admin/salary-structures*') ? 'showMenu' : '' }}">
                 <div class="iocn-link">
                     <a href="{{ route('admin.payroll.index') }}" class="{{ request()->is('admin/payroll*') ? 'active' : '' }}">
@@ -610,10 +676,10 @@
             <!-- to the one school the public Apply Now portal -->
             <!-- currently belongs to (primary_school_id).     -->
             <!-- ============================================ -->
-            <li class="nav-section-header">ADMISSIONS</li>
+            @if($navCanAny(['admin.hei_admissions.index', 'admin.intake_sessions.index', 'admin.admissions_documents.index', 'admin.admissions_agents.index']))<li class="nav-section-header">ADMISSIONS</li>@endif
 
             <!-- Admissions -->
-            @if(empty($user->menu_permission) || in_array('admin.hei_admissions', $menu_permission))
+            @if((empty($user->menu_permission) || in_array('admin.hei_admissions', $menu_permission)) && $navCan('admin.hei_admissions.index'))
             <li class="nav-links-li {{ request()->is('admin/hei-admissions*') ? 'showMenu' : '' }}">
                 <div class="iocn-link">
                     <a href="{{ route('admin.hei_admissions.index') }}" class="{{ request()->is('admin/hei-admissions*') ? 'active' : '' }}">
@@ -631,7 +697,7 @@
             @endif
 
             <!-- Intake Sessions -->
-            @if(empty($user->menu_permission) || in_array('admin.intake_sessions', $menu_permission))
+            @if((empty($user->menu_permission) || in_array('admin.intake_sessions', $menu_permission)) && $navCan('admin.intake_sessions.index'))
             <li class="nav-links-li {{ request()->is('admin/intake-sessions*') ? 'showMenu' : '' }}">
                 <div class="iocn-link">
                     <a href="{{ route('admin.intake_sessions.index') }}" class="{{ request()->is('admin/intake-sessions*') ? 'active' : '' }}">
@@ -652,7 +718,7 @@
             <!-- Document Requirements — gated on the same permission as the
                  Admissions queue: it is configuration for that one module, not
                  a separately assignable area. -->
-            @if(empty($user->menu_permission) || in_array('admin.hei_admissions', $menu_permission))
+            @if((empty($user->menu_permission) || in_array('admin.hei_admissions', $menu_permission)) && $navCan('admin.admissions_documents.index'))
             <li class="nav-links-li {{ request()->is('admin/admissions-documents*') ? 'showMenu' : '' }}">
                 <div class="iocn-link">
                     <a href="{{ route('admin.admissions_documents.index') }}" class="{{ request()->is('admin/admissions-documents*') ? 'active' : '' }}">
@@ -670,7 +736,7 @@
             @endif
 
             <!-- Agents -->
-            @if(empty($user->menu_permission) || in_array('admin.admissions_agents', $menu_permission))
+            @if((empty($user->menu_permission) || in_array('admin.admissions_agents', $menu_permission)) && $navCan('admin.admissions_agents.index'))
             <li class="nav-links-li {{ request()->is('admin/admissions-agents*') ? 'showMenu' : '' }}">
                 <div class="iocn-link">
                     <a href="{{ route('admin.admissions_agents.index') }}" class="{{ request()->is('admin/admissions-agents*') ? 'active' : '' }}">
@@ -692,10 +758,10 @@
             <!-- ============================================ -->
             <!-- RESOURCES SECTION HEADER                     -->
             <!-- ============================================ -->
-            <li class="nav-section-header">RESOURCES</li>
+            @if($navCanAny(['admin.book.book_list', 'admin.assets.index', 'admin.asset_categories.index', 'admin.procurement.index']))<li class="nav-section-header">RESOURCES</li>@endif
 
             <!-- Library -->
-            @if(empty($user->menu_permission) || in_array('admin.book.book_list', $menu_permission))
+            @if((empty($user->menu_permission) || in_array('admin.book.book_list', $menu_permission)) && $navCan('admin.book.book_list'))
             <li class="nav-links-li {{ request()->is('admin/book*') ? 'showMenu' : '' }}">
                 <div class="iocn-link">
                     <a href="{{ route('admin.book.book_list') }}" class="{{ request()->is('admin/book*') ? 'active' : '' }}">
@@ -712,7 +778,7 @@
             @endif
 
             <!-- Assets -->
-            @if(empty($user->menu_permission) || in_array('admin.assets', $menu_permission))
+            @if((empty($user->menu_permission) || in_array('admin.assets', $menu_permission)) && $navCan('admin.assets.index'))
             <li class="nav-links-li {{ request()->is('admin/assets') ? 'showMenu' : '' }}">
                 <div class="iocn-link">
                     <a href="{{ route('admin.assets.index') }}" class="{{ request()->is('admin/assets') ? 'active' : '' }}">
@@ -729,7 +795,7 @@
             @endif
 
             <!-- Asset Categories -->
-            @if(empty($user->menu_permission) || in_array('admin.asset_categories', $menu_permission))
+            @if((empty($user->menu_permission) || in_array('admin.asset_categories', $menu_permission)) && $navCan('admin.asset_categories.index'))
             <li class="nav-links-li {{ request()->is('admin/asset-categories*') ? 'showMenu' : '' }}">
                 <div class="iocn-link">
                     <a href="{{ route('admin.asset_categories.index') }}" class="{{ request()->is('admin/asset-categories*') ? 'active' : '' }}">
@@ -746,7 +812,7 @@
             @endif
 
             <!-- Procurement -->
-            @if(empty($user->menu_permission) || in_array('admin.procurement', $menu_permission))
+            @if((empty($user->menu_permission) || in_array('admin.procurement', $menu_permission)) && $navCan('admin.procurement.index'))
             <li class="nav-links-li {{ request()->is('admin/procurement*') ? 'showMenu' : '' }}">
                 <div class="iocn-link">
                     <a href="{{ route('admin.procurement.index') }}" class="{{ request()->is('admin/procurement*') ? 'active' : '' }}">
@@ -765,10 +831,10 @@
             <!-- ============================================ -->
             <!-- COMMUNICATION SECTION HEADER                 -->
             <!-- ============================================ -->
-            <li class="nav-section-header">COMMUNICATION</li>
+            @if($navCanAny(['admin.noticeboard.list', 'admin.events.list', 'admin.academic_calendar.index']))<li class="nav-section-header">COMMUNICATION</li>@endif
 
             <!-- Notices -->
-            @if(empty($user->menu_permission) || in_array('admin.noticeboard.list', $menu_permission))
+            @if((empty($user->menu_permission) || in_array('admin.noticeboard.list', $menu_permission)) && $navCan('admin.noticeboard.list'))
             <li class="nav-links-li {{ request()->is('admin/noticeboard*') ? 'showMenu' : '' }}">
                 <div class="iocn-link">
                     <a href="{{ route('admin.noticeboard.list') }}" class="{{ request()->is('admin/noticeboard*') ? 'active' : '' }}">
@@ -784,7 +850,7 @@
             @endif
 
             <!-- Events -->
-            @if(empty($user->menu_permission) || in_array('admin.events.list', $menu_permission))
+            @if((empty($user->menu_permission) || in_array('admin.events.list', $menu_permission)) && $navCan('admin.events.list'))
             <li class="nav-links-li {{ request()->is('admin/events*') ? 'showMenu' : '' }}">
                 <div class="iocn-link">
                     <a href="{{ route('admin.events.list') }}" class="{{ request()->is('admin/events*') ? 'active' : '' }}">
@@ -803,7 +869,7 @@
             @endif
 
             <!-- Academic Calendar -->
-            @if(empty($user->menu_permission) || in_array('admin.academic_calendar', $menu_permission))
+            @if((empty($user->menu_permission) || in_array('admin.academic_calendar', $menu_permission)) && $navCan('admin.academic_calendar.index'))
             <li class="nav-links-li {{ request()->is('admin/academic-calendar*') ? 'showMenu' : '' }}">
                 <div class="iocn-link">
                     <a href="{{ route('admin.academic_calendar.index') }}" class="{{ request()->is('admin/academic-calendar*') ? 'active' : '' }}">
@@ -857,8 +923,25 @@
             </li>
             @endif
 
+            <!-- Roles & Permissions (RBAC Phase 3B — School Administrators only) -->
+            @permission('roles.view')
+            <li class="nav-links-li {{ request()->is('admin/roles-permissions*') ? 'showMenu' : '' }}">
+                <div class="iocn-link">
+                    <a href="{{ route('admin.rbac.roles.index') }}" class="{{ request()->is('admin/roles-permissions*') ? 'active' : '' }}">
+                        <div class="sidebar_icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                                <polyline points="9 12 11 14 15 10"></polyline>
+                            </svg>
+                        </div>
+                        <span class="link_name">{{ get_phrase('Roles & Permissions') }}</span>
+                    </a>
+                </div>
+            </li>
+            @endpermission
+
             <!-- Settings (if user has permission) -->
-            @if(empty($user->menu_permission) || in_array('admin.settings.school', $menu_permission))
+            @if((empty($user->menu_permission) || in_array('admin.settings.school', $menu_permission)) && $navCan('admin.settings.school'))
             <li class="nav-links-li {{ request()->is('admin/settings*') ? 'showMenu' : '' }}">
                 <div class="iocn-link">
                     <a href="{{ route('admin.settings.school') }}" class="{{ request()->is('admin/settings*') ? 'active' : '' }}">

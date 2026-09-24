@@ -22,7 +22,9 @@
             <a href="{{ route('admin.accountant.export', ['search' => $search]) }}" class="export_btn bg-secondary"><i class="bi bi-download"></i> {{ get_phrase('Export CSV') }}</a>
             <a href="{{ route('admin.accountant.export_excel') }}" class="export_btn bg-secondary"><i class="bi bi-download"></i> {{ get_phrase('Export Excel') }}</a>
             <a href="{{ route('admin.accountant.list_pdf') }}" target="_blank" class="export_btn bg-secondary"><i class="bi bi-printer"></i> {{ get_phrase('Print / PDF') }}</a>
+            @if(in_array((int) auth()->user()->role_id, [2, 15], true))
             <a href="javascript:;" class="export_btn" onclick="rightModal('{{ route('admin.accountant.open_modal') }}', '{{ get_phrase('Create Accountant') }}')">{{ get_phrase('Create Accountant') }}</a>
+            @endif
           </div>
         </div>
       </div>
@@ -152,12 +154,16 @@
                             <ul
                               class="dropdown-menu dropdown-menu-end eDropdown-menu-2 eDropdown-table-action"
                             >
+                              @if(in_array((int) auth()->user()->role_id, [2, 15], true))
                               <li>
                                 <a class="dropdown-item" href="javascript:;" onclick="rightModal('{{ route('admin.accountant_edit_modal', ['id' => $accountant->id]) }}', '{{ get_phrase('Edit Accountant') }}')">{{ get_phrase('Edit') }}</a>
                               </li>
+                              @endif
+                              @if(in_array((int) auth()->user()->role_id, [2, 15], true))
                               <li>
                                 <a class="dropdown-item" href="javascript:;" onclick="confirmModal('{{ route('admin.accountant.delete', ['id' => $accountant->id]) }}', 'undefined');">{{ get_phrase('Delete') }}</a>
                               </li>
+                              @endif
                               <li>
                                 <a class="dropdown-item" href="javascript:;" onclick="largeModal('{{ route('admin.accountant.accountant_profile', ['id' => $accountant->id]) }}','{{ get_phrase('Accountant Profile') }}')">{{ get_phrase('Profile') }}</a>
                               </li>
@@ -167,12 +173,17 @@
                               <li>
                                 <a class="dropdown-item" href="{{ route('admin.accountant.profile_pdf', ['id' => $accountant->id]) }}" target="_blank">{{ get_phrase('Profile PDF') }}</a>
                               </li>
+                              @if((int) auth()->user()->role_id === 2)
                               <li>
                                 <a class="dropdown-item" href="javascript:;" onclick="confirmModal('{{ route('admin.accountant.reset_password', ['id' => $accountant->id]) }}', 'undefined');">{{ get_phrase('Reset Password') }}</a>
                               </li>
+                              @endif
+                              @if((int) auth()->user()->role_id === 2)
                               <li>
                                 <a class="dropdown-item" href="javascript:;" onclick="confirmModal('{{ route('admin.accountant.resend_activation', ['id' => $accountant->id]) }}', 'undefined');">{{ get_phrase('Resend Activation') }}</a>
                               </li>
+                              @endif
+                              @if((int) auth()->user()->role_id === 2)
                               @if(!empty($accountant->account_status == 'disable'))
                               <li>
                                 <a class="dropdown-item" href="javascript:;" onclick="confirmModal('{{ route('admin.account_enable', ['id' => $accountant->id]) }}', 'undefined');">{{ get_phrase('Enable') }}</a>
@@ -181,6 +192,7 @@
                               <li>
                                 <a class="dropdown-item" href="javascript:;" onclick="confirmModal('{{ route('admin.account_disable', ['id' => $accountant->id]) }}', 'undefined');">{{ get_phrase('Disable') }}</a>
                               </li>
+                              @endif
                               @endif
                             </ul>
                           </div>

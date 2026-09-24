@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\PublicTenantResolver;
 use App\Models\FrontendFeature;
 use App\Models\Package;
 use App\Models\User;
@@ -15,6 +16,7 @@ use App\Models\WebsiteSetting;
 use App\Models\WebsiteSeoSetting;
 use Mail;
 use App\Mail\SchoolEmail;
+use App\Support\ProfilePhoto;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
@@ -60,22 +62,25 @@ class HomeController extends Controller
                 Schema::hasTable('website_settings') &&
                 Schema::hasTable('website_seo_settings')
             ) {
-                $websiteSections = WebsiteSection::where('status', 1)
+                // Security Phase 2H: only the public-site school's CMS content (App\Support\PublicTenantResolver).
+                $publicSchoolId = PublicTenantResolver::resolveSchoolId();
+
+                $websiteSections = WebsiteSection::where('status', 1)->where(fn ($q) => $q->where('school_id', $publicSchoolId)->orWhereNull('school_id'))
                     ->orderBy('sort_order')
                     ->orderBy('id')
                     ->get()
                     ->keyBy('section_key');
 
-                $websiteItems = WebsiteItem::where('status', 1)
+                $websiteItems = WebsiteItem::where('status', 1)->where(fn ($q) => $q->where('school_id', $publicSchoolId)->orWhereNull('school_id'))
                     ->orderBy('sort_order')
                     ->orderBy('id')
                     ->get()
                     ->groupBy('section_key');
 
-                $websiteSettings = WebsiteSetting::where('status', 1)
+                $websiteSettings = WebsiteSetting::where('status', 1)->where(fn ($q) => $q->where('school_id', $publicSchoolId)->orWhereNull('school_id'))
                     ->pluck('value', 'key');
 
-                $seo = WebsiteSeoSetting::where('page_key', 'home')->where('status', 1)->first();
+                $seo = WebsiteSeoSetting::where('page_key', 'home')->where('status', 1)->where(fn ($q) => $q->where('school_id', $publicSchoolId)->orWhereNull('school_id'))->first();
             }
 
             return view('frontend.landing_page', [
@@ -117,7 +122,10 @@ class HomeController extends Controller
             Schema::hasTable('website_settings') &&
             Schema::hasTable('website_seo_settings')
         ) {
-            $websitePage = \App\Models\WebsitePage::where('slug', $slug)
+            // Security Phase 2H: only the public-site school's CMS content (App\Support\PublicTenantResolver).
+            $publicSchoolId = PublicTenantResolver::resolveSchoolId();
+
+            $websitePage = \App\Models\WebsitePage::where('slug', $slug)->where(fn ($q) => $q->where('school_id', $publicSchoolId)->orWhereNull('school_id'))
                 ->where('status', 1)
                 ->first();
 
@@ -125,29 +133,29 @@ class HomeController extends Controller
                 abort(404);
             }
 
-            $allPages = \App\Models\WebsitePage::where('status', 1)
+            $allPages = \App\Models\WebsitePage::where('status', 1)->where(fn ($q) => $q->where('school_id', $publicSchoolId)->orWhereNull('school_id'))
                 ->orderBy('display_order')
                 ->orderBy('sort_order')
                 ->orderBy('id')
                 ->get();
 
-            $websiteSections = WebsiteSection::where('page_key', $websitePage->page_key)
+            $websiteSections = WebsiteSection::where('page_key', $websitePage->page_key)->where(fn ($q) => $q->where('school_id', $publicSchoolId)->orWhereNull('school_id'))
                 ->where('status', 1)
                 ->orderBy('sort_order')
                 ->orderBy('id')
                 ->get()
                 ->keyBy('section_key');
 
-            $websiteItems = WebsiteItem::where('status', 1)
+            $websiteItems = WebsiteItem::where('status', 1)->where(fn ($q) => $q->where('school_id', $publicSchoolId)->orWhereNull('school_id'))
                 ->orderBy('sort_order')
                 ->orderBy('id')
                 ->get()
                 ->groupBy('section_key');
 
-            $websiteSettings = WebsiteSetting::where('status', 1)
+            $websiteSettings = WebsiteSetting::where('status', 1)->where(fn ($q) => $q->where('school_id', $publicSchoolId)->orWhereNull('school_id'))
                 ->pluck('value', 'key');
 
-            $websiteSeo = WebsiteSeoSetting::where('page_key', $websitePage->page_key)
+            $websiteSeo = WebsiteSeoSetting::where('page_key', $websitePage->page_key)->where(fn ($q) => $q->where('school_id', $publicSchoolId)->orWhereNull('school_id'))
                 ->where('status', 1)
                 ->first();
         }
@@ -216,11 +224,7 @@ class HomeController extends Controller
                     
                     if (!empty($data['photo'])) {
     
-                        $imageName = time() . '.' . $data['photo']->extension();
-    
-                        $data['photo']->move(public_path('assets/uploads/user-images/'), $imageName);
-    
-                        $photo  = $imageName;
+                        $photo = ProfilePhoto::store($data['photo']) ?? '';
                     } else {
                         $photo = '';
                     }
@@ -244,7 +248,7 @@ class HomeController extends Controller
                     ]);
                 }
                 if(!empty(get_settings('smtp_user')) && (get_settings('smtp_pass')) && (get_settings('smtp_host')) && (get_settings('smtp_port'))){
-                    Mail::to($data['admin_email'])->send(new SchoolEmail($data));
+                    \App\Support\Mail\SafeMail::send($data['admin_email'], new SchoolEmail($data), 'school-registration');
                 }
     
                 return redirect()->route('login')->with('message', 'School Created Successfully');
@@ -279,11 +283,7 @@ class HomeController extends Controller
                     
                     if (!empty($data['photo'])) {
     
-                        $imageName = time() . '.' . $data['photo']->extension();
-    
-                        $data['photo']->move(public_path('assets/uploads/user-images/'), $imageName);
-    
-                        $photo  = $imageName;
+                        $photo = ProfilePhoto::store($data['photo']) ?? '';
                     } else {
                         $photo = '';
                     }
@@ -307,7 +307,7 @@ class HomeController extends Controller
                     ]);
                 }
                 if(!empty(get_settings('smtp_user')) && (get_settings('smtp_pass')) && (get_settings('smtp_host')) && (get_settings('smtp_port'))){
-                    Mail::to($data['admin_email'])->send(new SchoolEmail($data));
+                    \App\Support\Mail\SafeMail::send($data['admin_email'], new SchoolEmail($data), 'school-registration');
                 }
     
                 return redirect()->route('login')->with('message', 'School Created Successfully');
@@ -318,36 +318,42 @@ class HomeController extends Controller
         
     }
     
+    /**
+     * Legacy mobile deep link (/web_redirect_to_pay_fee?auth=Basic base64(email:password:timestamp)).
+     * It carried the user's PASSWORD in the URL (visible in server logs, proxies and browser
+     * history), so it no longer authenticates anyone and never reads the credential. The mobile
+     * app must request a link from POST /api/payment_link instead (see webPayFeeHandoff()).
+     */
     public function webRedirectToPayFee(Request $request)
     {
-        // Remove the 'Basic ' prefix
-        $base64Credentials = substr($request->query('auth'), 6);
+        return redirect()->route('login')->withErrors([
+            'email' => 'This payment link is no longer supported. Please sign in to pay your fee, or update the mobile app.',
+        ]);
+    }
 
-        // Decode the base64-encoded string
-        $credentials = base64_decode($base64Credentials);
+    /**
+     * Mobile → web payment handoff. Reached only through a temporary signed URL (the 'signed'
+     * middleware rejects tampering and expiry with 403) carrying a single-use key issued by
+     * POST /api/payment_link. The key is consumed atomically, so a replay or refresh of the
+     * link cannot log anyone in again. The fee must still belong to the student.
+     */
+    public function webPayFeeHandoff(Request $request, string $handoff)
+    {
+        $record = \App\Support\Payments\PaymentHandoff::redeem($handoff);
+        $student = $record ? User::where('id', $record['user_id'])->where('role_id', 7)->where('school_id', $record['school_id'])->first() : null;
+        $ownsFee = $student && \App\Models\StudentFeeManager::where('id', $record['fee_id'])
+            ->where('student_id', $student->id)->where('school_id', $student->school_id)->exists();
 
-        // Split the decoded string into email and password
-        list($email, $password, $timestamp) = explode(':', $credentials);
-
-        // Get the current timestamp
-        $timestamp1 = strtotime(date('Y-m-d'));
-
-        $difference = $timestamp1 - $timestamp;
-
-        if($difference < 86400) {
-            if (auth()->attempt(array('email' => $email, 'password' => $password))) {
-                // Authentication passed...
-                return redirect()->intended('/student/fee_manager/payment/'.$request->query('fee_id'));
-            }
-
+        if (!$student || !$ownsFee || $student->account_status === 'disable') {
             return redirect()->route('login')->withErrors([
-                'email' => 'Invalid email or password',
-            ]);
-        } else {
-            return redirect()->route('login')->withErrors([
-                'email' => 'Token expired!',
+                'email' => 'This payment link has expired or was already used. Please sign in to pay your fee.',
             ]);
         }
+
+        auth()->login($student);
+        $request->session()->regenerate();
+
+        return redirect()->route('student.FeePayment', $record['fee_id']);
     }
 
     /**

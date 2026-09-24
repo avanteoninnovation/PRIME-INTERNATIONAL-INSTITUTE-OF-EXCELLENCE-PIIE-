@@ -15,6 +15,8 @@ use App\Models\user;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use App\Support\ProfilePhoto;
+use App\Support\Audit\StatusChangeAudit;
 
 class WardenController extends Controller
 {
@@ -49,7 +51,7 @@ class WardenController extends Controller
         $data['school_id'] = auth()->user()->school_id;
         HostelRoomAllocation::create($data);
 
-        $room = HostelRoom::find($data['room_id']);
+        $room = HostelRoom::where('school_id', auth()->user()->school_id)->find($data['room_id']);
         if ($room) {
             $currentOccupied = HostelRoomAllocation::where('room_id', $room->id)->count();
             $room->update(['occupied' => $currentOccupied]);
@@ -65,14 +67,14 @@ class WardenController extends Controller
     }
     public function edit_hostel_room_allocation($id)
     {
-        $page_data['hostel_room_allocation'] = HostelRoomAllocation::find($id);
+        $page_data['hostel_room_allocation'] = HostelRoomAllocation::where('school_id', auth()->user()->school_id)->findOrFail($id);
         $page_data['hostel_rooms']           = HostelRoom::where('school_id', auth()->user()->school_id)->get();
         $page_data['students']               = User::where('role_id', 7)->where('school_id', auth()->user()->school_id)->get();
         return view('warden.hostel_room_allocation.edit', $page_data);
     }
     public function update_hostel_room_allocation(Request $request, $id)
     {
-        $allocation = HostelRoomAllocation::find($id);
+        $allocation = HostelRoomAllocation::where('school_id', auth()->user()->school_id)->findOrFail($id);
         $oldRoomId  = $allocation->room_id;
 
         $data = $request->all();
@@ -81,7 +83,7 @@ class WardenController extends Controller
 
         // Update occupied count for old and new room
         if ($oldRoomId != $data['room_id']) {
-            $oldRoom = HostelRoom::find($oldRoomId);
+            $oldRoom = HostelRoom::where('school_id', auth()->user()->school_id)->find($oldRoomId);
             if ($oldRoom) {
                 $oldRoom->update([
                     'occupied' => HostelRoomAllocation::where('room_id', $oldRoom->id)->count(),
@@ -89,7 +91,7 @@ class WardenController extends Controller
             }
         }
 
-        $newRoom = HostelRoom::find($data['room_id']);
+        $newRoom = HostelRoom::where('school_id', auth()->user()->school_id)->find($data['room_id']);
         if ($newRoom) {
             $newRoom->update([
                 'occupied' => HostelRoomAllocation::where('room_id', $newRoom->id)->count(),
@@ -99,14 +101,14 @@ class WardenController extends Controller
     }
     public function delete_hostel_room_allocation($id)
     {
-        $allocation = HostelRoomAllocation::find($id);
+        $allocation = HostelRoomAllocation::where('school_id', auth()->user()->school_id)->findOrFail($id);
 
         if ($allocation) {
             $roomId = $allocation->room_id;
             $allocation->delete();
 
             // Update occupied count
-            $room = HostelRoom::find($roomId);
+            $room = HostelRoom::where('school_id', auth()->user()->school_id)->find($roomId);
             if ($room) {
                 $room->update([
                     'occupied' => HostelRoomAllocation::where('room_id', $room->id)->count(),
@@ -128,9 +130,9 @@ class WardenController extends Controller
 
     public function approveApplication($id)
     {
-        $application = HostelApplication::findOrFail($id);
+        $application = HostelApplication::where('school_id', auth()->user()->school_id)->findOrFail($id);
 
-        $room = HostelRoom::find($application->room_id);
+        $room = HostelRoom::where('school_id', auth()->user()->school_id)->find($application->room_id);
         if ($room->occupied >= $room->capacity) {
             return redirect()->back()->with('error', 'Room is already full');
         }
@@ -162,10 +164,10 @@ class WardenController extends Controller
 
     public function rejectApplication($id)
     {
-        $application = HostelApplication::findOrFail($id);
+        $application = HostelApplication::where('school_id', auth()->user()->school_id)->findOrFail($id);
 
         if ($application->status == 1) {
-            $room = HostelRoom::find($application->room_id);
+            $room = HostelRoom::where('school_id', auth()->user()->school_id)->find($application->room_id);
 
             if ($room && $room->occupied > 0) {
                 $room->occupied -= 1;
@@ -236,20 +238,22 @@ class WardenController extends Controller
     }
     public function acceptOfflinePaymentHostel($id)
     {
-        $fee = HostelFee::where('status', 0)->findOrFail($id);
+        $fee = HostelFee::where('status', 0)->where('school_id', auth()->user()->school_id)->findOrFail($id);
 
         $fee->status = 1;
         $fee->save();
 
+        StatusChangeAudit::hostelPayment($fee, 0, 'accepted');
         return redirect()->back()->with('message', get_phrase('Offline payment accepted successfully.'));
     }
     public function rejectOfflinePaymentHostel($id)
     {
-        $fee = HostelFee::where('status', 0)->findOrFail($id);
+        $fee = HostelFee::where('status', 0)->where('school_id', auth()->user()->school_id)->findOrFail($id);
 
         $fee->status = 2;
         $fee->save();
 
+        StatusChangeAudit::hostelPayment($fee, 0, 'rejected');
         return redirect()->back()->with('message', get_phrase('Offline payment rejected successfully.'));
     }
     public function offlinePaymentList()
@@ -271,6 +275,10 @@ class WardenController extends Controller
     {
         $data['name']        = $request->name;
         $data['email']       = $request->email;
+        // Security Phase 2F: a self-service profile edit must not claim another account's login email.
+        if (User::where('email', $request->email)->where('id', '!=', auth()->user()->id)->exists()) {
+            return redirect()->back()->with('error', 'Email was already taken.');
+        }
         $data['designation'] = $request->designation;
 
         $user_info['birthday'] = strtotime($request->eDefaultDateRange);
@@ -281,10 +289,11 @@ class WardenController extends Controller
         if (empty($request->photo)) {
             $user_info['photo'] = $request->old_photo;
         } else {
-            $file_name          = random(10) . '.png';
+            $file_name = ProfilePhoto::store($request->photo);
+            if ($file_name === null) {
+                return redirect()->back()->with('error', 'Profile photo must be a JPG or PNG image of at most 4 MB.');
+            }
             $user_info['photo'] = $file_name;
-
-            $request->photo->move(public_path('assets/uploads/user-images/'), $file_name);
         }
 
         $data['user_information'] = json_encode($user_info);
@@ -384,7 +393,7 @@ class WardenController extends Controller
 
     public function editNoticeboard($id = "")
     {
-        $notice = Noticeboard::find($id);
+        $notice = Noticeboard::where('school_id', auth()->user()->school_id)->findOrFail($id);
         return view('warden.noticeboard.edit', ['notice' => $notice]);
     }
 

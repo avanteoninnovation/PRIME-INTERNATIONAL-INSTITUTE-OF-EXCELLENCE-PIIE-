@@ -95,7 +95,7 @@ class EnhancedSettingsController extends Controller
     // ── Permissions ───────────────────────────────────────────
     public function permissions()
     {
-        $roles = DB::table('roles')->where('school_id', $this->school_id)->orWhere('school_id', 0)->get();
+        $roles = $this->systemRoles();
         $all_perms = $this->getPermissionList();
         // Load saved permissions per role
         $role_perms = [];
@@ -113,7 +113,7 @@ class EnhancedSettingsController extends Controller
 
     public function savePermissions(Request $request)
     {
-        $roles = DB::table('roles')->where('school_id', $this->school_id)->orWhere('school_id', 0)->get();
+        $roles = $this->systemRoles();
         foreach ($roles as $role) {
             $roleId = $this->resolveRoleId($role);
             if ($roleId <= 0) {
@@ -255,6 +255,17 @@ class EnhancedSettingsController extends Controller
             'Operations'  => ['View Library', 'Post Notices', 'Manage Events', 'Manage Leave'],
             'System'      => ['View Reports', 'View Audit Log', 'System Settings', 'Manage Users'],
         ];
+    }
+
+    /**
+     * The system roles. `roles` is a global list (role_id, name — migration
+     * 2022_05_16_051816, no school_id), and role_perm_{role_id} is a platform-wide
+     * legacy setting (RBAC Phase 3A/3B). The former school_id filter referenced a
+     * column that does not exist and crashed this page on every real database.
+     */
+    private function systemRoles()
+    {
+        return DB::table('roles')->orderBy('role_id')->get();
     }
 
     private function resolveRoleId(object $role): int

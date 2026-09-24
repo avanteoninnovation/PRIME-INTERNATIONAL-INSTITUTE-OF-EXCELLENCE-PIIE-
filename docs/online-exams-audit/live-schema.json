@@ -1,0 +1,4576 @@
+{
+    "database": "piie_main",
+    "server": {
+        "version": "10.4.32-MariaDB"
+    },
+    "tables": {
+        "online_exams": {
+            "count": 0,
+            "columns": [
+                {
+                    "Field": "id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "NO",
+                    "Key": "PRI",
+                    "Default": null,
+                    "Extra": "auto_increment"
+                },
+                {
+                    "Field": "school_id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "NO",
+                    "Key": "MUL",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "title",
+                    "Type": "varchar(255)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "subject_id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "class_id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "exam_type",
+                    "Type": "enum('cat','midterm','final','quiz','assignment')",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": "cat",
+                    "Extra": ""
+                },
+                {
+                    "Field": "start_datetime",
+                    "Type": "datetime",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "end_datetime",
+                    "Type": "datetime",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "duration_mins",
+                    "Type": "int(11)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": "60",
+                    "Extra": ""
+                },
+                {
+                    "Field": "total_marks",
+                    "Type": "int(11)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": "100",
+                    "Extra": ""
+                },
+                {
+                    "Field": "pass_mark",
+                    "Type": "int(11)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": "50",
+                    "Extra": ""
+                },
+                {
+                    "Field": "max_attempts",
+                    "Type": "tinyint(3) unsigned",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": "1",
+                    "Extra": ""
+                },
+                {
+                    "Field": "shuffle_questions",
+                    "Type": "tinyint(1)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": "0",
+                    "Extra": ""
+                },
+                {
+                    "Field": "shuffle_options",
+                    "Type": "tinyint(1)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": "0",
+                    "Extra": ""
+                },
+                {
+                    "Field": "allow_previous_navigation",
+                    "Type": "tinyint(1)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": "1",
+                    "Extra": ""
+                },
+                {
+                    "Field": "result_release_policy",
+                    "Type": "varchar(30)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": "immediate",
+                    "Extra": ""
+                },
+                {
+                    "Field": "webcam_required",
+                    "Type": "tinyint(1)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": "0",
+                    "Extra": ""
+                },
+                {
+                    "Field": "fullscreen_required",
+                    "Type": "tinyint(1)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": "0",
+                    "Extra": ""
+                },
+                {
+                    "Field": "instructions",
+                    "Type": "text",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "workflow_state",
+                    "Type": "varchar(30)",
+                    "Null": "NO",
+                    "Key": "MUL",
+                    "Default": "draft",
+                    "Extra": ""
+                },
+                {
+                    "Field": "is_published",
+                    "Type": "tinyint(4)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": "0",
+                    "Extra": ""
+                },
+                {
+                    "Field": "auto_submit",
+                    "Type": "tinyint(4)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": "1",
+                    "Extra": ""
+                },
+                {
+                    "Field": "created_by",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "creator_id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "YES",
+                    "Key": "MUL",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "updater_id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "YES",
+                    "Key": "MUL",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "reviewed_by",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "YES",
+                    "Key": "MUL",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "reviewed_at",
+                    "Type": "timestamp",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "cancelled_at",
+                    "Type": "timestamp",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "cancellation_reason",
+                    "Type": "text",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "locked_at",
+                    "Type": "timestamp",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "created_at",
+                    "Type": "timestamp",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "updated_at",
+                    "Type": "timestamp",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                }
+            ],
+            "indexes": [
+                {
+                    "Table": "online_exams",
+                    "Non_unique": 0,
+                    "Key_name": "PRIMARY",
+                    "Seq_in_index": 1,
+                    "Column_name": "id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "online_exams",
+                    "Non_unique": 1,
+                    "Key_name": "online_exams_school_id_index",
+                    "Seq_in_index": 1,
+                    "Column_name": "school_id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "online_exams",
+                    "Non_unique": 1,
+                    "Key_name": "online_exams_workflow_state_index",
+                    "Seq_in_index": 1,
+                    "Column_name": "workflow_state",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "online_exams",
+                    "Non_unique": 1,
+                    "Key_name": "online_exams_creator_id_index",
+                    "Seq_in_index": 1,
+                    "Column_name": "creator_id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "YES",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "online_exams",
+                    "Non_unique": 1,
+                    "Key_name": "online_exams_updater_id_index",
+                    "Seq_in_index": 1,
+                    "Column_name": "updater_id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "YES",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "online_exams",
+                    "Non_unique": 1,
+                    "Key_name": "online_exams_reviewed_by_index",
+                    "Seq_in_index": 1,
+                    "Column_name": "reviewed_by",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "YES",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                }
+            ],
+            "create": "CREATE TABLE `online_exams` (\n  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,\n  `school_id` bigint(20) unsigned NOT NULL,\n  `title` varchar(255) NOT NULL,\n  `subject_id` bigint(20) unsigned DEFAULT NULL,\n  `class_id` bigint(20) unsigned DEFAULT NULL,\n  `exam_type` enum('cat','midterm','final','quiz','assignment') NOT NULL DEFAULT 'cat',\n  `start_datetime` datetime DEFAULT NULL,\n  `end_datetime` datetime DEFAULT NULL,\n  `duration_mins` int(11) NOT NULL DEFAULT 60,\n  `total_marks` int(11) NOT NULL DEFAULT 100,\n  `pass_mark` int(11) NOT NULL DEFAULT 50,\n  `max_attempts` tinyint(3) unsigned NOT NULL DEFAULT 1,\n  `shuffle_questions` tinyint(1) NOT NULL DEFAULT 0,\n  `shuffle_options` tinyint(1) NOT NULL DEFAULT 0,\n  `allow_previous_navigation` tinyint(1) NOT NULL DEFAULT 1,\n  `result_release_policy` varchar(30) NOT NULL DEFAULT 'immediate',\n  `webcam_required` tinyint(1) NOT NULL DEFAULT 0,\n  `fullscreen_required` tinyint(1) NOT NULL DEFAULT 0,\n  `instructions` text DEFAULT NULL,\n  `workflow_state` varchar(30) NOT NULL DEFAULT 'draft',\n  `is_published` tinyint(4) NOT NULL DEFAULT 0,\n  `auto_submit` tinyint(4) NOT NULL DEFAULT 1,\n  `created_by` bigint(20) unsigned DEFAULT NULL,\n  `creator_id` bigint(20) unsigned DEFAULT NULL,\n  `updater_id` bigint(20) unsigned DEFAULT NULL,\n  `reviewed_by` bigint(20) unsigned DEFAULT NULL,\n  `reviewed_at` timestamp NULL DEFAULT NULL,\n  `cancelled_at` timestamp NULL DEFAULT NULL,\n  `cancellation_reason` text DEFAULT NULL,\n  `locked_at` timestamp NULL DEFAULT NULL,\n  `created_at` timestamp NULL DEFAULT NULL,\n  `updated_at` timestamp NULL DEFAULT NULL,\n  PRIMARY KEY (`id`),\n  KEY `online_exams_school_id_index` (`school_id`),\n  KEY `online_exams_workflow_state_index` (`workflow_state`),\n  KEY `online_exams_creator_id_index` (`creator_id`),\n  KEY `online_exams_updater_id_index` (`updater_id`),\n  KEY `online_exams_reviewed_by_index` (`reviewed_by`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        },
+        "question_banks": {
+            "count": 0,
+            "columns": [
+                {
+                    "Field": "id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "NO",
+                    "Key": "PRI",
+                    "Default": null,
+                    "Extra": "auto_increment"
+                },
+                {
+                    "Field": "school_id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "NO",
+                    "Key": "MUL",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "subject_id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "question",
+                    "Type": "text",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "type",
+                    "Type": "enum('mcq','true_false','short','essay')",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": "mcq",
+                    "Extra": ""
+                },
+                {
+                    "Field": "option_a",
+                    "Type": "text",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "option_b",
+                    "Type": "text",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "option_c",
+                    "Type": "text",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "option_d",
+                    "Type": "text",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "correct_ans",
+                    "Type": "varchar(5)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "marks",
+                    "Type": "tinyint(4)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": "1",
+                    "Extra": ""
+                },
+                {
+                    "Field": "difficulty",
+                    "Type": "enum('easy','medium','hard')",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": "medium",
+                    "Extra": ""
+                },
+                {
+                    "Field": "created_by",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "created_at",
+                    "Type": "timestamp",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "updated_at",
+                    "Type": "timestamp",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                }
+            ],
+            "indexes": [
+                {
+                    "Table": "question_banks",
+                    "Non_unique": 0,
+                    "Key_name": "PRIMARY",
+                    "Seq_in_index": 1,
+                    "Column_name": "id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "question_banks",
+                    "Non_unique": 1,
+                    "Key_name": "question_banks_school_id_index",
+                    "Seq_in_index": 1,
+                    "Column_name": "school_id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                }
+            ],
+            "create": "CREATE TABLE `question_banks` (\n  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,\n  `school_id` bigint(20) unsigned NOT NULL,\n  `subject_id` bigint(20) unsigned DEFAULT NULL,\n  `question` text NOT NULL,\n  `type` enum('mcq','true_false','short','essay') NOT NULL DEFAULT 'mcq',\n  `option_a` text DEFAULT NULL,\n  `option_b` text DEFAULT NULL,\n  `option_c` text DEFAULT NULL,\n  `option_d` text DEFAULT NULL,\n  `correct_ans` varchar(5) DEFAULT NULL,\n  `marks` tinyint(4) NOT NULL DEFAULT 1,\n  `difficulty` enum('easy','medium','hard') NOT NULL DEFAULT 'medium',\n  `created_by` bigint(20) unsigned DEFAULT NULL,\n  `created_at` timestamp NULL DEFAULT NULL,\n  `updated_at` timestamp NULL DEFAULT NULL,\n  PRIMARY KEY (`id`),\n  KEY `question_banks_school_id_index` (`school_id`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        },
+        "online_exam_questions": {
+            "count": 0,
+            "columns": [
+                {
+                    "Field": "id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "NO",
+                    "Key": "PRI",
+                    "Default": null,
+                    "Extra": "auto_increment"
+                },
+                {
+                    "Field": "online_exam_id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "NO",
+                    "Key": "MUL",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "question_bank_id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "question",
+                    "Type": "text",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "type",
+                    "Type": "enum('mcq','true_false','short','essay','fill_blank')",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": "mcq",
+                    "Extra": ""
+                },
+                {
+                    "Field": "option_a",
+                    "Type": "text",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "option_b",
+                    "Type": "text",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "option_c",
+                    "Type": "text",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "option_d",
+                    "Type": "text",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "correct_ans",
+                    "Type": "varchar(5)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "marks",
+                    "Type": "tinyint(4)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": "1",
+                    "Extra": ""
+                },
+                {
+                    "Field": "sort_order",
+                    "Type": "int(11)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": "0",
+                    "Extra": ""
+                }
+            ],
+            "indexes": [
+                {
+                    "Table": "online_exam_questions",
+                    "Non_unique": 0,
+                    "Key_name": "PRIMARY",
+                    "Seq_in_index": 1,
+                    "Column_name": "id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "online_exam_questions",
+                    "Non_unique": 1,
+                    "Key_name": "online_exam_questions_online_exam_id_index",
+                    "Seq_in_index": 1,
+                    "Column_name": "online_exam_id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                }
+            ],
+            "create": "CREATE TABLE `online_exam_questions` (\n  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,\n  `online_exam_id` bigint(20) unsigned NOT NULL,\n  `question_bank_id` bigint(20) unsigned DEFAULT NULL,\n  `question` text DEFAULT NULL,\n  `type` enum('mcq','true_false','short','essay','fill_blank') NOT NULL DEFAULT 'mcq',\n  `option_a` text DEFAULT NULL,\n  `option_b` text DEFAULT NULL,\n  `option_c` text DEFAULT NULL,\n  `option_d` text DEFAULT NULL,\n  `correct_ans` varchar(5) DEFAULT NULL,\n  `marks` tinyint(4) NOT NULL DEFAULT 1,\n  `sort_order` int(11) NOT NULL DEFAULT 0,\n  PRIMARY KEY (`id`),\n  KEY `online_exam_questions_online_exam_id_index` (`online_exam_id`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        },
+        "online_exam_submissions": {
+            "count": 0,
+            "columns": [
+                {
+                    "Field": "id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "NO",
+                    "Key": "PRI",
+                    "Default": null,
+                    "Extra": "auto_increment"
+                },
+                {
+                    "Field": "online_exam_id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "NO",
+                    "Key": "MUL",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "student_id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "NO",
+                    "Key": "MUL",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "attempt_no",
+                    "Type": "int(10) unsigned",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": "1",
+                    "Extra": ""
+                },
+                {
+                    "Field": "school_id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "NO",
+                    "Key": "MUL",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "answers",
+                    "Type": "longtext",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "score",
+                    "Type": "decimal(6,2)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "total_marks_snapshot",
+                    "Type": "int(11)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "objective_score",
+                    "Type": "decimal(8,2)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "manual_score",
+                    "Type": "decimal(8,2)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "passed",
+                    "Type": "tinyint(1)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "result_email_sent_at",
+                    "Type": "datetime",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "started_at",
+                    "Type": "datetime",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "expires_at",
+                    "Type": "datetime",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "last_activity_at",
+                    "Type": "datetime",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "submitted_at",
+                    "Type": "datetime",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "submitted_via",
+                    "Type": "varchar(20)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "timeout_at",
+                    "Type": "datetime",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "camera_consent_at",
+                    "Type": "datetime",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "camera_permission_granted",
+                    "Type": "tinyint(1)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": "0",
+                    "Extra": ""
+                },
+                {
+                    "Field": "camera_ready_at",
+                    "Type": "datetime",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "fullscreen_started_at",
+                    "Type": "datetime",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "browser_session_token",
+                    "Type": "varchar(80)",
+                    "Null": "YES",
+                    "Key": "MUL",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "ip_address",
+                    "Type": "varchar(45)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "user_agent",
+                    "Type": "text",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "created_at",
+                    "Type": "timestamp",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "updated_at",
+                    "Type": "timestamp",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "status",
+                    "Type": "varchar(40)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": "in_progress",
+                    "Extra": ""
+                }
+            ],
+            "indexes": [
+                {
+                    "Table": "online_exam_submissions",
+                    "Non_unique": 0,
+                    "Key_name": "PRIMARY",
+                    "Seq_in_index": 1,
+                    "Column_name": "id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "online_exam_submissions",
+                    "Non_unique": 1,
+                    "Key_name": "online_exam_submissions_online_exam_id_index",
+                    "Seq_in_index": 1,
+                    "Column_name": "online_exam_id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "online_exam_submissions",
+                    "Non_unique": 1,
+                    "Key_name": "online_exam_submissions_student_id_index",
+                    "Seq_in_index": 1,
+                    "Column_name": "student_id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "online_exam_submissions",
+                    "Non_unique": 1,
+                    "Key_name": "online_exam_submissions_school_id_index",
+                    "Seq_in_index": 1,
+                    "Column_name": "school_id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "online_exam_submissions",
+                    "Non_unique": 1,
+                    "Key_name": "online_exam_submissions_browser_session_token_index",
+                    "Seq_in_index": 1,
+                    "Column_name": "browser_session_token",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "YES",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "online_exam_submissions",
+                    "Non_unique": 1,
+                    "Key_name": "oes_exam_student_attempt_idx",
+                    "Seq_in_index": 1,
+                    "Column_name": "online_exam_id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "online_exam_submissions",
+                    "Non_unique": 1,
+                    "Key_name": "oes_exam_student_attempt_idx",
+                    "Seq_in_index": 2,
+                    "Column_name": "student_id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "online_exam_submissions",
+                    "Non_unique": 1,
+                    "Key_name": "oes_exam_student_attempt_idx",
+                    "Seq_in_index": 3,
+                    "Column_name": "attempt_no",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "online_exam_submissions",
+                    "Non_unique": 1,
+                    "Key_name": "oes_exam_student_status_idx",
+                    "Seq_in_index": 1,
+                    "Column_name": "online_exam_id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "online_exam_submissions",
+                    "Non_unique": 1,
+                    "Key_name": "oes_exam_student_status_idx",
+                    "Seq_in_index": 2,
+                    "Column_name": "student_id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "online_exam_submissions",
+                    "Non_unique": 1,
+                    "Key_name": "oes_exam_student_status_idx",
+                    "Seq_in_index": 3,
+                    "Column_name": "status",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                }
+            ],
+            "create": "CREATE TABLE `online_exam_submissions` (\n  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,\n  `online_exam_id` bigint(20) unsigned NOT NULL,\n  `student_id` bigint(20) unsigned NOT NULL,\n  `attempt_no` int(10) unsigned NOT NULL DEFAULT 1,\n  `school_id` bigint(20) unsigned NOT NULL,\n  `answers` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`answers`)),\n  `score` decimal(6,2) DEFAULT NULL,\n  `total_marks_snapshot` int(11) DEFAULT NULL,\n  `objective_score` decimal(8,2) DEFAULT NULL,\n  `manual_score` decimal(8,2) DEFAULT NULL,\n  `passed` tinyint(1) DEFAULT NULL,\n  `result_email_sent_at` datetime DEFAULT NULL,\n  `started_at` datetime DEFAULT NULL,\n  `expires_at` datetime DEFAULT NULL,\n  `last_activity_at` datetime DEFAULT NULL,\n  `submitted_at` datetime DEFAULT NULL,\n  `submitted_via` varchar(20) DEFAULT NULL,\n  `timeout_at` datetime DEFAULT NULL,\n  `camera_consent_at` datetime DEFAULT NULL,\n  `camera_permission_granted` tinyint(1) NOT NULL DEFAULT 0,\n  `camera_ready_at` datetime DEFAULT NULL,\n  `fullscreen_started_at` datetime DEFAULT NULL,\n  `browser_session_token` varchar(80) DEFAULT NULL,\n  `ip_address` varchar(45) DEFAULT NULL,\n  `user_agent` text DEFAULT NULL,\n  `created_at` timestamp NULL DEFAULT NULL,\n  `updated_at` timestamp NULL DEFAULT NULL,\n  `status` varchar(40) NOT NULL DEFAULT 'in_progress',\n  PRIMARY KEY (`id`),\n  KEY `online_exam_submissions_online_exam_id_index` (`online_exam_id`),\n  KEY `online_exam_submissions_student_id_index` (`student_id`),\n  KEY `online_exam_submissions_school_id_index` (`school_id`),\n  KEY `online_exam_submissions_browser_session_token_index` (`browser_session_token`),\n  KEY `oes_exam_student_attempt_idx` (`online_exam_id`,`student_id`,`attempt_no`),\n  KEY `oes_exam_student_status_idx` (`online_exam_id`,`student_id`,`status`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        },
+        "online_exam_answers": {
+            "count": 0,
+            "columns": [
+                {
+                    "Field": "id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "NO",
+                    "Key": "PRI",
+                    "Default": null,
+                    "Extra": "auto_increment"
+                },
+                {
+                    "Field": "submission_id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "NO",
+                    "Key": "MUL",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "question_id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "NO",
+                    "Key": "MUL",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "selected_option",
+                    "Type": "varchar(10)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "answer_text",
+                    "Type": "longtext",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "awarded_marks",
+                    "Type": "decimal(8,2)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "is_correct",
+                    "Type": "tinyint(1)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "marked_by",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "YES",
+                    "Key": "MUL",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "marked_at",
+                    "Type": "datetime",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "teacher_comment",
+                    "Type": "text",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "created_at",
+                    "Type": "timestamp",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "updated_at",
+                    "Type": "timestamp",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                }
+            ],
+            "indexes": [
+                {
+                    "Table": "online_exam_answers",
+                    "Non_unique": 0,
+                    "Key_name": "PRIMARY",
+                    "Seq_in_index": 1,
+                    "Column_name": "id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "online_exam_answers",
+                    "Non_unique": 0,
+                    "Key_name": "oea_submission_question_unique",
+                    "Seq_in_index": 1,
+                    "Column_name": "submission_id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "online_exam_answers",
+                    "Non_unique": 0,
+                    "Key_name": "oea_submission_question_unique",
+                    "Seq_in_index": 2,
+                    "Column_name": "question_id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "online_exam_answers",
+                    "Non_unique": 1,
+                    "Key_name": "online_exam_answers_submission_id_index",
+                    "Seq_in_index": 1,
+                    "Column_name": "submission_id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "online_exam_answers",
+                    "Non_unique": 1,
+                    "Key_name": "online_exam_answers_question_id_index",
+                    "Seq_in_index": 1,
+                    "Column_name": "question_id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "online_exam_answers",
+                    "Non_unique": 1,
+                    "Key_name": "online_exam_answers_marked_by_index",
+                    "Seq_in_index": 1,
+                    "Column_name": "marked_by",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "YES",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                }
+            ],
+            "create": "CREATE TABLE `online_exam_answers` (\n  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,\n  `submission_id` bigint(20) unsigned NOT NULL,\n  `question_id` bigint(20) unsigned NOT NULL,\n  `selected_option` varchar(10) DEFAULT NULL,\n  `answer_text` longtext DEFAULT NULL,\n  `awarded_marks` decimal(8,2) DEFAULT NULL,\n  `is_correct` tinyint(1) DEFAULT NULL,\n  `marked_by` bigint(20) unsigned DEFAULT NULL,\n  `marked_at` datetime DEFAULT NULL,\n  `teacher_comment` text DEFAULT NULL,\n  `created_at` timestamp NULL DEFAULT NULL,\n  `updated_at` timestamp NULL DEFAULT NULL,\n  PRIMARY KEY (`id`),\n  UNIQUE KEY `oea_submission_question_unique` (`submission_id`,`question_id`),\n  KEY `online_exam_answers_submission_id_index` (`submission_id`),\n  KEY `online_exam_answers_question_id_index` (`question_id`),\n  KEY `online_exam_answers_marked_by_index` (`marked_by`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        },
+        "online_exam_proctoring_events": {
+            "count": 0,
+            "columns": [
+                {
+                    "Field": "id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "NO",
+                    "Key": "PRI",
+                    "Default": null,
+                    "Extra": "auto_increment"
+                },
+                {
+                    "Field": "submission_id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "NO",
+                    "Key": "MUL",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "event_type",
+                    "Type": "varchar(50)",
+                    "Null": "NO",
+                    "Key": "MUL",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "event_time",
+                    "Type": "datetime",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "metadata",
+                    "Type": "longtext",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "reviewed_by",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "YES",
+                    "Key": "MUL",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "review_status",
+                    "Type": "varchar(30)",
+                    "Null": "YES",
+                    "Key": "MUL",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "created_at",
+                    "Type": "timestamp",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "updated_at",
+                    "Type": "timestamp",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                }
+            ],
+            "indexes": [
+                {
+                    "Table": "online_exam_proctoring_events",
+                    "Non_unique": 0,
+                    "Key_name": "PRIMARY",
+                    "Seq_in_index": 1,
+                    "Column_name": "id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "online_exam_proctoring_events",
+                    "Non_unique": 1,
+                    "Key_name": "online_exam_proctoring_events_submission_id_index",
+                    "Seq_in_index": 1,
+                    "Column_name": "submission_id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "online_exam_proctoring_events",
+                    "Non_unique": 1,
+                    "Key_name": "online_exam_proctoring_events_event_type_index",
+                    "Seq_in_index": 1,
+                    "Column_name": "event_type",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "online_exam_proctoring_events",
+                    "Non_unique": 1,
+                    "Key_name": "online_exam_proctoring_events_reviewed_by_index",
+                    "Seq_in_index": 1,
+                    "Column_name": "reviewed_by",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "YES",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "online_exam_proctoring_events",
+                    "Non_unique": 1,
+                    "Key_name": "online_exam_proctoring_events_review_status_index",
+                    "Seq_in_index": 1,
+                    "Column_name": "review_status",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "YES",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                }
+            ],
+            "create": "CREATE TABLE `online_exam_proctoring_events` (\n  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,\n  `submission_id` bigint(20) unsigned NOT NULL,\n  `event_type` varchar(50) NOT NULL,\n  `event_time` datetime NOT NULL,\n  `metadata` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`metadata`)),\n  `reviewed_by` bigint(20) unsigned DEFAULT NULL,\n  `review_status` varchar(30) DEFAULT NULL,\n  `created_at` timestamp NULL DEFAULT NULL,\n  `updated_at` timestamp NULL DEFAULT NULL,\n  PRIMARY KEY (`id`),\n  KEY `online_exam_proctoring_events_submission_id_index` (`submission_id`),\n  KEY `online_exam_proctoring_events_event_type_index` (`event_type`),\n  KEY `online_exam_proctoring_events_reviewed_by_index` (`reviewed_by`),\n  KEY `online_exam_proctoring_events_review_status_index` (`review_status`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        },
+        "online_exam_notifications": {
+            "count": 0,
+            "columns": [
+                {
+                    "Field": "id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "NO",
+                    "Key": "PRI",
+                    "Default": null,
+                    "Extra": "auto_increment"
+                },
+                {
+                    "Field": "school_id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "NO",
+                    "Key": "MUL",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "online_exam_id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "NO",
+                    "Key": "MUL",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "type",
+                    "Type": "varchar(30)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "recipient_count",
+                    "Type": "int(10) unsigned",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": "0",
+                    "Extra": ""
+                },
+                {
+                    "Field": "sent_at",
+                    "Type": "timestamp",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": "current_timestamp()",
+                    "Extra": "on update current_timestamp()"
+                },
+                {
+                    "Field": "created_at",
+                    "Type": "timestamp",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "updated_at",
+                    "Type": "timestamp",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                }
+            ],
+            "indexes": [
+                {
+                    "Table": "online_exam_notifications",
+                    "Non_unique": 0,
+                    "Key_name": "PRIMARY",
+                    "Seq_in_index": 1,
+                    "Column_name": "id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "online_exam_notifications",
+                    "Non_unique": 0,
+                    "Key_name": "online_exam_notifications_online_exam_id_type_unique",
+                    "Seq_in_index": 1,
+                    "Column_name": "online_exam_id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "online_exam_notifications",
+                    "Non_unique": 0,
+                    "Key_name": "online_exam_notifications_online_exam_id_type_unique",
+                    "Seq_in_index": 2,
+                    "Column_name": "type",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "online_exam_notifications",
+                    "Non_unique": 1,
+                    "Key_name": "online_exam_notifications_school_id_index",
+                    "Seq_in_index": 1,
+                    "Column_name": "school_id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "online_exam_notifications",
+                    "Non_unique": 1,
+                    "Key_name": "online_exam_notifications_online_exam_id_index",
+                    "Seq_in_index": 1,
+                    "Column_name": "online_exam_id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                }
+            ],
+            "create": "CREATE TABLE `online_exam_notifications` (\n  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,\n  `school_id` bigint(20) unsigned NOT NULL,\n  `online_exam_id` bigint(20) unsigned NOT NULL,\n  `type` varchar(30) NOT NULL,\n  `recipient_count` int(10) unsigned NOT NULL DEFAULT 0,\n  `sent_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),\n  `created_at` timestamp NULL DEFAULT NULL,\n  `updated_at` timestamp NULL DEFAULT NULL,\n  PRIMARY KEY (`id`),\n  UNIQUE KEY `online_exam_notifications_online_exam_id_type_unique` (`online_exam_id`,`type`),\n  KEY `online_exam_notifications_school_id_index` (`school_id`),\n  KEY `online_exam_notifications_online_exam_id_index` (`online_exam_id`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        },
+        "users": {
+            "count": 5,
+            "columns": [
+                {
+                    "Field": "id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "NO",
+                    "Key": "PRI",
+                    "Default": null,
+                    "Extra": "auto_increment"
+                },
+                {
+                    "Field": "name",
+                    "Type": "varchar(255)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "first_name",
+                    "Type": "varchar(255)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "last_name",
+                    "Type": "varchar(255)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "email",
+                    "Type": "varchar(255)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "email_verified_at",
+                    "Type": "timestamp",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "role_id",
+                    "Type": "varchar(255)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "parent_id",
+                    "Type": "int(11)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "school_id",
+                    "Type": "int(11)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "department_id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "designation",
+                    "Type": "varchar(255)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "designation_id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "employment_type",
+                    "Type": "varchar(30)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "staff_status",
+                    "Type": "varchar(20)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "password",
+                    "Type": "varchar(255)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "force_password_change",
+                    "Type": "tinyint(1)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": "0",
+                    "Extra": ""
+                },
+                {
+                    "Field": "code",
+                    "Type": "varchar(255)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "user_information",
+                    "Type": "longtext",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "remember_token",
+                    "Type": "varchar(100)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "created_at",
+                    "Type": "timestamp",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "updated_at",
+                    "Type": "timestamp",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "account_status",
+                    "Type": "varchar(20)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": "active",
+                    "Extra": ""
+                },
+                {
+                    "Field": "documents",
+                    "Type": "text",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "student_info",
+                    "Type": "text",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "status",
+                    "Type": "int(11)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "school_role",
+                    "Type": "int(11)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "language",
+                    "Type": "varchar(255)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "menu_permission",
+                    "Type": "text",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                }
+            ],
+            "indexes": [
+                {
+                    "Table": "users",
+                    "Non_unique": 0,
+                    "Key_name": "PRIMARY",
+                    "Seq_in_index": 1,
+                    "Column_name": "id",
+                    "Collation": "A",
+                    "Cardinality": 5,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                }
+            ],
+            "create": "CREATE TABLE `users` (\n  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,\n  `name` varchar(255) NOT NULL,\n  `first_name` varchar(255) DEFAULT NULL,\n  `last_name` varchar(255) DEFAULT NULL,\n  `email` varchar(255) NOT NULL,\n  `email_verified_at` timestamp NULL DEFAULT NULL,\n  `role_id` varchar(255) DEFAULT NULL,\n  `parent_id` int(11) DEFAULT NULL,\n  `school_id` int(11) DEFAULT NULL,\n  `department_id` bigint(20) unsigned DEFAULT NULL,\n  `designation` varchar(255) DEFAULT NULL,\n  `designation_id` bigint(20) unsigned DEFAULT NULL,\n  `employment_type` varchar(30) DEFAULT NULL,\n  `staff_status` varchar(20) DEFAULT NULL,\n  `password` varchar(255) NOT NULL,\n  `force_password_change` tinyint(1) NOT NULL DEFAULT 0,\n  `code` varchar(255) NOT NULL,\n  `user_information` longtext DEFAULT NULL,\n  `remember_token` varchar(100) DEFAULT NULL,\n  `created_at` timestamp NULL DEFAULT NULL,\n  `updated_at` timestamp NULL DEFAULT NULL,\n  `account_status` varchar(20) NOT NULL DEFAULT 'active',\n  `documents` text DEFAULT NULL,\n  `student_info` text DEFAULT NULL,\n  `status` int(11) DEFAULT NULL,\n  `school_role` int(11) DEFAULT NULL,\n  `language` varchar(255) DEFAULT NULL,\n  `menu_permission` text DEFAULT NULL,\n  PRIMARY KEY (`id`)\n) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        },
+        "schools": {
+            "count": 1,
+            "columns": [
+                {
+                    "Field": "id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "NO",
+                    "Key": "PRI",
+                    "Default": null,
+                    "Extra": "auto_increment"
+                },
+                {
+                    "Field": "title",
+                    "Type": "varchar(255)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "email",
+                    "Type": "varchar(255)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "phone",
+                    "Type": "int(11)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "address",
+                    "Type": "varchar(255)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "school_info",
+                    "Type": "varchar(255)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "status",
+                    "Type": "int(11)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "school_type",
+                    "Type": "enum('k12','higher_ed','mixed')",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": "k12",
+                    "Extra": ""
+                },
+                {
+                    "Field": "education_level",
+                    "Type": "enum('primary','secondary','tertiary','vocational','mixed')",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "created_at",
+                    "Type": "timestamp",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "updated_at",
+                    "Type": "timestamp",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "running_session",
+                    "Type": "int(11)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "school_currency",
+                    "Type": "varchar(255)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "currency_position",
+                    "Type": "varchar(255)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "school_logo",
+                    "Type": "varchar(255)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "email_title",
+                    "Type": "varchar(255)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "email_details",
+                    "Type": "varchar(255)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "warning_text",
+                    "Type": "varchar(255)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "socialLink1",
+                    "Type": "varchar(255)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "socialLink2",
+                    "Type": "varchar(255)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "socialLink3",
+                    "Type": "varchar(255)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "email_logo",
+                    "Type": "varchar(255)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "socialLogo1",
+                    "Type": "varchar(255)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "socialLogo2",
+                    "Type": "varchar(255)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "socialLogo3",
+                    "Type": "varchar(255)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "off_pay_ins_text",
+                    "Type": "varchar(255)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "off_pay_ins_file",
+                    "Type": "varchar(255)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                }
+            ],
+            "indexes": [
+                {
+                    "Table": "schools",
+                    "Non_unique": 0,
+                    "Key_name": "PRIMARY",
+                    "Seq_in_index": 1,
+                    "Column_name": "id",
+                    "Collation": "A",
+                    "Cardinality": 1,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                }
+            ],
+            "create": "CREATE TABLE `schools` (\n  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,\n  `title` varchar(255) NOT NULL,\n  `email` varchar(255) NOT NULL,\n  `phone` int(11) NOT NULL,\n  `address` varchar(255) NOT NULL,\n  `school_info` varchar(255) NOT NULL,\n  `status` int(11) NOT NULL,\n  `school_type` enum('k12','higher_ed','mixed') NOT NULL DEFAULT 'k12',\n  `education_level` enum('primary','secondary','tertiary','vocational','mixed') DEFAULT NULL,\n  `created_at` timestamp NULL DEFAULT NULL,\n  `updated_at` timestamp NULL DEFAULT NULL,\n  `running_session` int(11) DEFAULT NULL,\n  `school_currency` varchar(255) DEFAULT NULL,\n  `currency_position` varchar(255) DEFAULT NULL,\n  `school_logo` varchar(255) DEFAULT NULL,\n  `email_title` varchar(255) DEFAULT NULL,\n  `email_details` varchar(255) DEFAULT NULL,\n  `warning_text` varchar(255) DEFAULT NULL,\n  `socialLink1` varchar(255) DEFAULT NULL,\n  `socialLink2` varchar(255) DEFAULT NULL,\n  `socialLink3` varchar(255) DEFAULT NULL,\n  `email_logo` varchar(255) DEFAULT NULL,\n  `socialLogo1` varchar(255) DEFAULT NULL,\n  `socialLogo2` varchar(255) DEFAULT NULL,\n  `socialLogo3` varchar(255) DEFAULT NULL,\n  `off_pay_ins_text` varchar(255) DEFAULT NULL,\n  `off_pay_ins_file` varchar(255) DEFAULT NULL,\n  PRIMARY KEY (`id`)\n) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        },
+        "departments": {
+            "count": 0,
+            "columns": [
+                {
+                    "Field": "id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "NO",
+                    "Key": "PRI",
+                    "Default": null,
+                    "Extra": "auto_increment"
+                },
+                {
+                    "Field": "name",
+                    "Type": "varchar(255)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "school_id",
+                    "Type": "int(11)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "created_at",
+                    "Type": "timestamp",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "updated_at",
+                    "Type": "timestamp",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                }
+            ],
+            "indexes": [
+                {
+                    "Table": "departments",
+                    "Non_unique": 0,
+                    "Key_name": "PRIMARY",
+                    "Seq_in_index": 1,
+                    "Column_name": "id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                }
+            ],
+            "create": "CREATE TABLE `departments` (\n  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,\n  `name` varchar(255) NOT NULL,\n  `school_id` int(11) NOT NULL,\n  `created_at` timestamp NULL DEFAULT NULL,\n  `updated_at` timestamp NULL DEFAULT NULL,\n  PRIMARY KEY (`id`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        },
+        "programmes": {
+            "count": 0,
+            "columns": [
+                {
+                    "Field": "id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "NO",
+                    "Key": "PRI",
+                    "Default": null,
+                    "Extra": "auto_increment"
+                },
+                {
+                    "Field": "school_id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "NO",
+                    "Key": "MUL",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "code",
+                    "Type": "varchar(20)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "name",
+                    "Type": "varchar(255)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "level",
+                    "Type": "enum('Certificate','Diploma','Degree','Masters','PhD','Short Course','Bachelors','PGD')",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": "Degree",
+                    "Extra": ""
+                },
+                {
+                    "Field": "duration",
+                    "Type": "varchar(50)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "mode",
+                    "Type": "enum('fulltime','parttime','online','blended','ODEL','Full Time','Weekend')",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": "fulltime",
+                    "Extra": ""
+                },
+                {
+                    "Field": "tuition_fee",
+                    "Type": "decimal(15,2)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": "0.00",
+                    "Extra": ""
+                },
+                {
+                    "Field": "department_id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "is_active",
+                    "Type": "tinyint(4)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": "1",
+                    "Extra": ""
+                },
+                {
+                    "Field": "created_at",
+                    "Type": "timestamp",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "updated_at",
+                    "Type": "timestamp",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                }
+            ],
+            "indexes": [
+                {
+                    "Table": "programmes",
+                    "Non_unique": 0,
+                    "Key_name": "PRIMARY",
+                    "Seq_in_index": 1,
+                    "Column_name": "id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "programmes",
+                    "Non_unique": 0,
+                    "Key_name": "programmes_school_id_code_unique",
+                    "Seq_in_index": 1,
+                    "Column_name": "school_id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "programmes",
+                    "Non_unique": 0,
+                    "Key_name": "programmes_school_id_code_unique",
+                    "Seq_in_index": 2,
+                    "Column_name": "code",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "programmes",
+                    "Non_unique": 1,
+                    "Key_name": "programmes_school_id_index",
+                    "Seq_in_index": 1,
+                    "Column_name": "school_id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                }
+            ],
+            "create": "CREATE TABLE `programmes` (\n  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,\n  `school_id` bigint(20) unsigned NOT NULL,\n  `code` varchar(20) NOT NULL,\n  `name` varchar(255) NOT NULL,\n  `level` enum('Certificate','Diploma','Degree','Masters','PhD','Short Course','Bachelors','PGD') NOT NULL DEFAULT 'Degree',\n  `duration` varchar(50) DEFAULT NULL,\n  `mode` enum('fulltime','parttime','online','blended','ODEL','Full Time','Weekend') NOT NULL DEFAULT 'fulltime',\n  `tuition_fee` decimal(15,2) NOT NULL DEFAULT 0.00,\n  `department_id` bigint(20) unsigned DEFAULT NULL,\n  `is_active` tinyint(4) NOT NULL DEFAULT 1,\n  `created_at` timestamp NULL DEFAULT NULL,\n  `updated_at` timestamp NULL DEFAULT NULL,\n  PRIMARY KEY (`id`),\n  UNIQUE KEY `programmes_school_id_code_unique` (`school_id`,`code`),\n  KEY `programmes_school_id_index` (`school_id`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        },
+        "classes": {
+            "count": 0,
+            "columns": [
+                {
+                    "Field": "id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "NO",
+                    "Key": "PRI",
+                    "Default": null,
+                    "Extra": "auto_increment"
+                },
+                {
+                    "Field": "name",
+                    "Type": "varchar(255)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "school_id",
+                    "Type": "int(11)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "created_at",
+                    "Type": "timestamp",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "updated_at",
+                    "Type": "timestamp",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                }
+            ],
+            "indexes": [
+                {
+                    "Table": "classes",
+                    "Non_unique": 0,
+                    "Key_name": "PRIMARY",
+                    "Seq_in_index": 1,
+                    "Column_name": "id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                }
+            ],
+            "create": "CREATE TABLE `classes` (\n  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,\n  `name` varchar(255) NOT NULL,\n  `school_id` int(11) NOT NULL,\n  `created_at` timestamp NULL DEFAULT NULL,\n  `updated_at` timestamp NULL DEFAULT NULL,\n  PRIMARY KEY (`id`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        },
+        "subjects": {
+            "count": 0,
+            "columns": [
+                {
+                    "Field": "id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "NO",
+                    "Key": "PRI",
+                    "Default": null,
+                    "Extra": "auto_increment"
+                },
+                {
+                    "Field": "name",
+                    "Type": "varchar(255)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "code",
+                    "Type": "varchar(30)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "credits",
+                    "Type": "tinyint(4)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": "3",
+                    "Extra": ""
+                },
+                {
+                    "Field": "course_type",
+                    "Type": "enum('compulsory','elective','general','dissertation')",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": "compulsory",
+                    "Extra": ""
+                },
+                {
+                    "Field": "level",
+                    "Type": "enum('Certificate','Diploma','Degree','Masters','PhD','Short Course','Bachelors','PGD')",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "pass_mark",
+                    "Type": "tinyint(4)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": "50",
+                    "Extra": ""
+                },
+                {
+                    "Field": "cats_marks",
+                    "Type": "tinyint(4)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": "30",
+                    "Extra": ""
+                },
+                {
+                    "Field": "exam_marks",
+                    "Type": "tinyint(4)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": "70",
+                    "Extra": ""
+                },
+                {
+                    "Field": "programme_id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "class_id",
+                    "Type": "int(11)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "school_id",
+                    "Type": "int(11)",
+                    "Null": "NO",
+                    "Key": "MUL",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "session_id",
+                    "Type": "int(11)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "created_at",
+                    "Type": "timestamp",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "updated_at",
+                    "Type": "timestamp",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                }
+            ],
+            "indexes": [
+                {
+                    "Table": "subjects",
+                    "Non_unique": 0,
+                    "Key_name": "PRIMARY",
+                    "Seq_in_index": 1,
+                    "Column_name": "id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "subjects",
+                    "Non_unique": 0,
+                    "Key_name": "subjects_school_id_code_unique",
+                    "Seq_in_index": 1,
+                    "Column_name": "school_id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "subjects",
+                    "Non_unique": 0,
+                    "Key_name": "subjects_school_id_code_unique",
+                    "Seq_in_index": 2,
+                    "Column_name": "code",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "YES",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                }
+            ],
+            "create": "CREATE TABLE `subjects` (\n  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,\n  `name` varchar(255) NOT NULL,\n  `code` varchar(30) DEFAULT NULL,\n  `credits` tinyint(4) NOT NULL DEFAULT 3,\n  `course_type` enum('compulsory','elective','general','dissertation') NOT NULL DEFAULT 'compulsory',\n  `level` enum('Certificate','Diploma','Degree','Masters','PhD','Short Course','Bachelors','PGD') DEFAULT NULL,\n  `pass_mark` tinyint(4) NOT NULL DEFAULT 50,\n  `cats_marks` tinyint(4) DEFAULT 30,\n  `exam_marks` tinyint(4) DEFAULT 70,\n  `programme_id` bigint(20) unsigned DEFAULT NULL,\n  `class_id` int(11) DEFAULT NULL,\n  `school_id` int(11) NOT NULL,\n  `session_id` int(11) DEFAULT NULL,\n  `created_at` timestamp NULL DEFAULT NULL,\n  `updated_at` timestamp NULL DEFAULT NULL,\n  PRIMARY KEY (`id`),\n  UNIQUE KEY `subjects_school_id_code_unique` (`school_id`,`code`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        },
+        "sessions": {
+            "count": 1,
+            "columns": [
+                {
+                    "Field": "id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "NO",
+                    "Key": "PRI",
+                    "Default": null,
+                    "Extra": "auto_increment"
+                },
+                {
+                    "Field": "session_title",
+                    "Type": "varchar(255)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "status",
+                    "Type": "int(11)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "created_at",
+                    "Type": "timestamp",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "updated_at",
+                    "Type": "timestamp",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "school_id",
+                    "Type": "int(11)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                }
+            ],
+            "indexes": [
+                {
+                    "Table": "sessions",
+                    "Non_unique": 0,
+                    "Key_name": "PRIMARY",
+                    "Seq_in_index": 1,
+                    "Column_name": "id",
+                    "Collation": "A",
+                    "Cardinality": 1,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                }
+            ],
+            "create": "CREATE TABLE `sessions` (\n  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,\n  `session_title` varchar(255) NOT NULL,\n  `status` int(11) NOT NULL,\n  `created_at` timestamp NULL DEFAULT NULL,\n  `updated_at` timestamp NULL DEFAULT NULL,\n  `school_id` int(11) DEFAULT NULL,\n  PRIMARY KEY (`id`)\n) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        },
+        "enrollment": {
+            "count": 0,
+            "columns": [
+                {
+                    "Field": "id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "NO",
+                    "Key": "PRI",
+                    "Default": null,
+                    "Extra": "auto_increment"
+                },
+                {
+                    "Field": "user_id",
+                    "Type": "int(11)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "class_id",
+                    "Type": "int(11)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "section_id",
+                    "Type": "int(11)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "school_id",
+                    "Type": "int(11)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "department_id",
+                    "Type": "int(11)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "session_id",
+                    "Type": "int(11)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "created_at",
+                    "Type": "timestamp",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "updated_at",
+                    "Type": "timestamp",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                }
+            ],
+            "indexes": [
+                {
+                    "Table": "enrollment",
+                    "Non_unique": 0,
+                    "Key_name": "PRIMARY",
+                    "Seq_in_index": 1,
+                    "Column_name": "id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                }
+            ],
+            "create": "CREATE TABLE `enrollment` (\n  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,\n  `user_id` int(11) NOT NULL,\n  `class_id` int(11) NOT NULL,\n  `section_id` int(11) NOT NULL,\n  `school_id` int(11) NOT NULL,\n  `department_id` int(11) NOT NULL,\n  `session_id` int(11) NOT NULL,\n  `created_at` timestamp NULL DEFAULT NULL,\n  `updated_at` timestamp NULL DEFAULT NULL,\n  PRIMARY KEY (`id`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        },
+        "student_profiles": {
+            "count": 0,
+            "columns": [
+                {
+                    "Field": "id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "NO",
+                    "Key": "PRI",
+                    "Default": null,
+                    "Extra": "auto_increment"
+                },
+                {
+                    "Field": "user_id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "NO",
+                    "Key": "UNI",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "school_id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "NO",
+                    "Key": "MUL",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "first_name",
+                    "Type": "varchar(100)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "last_name",
+                    "Type": "varchar(100)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "programme_id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "YES",
+                    "Key": "MUL",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "intake_session_id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "YES",
+                    "Key": "MUL",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "year_of_study",
+                    "Type": "tinyint(3) unsigned",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "nationality",
+                    "Type": "varchar(80)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "national_id_or_passport",
+                    "Type": "varchar(50)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "next_of_kin_address",
+                    "Type": "text",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "next_of_kin_contact",
+                    "Type": "varchar(30)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "additional_image",
+                    "Type": "varchar(255)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "status",
+                    "Type": "enum('active','suspended','graduated','withdrawn','deferred')",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": "active",
+                    "Extra": ""
+                },
+                {
+                    "Field": "created_at",
+                    "Type": "timestamp",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "updated_at",
+                    "Type": "timestamp",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                }
+            ],
+            "indexes": [
+                {
+                    "Table": "student_profiles",
+                    "Non_unique": 0,
+                    "Key_name": "PRIMARY",
+                    "Seq_in_index": 1,
+                    "Column_name": "id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "student_profiles",
+                    "Non_unique": 0,
+                    "Key_name": "student_profiles_user_id_unique",
+                    "Seq_in_index": 1,
+                    "Column_name": "user_id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "student_profiles",
+                    "Non_unique": 1,
+                    "Key_name": "student_profiles_programme_id_foreign",
+                    "Seq_in_index": 1,
+                    "Column_name": "programme_id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "YES",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "student_profiles",
+                    "Non_unique": 1,
+                    "Key_name": "student_profiles_intake_session_id_foreign",
+                    "Seq_in_index": 1,
+                    "Column_name": "intake_session_id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "YES",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "student_profiles",
+                    "Non_unique": 1,
+                    "Key_name": "student_profiles_school_id_index",
+                    "Seq_in_index": 1,
+                    "Column_name": "school_id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                }
+            ],
+            "create": "CREATE TABLE `student_profiles` (\n  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,\n  `user_id` bigint(20) unsigned NOT NULL,\n  `school_id` bigint(20) unsigned NOT NULL,\n  `first_name` varchar(100) DEFAULT NULL,\n  `last_name` varchar(100) DEFAULT NULL,\n  `programme_id` bigint(20) unsigned DEFAULT NULL,\n  `intake_session_id` bigint(20) unsigned DEFAULT NULL,\n  `year_of_study` tinyint(3) unsigned DEFAULT NULL,\n  `nationality` varchar(80) DEFAULT NULL,\n  `national_id_or_passport` varchar(50) DEFAULT NULL,\n  `next_of_kin_address` text DEFAULT NULL,\n  `next_of_kin_contact` varchar(30) DEFAULT NULL,\n  `additional_image` varchar(255) DEFAULT NULL,\n  `status` enum('active','suspended','graduated','withdrawn','deferred') NOT NULL DEFAULT 'active',\n  `created_at` timestamp NULL DEFAULT NULL,\n  `updated_at` timestamp NULL DEFAULT NULL,\n  PRIMARY KEY (`id`),\n  UNIQUE KEY `student_profiles_user_id_unique` (`user_id`),\n  KEY `student_profiles_programme_id_foreign` (`programme_id`),\n  KEY `student_profiles_intake_session_id_foreign` (`intake_session_id`),\n  KEY `student_profiles_school_id_index` (`school_id`),\n  CONSTRAINT `student_profiles_intake_session_id_foreign` FOREIGN KEY (`intake_session_id`) REFERENCES `intake_sessions` (`id`) ON DELETE SET NULL,\n  CONSTRAINT `student_profiles_programme_id_foreign` FOREIGN KEY (`programme_id`) REFERENCES `programmes` (`id`) ON DELETE SET NULL,\n  CONSTRAINT `student_profiles_user_id_foreign` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        },
+        "teacher_permissions": {
+            "count": 0,
+            "columns": [
+                {
+                    "Field": "id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "NO",
+                    "Key": "PRI",
+                    "Default": null,
+                    "Extra": "auto_increment"
+                },
+                {
+                    "Field": "class_id",
+                    "Type": "int(11)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "section_id",
+                    "Type": "int(11)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "school_id",
+                    "Type": "int(11)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "teacher_id",
+                    "Type": "int(11)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "marks",
+                    "Type": "int(11)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "attendance",
+                    "Type": "int(11)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "updated_at",
+                    "Type": "int(11)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                }
+            ],
+            "indexes": [
+                {
+                    "Table": "teacher_permissions",
+                    "Non_unique": 0,
+                    "Key_name": "PRIMARY",
+                    "Seq_in_index": 1,
+                    "Column_name": "id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                }
+            ],
+            "create": "CREATE TABLE `teacher_permissions` (\n  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,\n  `class_id` int(11) NOT NULL,\n  `section_id` int(11) NOT NULL,\n  `school_id` int(11) NOT NULL,\n  `teacher_id` int(11) NOT NULL,\n  `marks` int(11) NOT NULL,\n  `attendance` int(11) NOT NULL,\n  `updated_at` int(11) NOT NULL,\n  PRIMARY KEY (`id`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        },
+        "teacher_programme_assignments": {
+            "count": 0,
+            "columns": [
+                {
+                    "Field": "id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "NO",
+                    "Key": "PRI",
+                    "Default": null,
+                    "Extra": "auto_increment"
+                },
+                {
+                    "Field": "teacher_id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "NO",
+                    "Key": "MUL",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "programme_id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "school_id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "marks",
+                    "Type": "tinyint(1)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": "0",
+                    "Extra": ""
+                },
+                {
+                    "Field": "attendance",
+                    "Type": "tinyint(1)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": "0",
+                    "Extra": ""
+                },
+                {
+                    "Field": "updated_at",
+                    "Type": "timestamp",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                }
+            ],
+            "indexes": [
+                {
+                    "Table": "teacher_programme_assignments",
+                    "Non_unique": 0,
+                    "Key_name": "PRIMARY",
+                    "Seq_in_index": 1,
+                    "Column_name": "id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "teacher_programme_assignments",
+                    "Non_unique": 0,
+                    "Key_name": "tpa_teacher_programme_school_unique",
+                    "Seq_in_index": 1,
+                    "Column_name": "teacher_id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "teacher_programme_assignments",
+                    "Non_unique": 0,
+                    "Key_name": "tpa_teacher_programme_school_unique",
+                    "Seq_in_index": 2,
+                    "Column_name": "programme_id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "teacher_programme_assignments",
+                    "Non_unique": 0,
+                    "Key_name": "tpa_teacher_programme_school_unique",
+                    "Seq_in_index": 3,
+                    "Column_name": "school_id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                }
+            ],
+            "create": "CREATE TABLE `teacher_programme_assignments` (\n  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,\n  `teacher_id` bigint(20) unsigned NOT NULL,\n  `programme_id` bigint(20) unsigned NOT NULL,\n  `school_id` bigint(20) unsigned NOT NULL,\n  `marks` tinyint(1) NOT NULL DEFAULT 0,\n  `attendance` tinyint(1) NOT NULL DEFAULT 0,\n  `updated_at` timestamp NULL DEFAULT NULL,\n  PRIMARY KEY (`id`),\n  UNIQUE KEY `tpa_teacher_programme_school_unique` (`teacher_id`,`programme_id`,`school_id`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        },
+        "exams": {
+            "count": 0,
+            "columns": [
+                {
+                    "Field": "id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "NO",
+                    "Key": "PRI",
+                    "Default": null,
+                    "Extra": "auto_increment"
+                },
+                {
+                    "Field": "name",
+                    "Type": "varchar(255)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "exam_type",
+                    "Type": "varchar(255)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "exam_category_id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "room_number",
+                    "Type": "varchar(255)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "starting_time",
+                    "Type": "varchar(255)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "ending_time",
+                    "Type": "varchar(255)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "total_marks",
+                    "Type": "double(8,2)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "status",
+                    "Type": "varchar(255)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "class_id",
+                    "Type": "int(11)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "subject_id",
+                    "Type": "int(11)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "school_id",
+                    "Type": "int(11)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "session_id",
+                    "Type": "int(11)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "created_at",
+                    "Type": "timestamp",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "updated_at",
+                    "Type": "timestamp",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                }
+            ],
+            "indexes": [
+                {
+                    "Table": "exams",
+                    "Non_unique": 0,
+                    "Key_name": "PRIMARY",
+                    "Seq_in_index": 1,
+                    "Column_name": "id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                }
+            ],
+            "create": "CREATE TABLE `exams` (\n  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,\n  `name` varchar(255) NOT NULL,\n  `exam_type` varchar(255) NOT NULL,\n  `exam_category_id` bigint(20) unsigned DEFAULT NULL,\n  `room_number` varchar(255) DEFAULT NULL,\n  `starting_time` varchar(255) NOT NULL,\n  `ending_time` varchar(255) NOT NULL,\n  `total_marks` double(8,2) NOT NULL,\n  `status` varchar(255) NOT NULL,\n  `class_id` int(11) NOT NULL,\n  `subject_id` int(11) NOT NULL,\n  `school_id` int(11) NOT NULL,\n  `session_id` int(11) NOT NULL,\n  `created_at` timestamp NULL DEFAULT NULL,\n  `updated_at` timestamp NULL DEFAULT NULL,\n  PRIMARY KEY (`id`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        },
+        "exam_categories": {
+            "count": 0,
+            "columns": [
+                {
+                    "Field": "id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "NO",
+                    "Key": "PRI",
+                    "Default": null,
+                    "Extra": "auto_increment"
+                },
+                {
+                    "Field": "name",
+                    "Type": "varchar(255)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "school_id",
+                    "Type": "int(11)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "session_id",
+                    "Type": "int(11)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "timestamp",
+                    "Type": "int(11)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "created_at",
+                    "Type": "timestamp",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "updated_at",
+                    "Type": "timestamp",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                }
+            ],
+            "indexes": [
+                {
+                    "Table": "exam_categories",
+                    "Non_unique": 0,
+                    "Key_name": "PRIMARY",
+                    "Seq_in_index": 1,
+                    "Column_name": "id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                }
+            ],
+            "create": "CREATE TABLE `exam_categories` (\n  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,\n  `name` varchar(255) NOT NULL,\n  `school_id` int(11) NOT NULL,\n  `session_id` int(11) NOT NULL,\n  `timestamp` int(11) NOT NULL,\n  `created_at` timestamp NULL DEFAULT NULL,\n  `updated_at` timestamp NULL DEFAULT NULL,\n  PRIMARY KEY (`id`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        },
+        "grades": {
+            "count": 0,
+            "columns": [
+                {
+                    "Field": "id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "NO",
+                    "Key": "PRI",
+                    "Default": null,
+                    "Extra": "auto_increment"
+                },
+                {
+                    "Field": "name",
+                    "Type": "varchar(255)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "grade_point",
+                    "Type": "varchar(255)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "gpa_points",
+                    "Type": "decimal(3,2)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": "0.00",
+                    "Extra": ""
+                },
+                {
+                    "Field": "classification",
+                    "Type": "varchar(50)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "mark_from",
+                    "Type": "int(11)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "mark_upto",
+                    "Type": "int(11)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "school_id",
+                    "Type": "int(11)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "created_at",
+                    "Type": "timestamp",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "updated_at",
+                    "Type": "timestamp",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "total_marks",
+                    "Type": "int(11)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                }
+            ],
+            "indexes": [
+                {
+                    "Table": "grades",
+                    "Non_unique": 0,
+                    "Key_name": "PRIMARY",
+                    "Seq_in_index": 1,
+                    "Column_name": "id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                }
+            ],
+            "create": "CREATE TABLE `grades` (\n  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,\n  `name` varchar(255) NOT NULL,\n  `grade_point` varchar(255) NOT NULL,\n  `gpa_points` decimal(3,2) NOT NULL DEFAULT 0.00,\n  `classification` varchar(50) DEFAULT NULL,\n  `mark_from` int(11) NOT NULL,\n  `mark_upto` int(11) NOT NULL,\n  `school_id` int(11) NOT NULL,\n  `created_at` timestamp NULL DEFAULT NULL,\n  `updated_at` timestamp NULL DEFAULT NULL,\n  `total_marks` int(11) DEFAULT NULL,\n  PRIMARY KEY (`id`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        },
+        "gradebooks": {
+            "count": 0,
+            "columns": [
+                {
+                    "Field": "id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "NO",
+                    "Key": "PRI",
+                    "Default": null,
+                    "Extra": "auto_increment"
+                },
+                {
+                    "Field": "class_id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "YES",
+                    "Key": "MUL",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "section_id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "YES",
+                    "Key": "MUL",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "student_id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "YES",
+                    "Key": "MUL",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "exam_category_id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "YES",
+                    "Key": "MUL",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "programme_id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "intake_session_id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "marks",
+                    "Type": "text",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "comment",
+                    "Type": "varchar(255)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "school_id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "YES",
+                    "Key": "MUL",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "session_id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "timestamp",
+                    "Type": "int(11)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "created_at",
+                    "Type": "timestamp",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "updated_at",
+                    "Type": "timestamp",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                }
+            ],
+            "indexes": [
+                {
+                    "Table": "gradebooks",
+                    "Non_unique": 0,
+                    "Key_name": "PRIMARY",
+                    "Seq_in_index": 1,
+                    "Column_name": "id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "gradebooks",
+                    "Non_unique": 1,
+                    "Key_name": "gradebooks_class_id_index",
+                    "Seq_in_index": 1,
+                    "Column_name": "class_id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "YES",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "gradebooks",
+                    "Non_unique": 1,
+                    "Key_name": "gradebooks_section_id_index",
+                    "Seq_in_index": 1,
+                    "Column_name": "section_id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "YES",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "gradebooks",
+                    "Non_unique": 1,
+                    "Key_name": "gradebooks_student_id_index",
+                    "Seq_in_index": 1,
+                    "Column_name": "student_id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "YES",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "gradebooks",
+                    "Non_unique": 1,
+                    "Key_name": "gradebooks_exam_category_id_index",
+                    "Seq_in_index": 1,
+                    "Column_name": "exam_category_id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "YES",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "gradebooks",
+                    "Non_unique": 1,
+                    "Key_name": "gradebooks_school_id_index",
+                    "Seq_in_index": 1,
+                    "Column_name": "school_id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "YES",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                }
+            ],
+            "create": "CREATE TABLE `gradebooks` (\n  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,\n  `class_id` bigint(20) unsigned DEFAULT NULL,\n  `section_id` bigint(20) unsigned DEFAULT NULL,\n  `student_id` bigint(20) unsigned DEFAULT NULL,\n  `exam_category_id` bigint(20) unsigned DEFAULT NULL,\n  `programme_id` bigint(20) unsigned DEFAULT NULL,\n  `intake_session_id` bigint(20) unsigned DEFAULT NULL,\n  `marks` text DEFAULT NULL,\n  `comment` varchar(255) DEFAULT NULL,\n  `school_id` bigint(20) unsigned DEFAULT NULL,\n  `session_id` bigint(20) unsigned DEFAULT NULL,\n  `timestamp` int(11) DEFAULT NULL,\n  `created_at` timestamp NULL DEFAULT NULL,\n  `updated_at` timestamp NULL DEFAULT NULL,\n  PRIMARY KEY (`id`),\n  KEY `gradebooks_class_id_index` (`class_id`),\n  KEY `gradebooks_section_id_index` (`section_id`),\n  KEY `gradebooks_student_id_index` (`student_id`),\n  KEY `gradebooks_exam_category_id_index` (`exam_category_id`),\n  KEY `gradebooks_school_id_index` (`school_id`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        },
+        "admit_cards": {
+            "count": 0,
+            "columns": [
+                {
+                    "Field": "id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "NO",
+                    "Key": "PRI",
+                    "Default": null,
+                    "Extra": "auto_increment"
+                },
+                {
+                    "Field": "template",
+                    "Type": "varchar(255)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "heading",
+                    "Type": "varchar(255)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "title",
+                    "Type": "varchar(255)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "school_id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "YES",
+                    "Key": "MUL",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "exam_center",
+                    "Type": "varchar(255)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "footer_text",
+                    "Type": "varchar(255)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "left_logo",
+                    "Type": "varchar(255)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "right_logo",
+                    "Type": "varchar(255)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "sign",
+                    "Type": "varchar(255)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "background_image",
+                    "Type": "varchar(255)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "created_at",
+                    "Type": "timestamp",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "updated_at",
+                    "Type": "timestamp",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                }
+            ],
+            "indexes": [
+                {
+                    "Table": "admit_cards",
+                    "Non_unique": 0,
+                    "Key_name": "PRIMARY",
+                    "Seq_in_index": 1,
+                    "Column_name": "id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "admit_cards",
+                    "Non_unique": 1,
+                    "Key_name": "admit_cards_school_id_index",
+                    "Seq_in_index": 1,
+                    "Column_name": "school_id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "YES",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                }
+            ],
+            "create": "CREATE TABLE `admit_cards` (\n  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,\n  `template` varchar(255) NOT NULL,\n  `heading` varchar(255) DEFAULT NULL,\n  `title` varchar(255) DEFAULT NULL,\n  `school_id` bigint(20) unsigned DEFAULT NULL,\n  `exam_center` varchar(255) DEFAULT NULL,\n  `footer_text` varchar(255) DEFAULT NULL,\n  `left_logo` varchar(255) DEFAULT NULL,\n  `right_logo` varchar(255) DEFAULT NULL,\n  `sign` varchar(255) DEFAULT NULL,\n  `background_image` varchar(255) DEFAULT NULL,\n  `created_at` timestamp NULL DEFAULT NULL,\n  `updated_at` timestamp NULL DEFAULT NULL,\n  PRIMARY KEY (`id`),\n  KEY `admit_cards_school_id_index` (`school_id`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        },
+        "routines": {
+            "count": 0,
+            "columns": [
+                {
+                    "Field": "id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "NO",
+                    "Key": "PRI",
+                    "Default": null,
+                    "Extra": "auto_increment"
+                },
+                {
+                    "Field": "class_id",
+                    "Type": "int(11)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "section_id",
+                    "Type": "int(11)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "subject_id",
+                    "Type": "int(11)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "programme_id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "starting_hour",
+                    "Type": "int(11)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "ending_hour",
+                    "Type": "int(11)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "starting_minute",
+                    "Type": "int(11)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "ending_minute",
+                    "Type": "int(11)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "day",
+                    "Type": "varchar(255)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "teacher_id",
+                    "Type": "int(11)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "room_id",
+                    "Type": "int(11)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "session_id",
+                    "Type": "int(11)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "school_id",
+                    "Type": "int(11)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "created_at",
+                    "Type": "timestamp",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "updated_at",
+                    "Type": "timestamp",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                }
+            ],
+            "indexes": [
+                {
+                    "Table": "routines",
+                    "Non_unique": 0,
+                    "Key_name": "PRIMARY",
+                    "Seq_in_index": 1,
+                    "Column_name": "id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                }
+            ],
+            "create": "CREATE TABLE `routines` (\n  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,\n  `class_id` int(11) DEFAULT NULL,\n  `section_id` int(11) DEFAULT NULL,\n  `subject_id` int(11) DEFAULT NULL,\n  `programme_id` bigint(20) unsigned DEFAULT NULL,\n  `starting_hour` int(11) NOT NULL,\n  `ending_hour` int(11) NOT NULL,\n  `starting_minute` int(11) NOT NULL,\n  `ending_minute` int(11) NOT NULL,\n  `day` varchar(255) NOT NULL,\n  `teacher_id` int(11) NOT NULL,\n  `room_id` int(11) NOT NULL,\n  `session_id` int(11) NOT NULL,\n  `school_id` int(11) NOT NULL,\n  `created_at` timestamp NULL DEFAULT NULL,\n  `updated_at` timestamp NULL DEFAULT NULL,\n  PRIMARY KEY (`id`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        },
+        "daily_attendances": {
+            "count": 0,
+            "columns": [
+                {
+                    "Field": "id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "NO",
+                    "Key": "PRI",
+                    "Default": null,
+                    "Extra": "auto_increment"
+                },
+                {
+                    "Field": "class_id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "YES",
+                    "Key": "MUL",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "programme_id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "intake_session_id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "section_id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "student_id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "NO",
+                    "Key": "MUL",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "status",
+                    "Type": "int(11)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "session_id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "school_id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "NO",
+                    "Key": "MUL",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "timestamp",
+                    "Type": "int(11)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "created_at",
+                    "Type": "timestamp",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "updated_at",
+                    "Type": "timestamp",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                }
+            ],
+            "indexes": [
+                {
+                    "Table": "daily_attendances",
+                    "Non_unique": 0,
+                    "Key_name": "PRIMARY",
+                    "Seq_in_index": 1,
+                    "Column_name": "id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "daily_attendances",
+                    "Non_unique": 1,
+                    "Key_name": "daily_attendances_class_id_index",
+                    "Seq_in_index": 1,
+                    "Column_name": "class_id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "YES",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "daily_attendances",
+                    "Non_unique": 1,
+                    "Key_name": "daily_attendances_student_id_index",
+                    "Seq_in_index": 1,
+                    "Column_name": "student_id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "daily_attendances",
+                    "Non_unique": 1,
+                    "Key_name": "daily_attendances_school_id_index",
+                    "Seq_in_index": 1,
+                    "Column_name": "school_id",
+                    "Collation": "A",
+                    "Cardinality": 0,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                }
+            ],
+            "create": "CREATE TABLE `daily_attendances` (\n  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,\n  `class_id` bigint(20) unsigned DEFAULT NULL,\n  `programme_id` bigint(20) unsigned DEFAULT NULL,\n  `intake_session_id` bigint(20) unsigned DEFAULT NULL,\n  `section_id` bigint(20) unsigned DEFAULT NULL,\n  `student_id` bigint(20) unsigned NOT NULL,\n  `status` int(11) NOT NULL,\n  `session_id` bigint(20) unsigned DEFAULT NULL,\n  `school_id` bigint(20) unsigned NOT NULL,\n  `timestamp` int(11) DEFAULT NULL,\n  `created_at` timestamp NULL DEFAULT NULL,\n  `updated_at` timestamp NULL DEFAULT NULL,\n  PRIMARY KEY (`id`),\n  KEY `daily_attendances_class_id_index` (`class_id`),\n  KEY `daily_attendances_student_id_index` (`student_id`),\n  KEY `daily_attendances_school_id_index` (`school_id`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        },
+        "audit_logs": {
+            "count": 38,
+            "columns": [
+                {
+                    "Field": "id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "NO",
+                    "Key": "PRI",
+                    "Default": null,
+                    "Extra": "auto_increment"
+                },
+                {
+                    "Field": "school_id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "YES",
+                    "Key": "MUL",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "user_id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "NO",
+                    "Key": "MUL",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "user_name",
+                    "Type": "varchar(150)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "role_id",
+                    "Type": "tinyint(3) unsigned",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "role_name",
+                    "Type": "varchar(60)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "action",
+                    "Type": "varchar(100)",
+                    "Null": "YES",
+                    "Key": "MUL",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "event_type",
+                    "Type": "varchar(20)",
+                    "Null": "NO",
+                    "Key": "MUL",
+                    "Default": "ACTION",
+                    "Extra": ""
+                },
+                {
+                    "Field": "module",
+                    "Type": "varchar(80)",
+                    "Null": "YES",
+                    "Key": "MUL",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "route_name",
+                    "Type": "varchar(150)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "url",
+                    "Type": "varchar(500)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "method",
+                    "Type": "varchar(10)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "description",
+                    "Type": "text",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "record_type",
+                    "Type": "varchar(100)",
+                    "Null": "YES",
+                    "Key": "MUL",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "record_id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "old_values",
+                    "Type": "longtext",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "new_values",
+                    "Type": "longtext",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "ip_address",
+                    "Type": "varchar(45)",
+                    "Null": "YES",
+                    "Key": "MUL",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "user_agent",
+                    "Type": "varchar(255)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "device_type",
+                    "Type": "varchar(20)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "browser",
+                    "Type": "varchar(60)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "platform",
+                    "Type": "varchar(60)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "status",
+                    "Type": "varchar(20)",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "created_at",
+                    "Type": "timestamp",
+                    "Null": "NO",
+                    "Key": "MUL",
+                    "Default": "current_timestamp()",
+                    "Extra": ""
+                }
+            ],
+            "indexes": [
+                {
+                    "Table": "audit_logs",
+                    "Non_unique": 0,
+                    "Key_name": "PRIMARY",
+                    "Seq_in_index": 1,
+                    "Column_name": "id",
+                    "Collation": "A",
+                    "Cardinality": 38,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "audit_logs",
+                    "Non_unique": 1,
+                    "Key_name": "audit_logs_school_id_index",
+                    "Seq_in_index": 1,
+                    "Column_name": "school_id",
+                    "Collation": "A",
+                    "Cardinality": 4,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "YES",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "audit_logs",
+                    "Non_unique": 1,
+                    "Key_name": "audit_logs_user_id_index",
+                    "Seq_in_index": 1,
+                    "Column_name": "user_id",
+                    "Collation": "A",
+                    "Cardinality": 12,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "audit_logs",
+                    "Non_unique": 1,
+                    "Key_name": "audit_logs_module_index",
+                    "Seq_in_index": 1,
+                    "Column_name": "module",
+                    "Collation": "A",
+                    "Cardinality": 12,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "YES",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "audit_logs",
+                    "Non_unique": 1,
+                    "Key_name": "audit_logs_action_index",
+                    "Seq_in_index": 1,
+                    "Column_name": "action",
+                    "Collation": "A",
+                    "Cardinality": 12,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "YES",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "audit_logs",
+                    "Non_unique": 1,
+                    "Key_name": "audit_logs_event_type_index",
+                    "Seq_in_index": 1,
+                    "Column_name": "event_type",
+                    "Collation": "A",
+                    "Cardinality": 6,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "audit_logs",
+                    "Non_unique": 1,
+                    "Key_name": "audit_logs_created_at_index",
+                    "Seq_in_index": 1,
+                    "Column_name": "created_at",
+                    "Collation": "A",
+                    "Cardinality": 38,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "audit_logs",
+                    "Non_unique": 1,
+                    "Key_name": "audit_logs_record_type_record_id_index",
+                    "Seq_in_index": 1,
+                    "Column_name": "record_type",
+                    "Collation": "A",
+                    "Cardinality": 4,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "YES",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "audit_logs",
+                    "Non_unique": 1,
+                    "Key_name": "audit_logs_record_type_record_id_index",
+                    "Seq_in_index": 2,
+                    "Column_name": "record_id",
+                    "Collation": "A",
+                    "Cardinality": 12,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "YES",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                },
+                {
+                    "Table": "audit_logs",
+                    "Non_unique": 1,
+                    "Key_name": "audit_logs_ip_address_index",
+                    "Seq_in_index": 1,
+                    "Column_name": "ip_address",
+                    "Collation": "A",
+                    "Cardinality": 2,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "YES",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                }
+            ],
+            "create": "CREATE TABLE `audit_logs` (\n  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,\n  `school_id` bigint(20) unsigned DEFAULT NULL,\n  `user_id` bigint(20) unsigned NOT NULL,\n  `user_name` varchar(150) DEFAULT NULL,\n  `role_id` tinyint(3) unsigned DEFAULT NULL,\n  `role_name` varchar(60) DEFAULT NULL,\n  `action` varchar(100) DEFAULT NULL,\n  `event_type` varchar(20) NOT NULL DEFAULT 'ACTION',\n  `module` varchar(80) DEFAULT NULL,\n  `route_name` varchar(150) DEFAULT NULL,\n  `url` varchar(500) DEFAULT NULL,\n  `method` varchar(10) DEFAULT NULL,\n  `description` text DEFAULT NULL,\n  `record_type` varchar(100) DEFAULT NULL,\n  `record_id` bigint(20) unsigned DEFAULT NULL,\n  `old_values` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`old_values`)),\n  `new_values` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`new_values`)),\n  `ip_address` varchar(45) DEFAULT NULL,\n  `user_agent` varchar(255) DEFAULT NULL,\n  `device_type` varchar(20) DEFAULT NULL,\n  `browser` varchar(60) DEFAULT NULL,\n  `platform` varchar(60) DEFAULT NULL,\n  `status` varchar(20) DEFAULT NULL,\n  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),\n  PRIMARY KEY (`id`),\n  KEY `audit_logs_school_id_index` (`school_id`),\n  KEY `audit_logs_user_id_index` (`user_id`),\n  KEY `audit_logs_module_index` (`module`),\n  KEY `audit_logs_action_index` (`action`),\n  KEY `audit_logs_event_type_index` (`event_type`),\n  KEY `audit_logs_created_at_index` (`created_at`),\n  KEY `audit_logs_record_type_record_id_index` (`record_type`,`record_id`),\n  KEY `audit_logs_ip_address_index` (`ip_address`)\n) ENGINE=InnoDB AUTO_INCREMENT=39 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        },
+        "roles": {
+            "count": 7,
+            "columns": [
+                {
+                    "Field": "role_id",
+                    "Type": "bigint(20) unsigned",
+                    "Null": "NO",
+                    "Key": "PRI",
+                    "Default": null,
+                    "Extra": "auto_increment"
+                },
+                {
+                    "Field": "name",
+                    "Type": "varchar(255)",
+                    "Null": "NO",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "created_at",
+                    "Type": "timestamp",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                },
+                {
+                    "Field": "updated_at",
+                    "Type": "timestamp",
+                    "Null": "YES",
+                    "Key": "",
+                    "Default": null,
+                    "Extra": ""
+                }
+            ],
+            "indexes": [
+                {
+                    "Table": "roles",
+                    "Non_unique": 0,
+                    "Key_name": "PRIMARY",
+                    "Seq_in_index": 1,
+                    "Column_name": "role_id",
+                    "Collation": "A",
+                    "Cardinality": 7,
+                    "Sub_part": null,
+                    "Packed": null,
+                    "Null": "",
+                    "Index_type": "BTREE",
+                    "Comment": "",
+                    "Index_comment": ""
+                }
+            ],
+            "create": "CREATE TABLE `roles` (\n  `role_id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,\n  `name` varchar(255) NOT NULL,\n  `created_at` timestamp NULL DEFAULT NULL,\n  `updated_at` timestamp NULL DEFAULT NULL,\n  PRIMARY KEY (`role_id`)\n) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        }
+    },
+    "roles": [
+        {
+            "role_id": 1,
+            "name": "superadmin",
+            "created_at": "2026-09-19 09:21:11",
+            "updated_at": "2026-09-19 09:23:48"
+        },
+        {
+            "role_id": 2,
+            "name": "admin",
+            "created_at": "2026-09-19 09:21:11",
+            "updated_at": "2026-09-19 09:23:48"
+        },
+        {
+            "role_id": 3,
+            "name": "teacher",
+            "created_at": "2026-09-19 09:21:11",
+            "updated_at": "2026-09-19 09:23:48"
+        },
+        {
+            "role_id": 4,
+            "name": "accountant",
+            "created_at": "2026-09-19 09:21:11",
+            "updated_at": "2026-09-19 09:23:48"
+        },
+        {
+            "role_id": 5,
+            "name": "librarian",
+            "created_at": "2026-09-19 09:21:11",
+            "updated_at": "2026-09-19 09:23:48"
+        },
+        {
+            "role_id": 6,
+            "name": "parent",
+            "created_at": "2026-09-19 09:21:11",
+            "updated_at": "2026-09-19 09:23:48"
+        },
+        {
+            "role_id": 7,
+            "name": "student",
+            "created_at": "2026-09-19 09:21:11",
+            "updated_at": "2026-09-19 09:23:48"
+        }
+    ],
+    "role_permissions": [
+        {
+            "id": 14,
+            "key": "role_perm_1",
+            "value": "[\"View Live Classes\",\"Create Live Classes\",\"Edit Live Classes\",\"Delete Live Classes\",\"Cancel Live Classes\",\"Publish Live Classes\",\"Join Live Classes\",\"Manage Live Class Platforms\",\"view_online_exams\",\"create_online_exams\",\"edit_own_online_exams\",\"edit_all_online_exams\",\"delete_online_exams\",\"publish_online_exams\",\"cancel_online_exams\",\"manage_exam_questions\",\"view_exam_attempts\",\"mark_exam_answers\",\"view_exam_results\",\"manage_exam_settings\",\"review_exam_proctoring\",\"sit_online_exams\"]"
+        },
+        {
+            "id": 15,
+            "key": "role_perm_2",
+            "value": "[\"View Live Classes\",\"Create Live Classes\",\"Edit Live Classes\",\"Delete Live Classes\",\"Cancel Live Classes\",\"Publish Live Classes\",\"Join Live Classes\",\"Manage Live Class Platforms\",\"view_online_exams\",\"create_online_exams\",\"edit_all_online_exams\",\"delete_online_exams\",\"publish_online_exams\",\"cancel_online_exams\",\"manage_exam_questions\",\"view_exam_attempts\",\"mark_exam_answers\",\"view_exam_results\",\"manage_exam_settings\",\"review_exam_proctoring\"]"
+        },
+        {
+            "id": 16,
+            "key": "role_perm_3",
+            "value": "[\"View Live Classes\",\"Create Live Classes\",\"Edit Live Classes\",\"Cancel Live Classes\",\"Join Live Classes\",\"view_online_exams\",\"create_online_exams\",\"edit_own_online_exams\",\"manage_exam_questions\",\"view_exam_attempts\",\"mark_exam_answers\",\"view_exam_results\"]"
+        },
+        {
+            "id": 17,
+            "key": "role_perm_4",
+            "value": "[]"
+        },
+        {
+            "id": 18,
+            "key": "role_perm_5",
+            "value": "[]"
+        },
+        {
+            "id": 19,
+            "key": "role_perm_6",
+            "value": "[]"
+        },
+        {
+            "id": 20,
+            "key": "role_perm_7",
+            "value": "[\"View Live Classes\",\"Join Live Classes\",\"sit_online_exams\"]"
+        }
+    ],
+    "runtime": {
+        "timezone": "UTC",
+        "queue": "sync",
+        "session": "file",
+        "mail_configured": false
+    }
+}

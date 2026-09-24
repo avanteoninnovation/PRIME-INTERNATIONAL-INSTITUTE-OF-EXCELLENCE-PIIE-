@@ -10,11 +10,11 @@
           class="d-flex justify-content-between align-items-center flex-wrap gr-15"
         >
           <div class="d-flex flex-column">
-            <h4>{{ get_phrase('Classes') }}</h4>
+            <h4>{{ academic_term('classes', auth()->user()->school_id) }}</h4>
             <ul class="d-flex align-items-center eBreadcrumb-2">
               <li><a href="#">{{ get_phrase('Home') }}</a></li>
               <li><a href="#">{{ get_phrase('Academic') }}</a></li>
-              <li><a href="#">{{ get_phrase('Classes') }}</a></li>
+              <li><a href="#">{{ academic_term('classes', auth()->user()->school_id) }}</a></li>
             </ul>
           </div>
           <div class="export-btn-area">
@@ -65,7 +65,7 @@
                         <tr>
                             <th scope="col">#</th>
                             <th scope="col">{{ get_phrase('Name') }}</th>
-                            <th scope="col">{{ get_phrase('Section') }}</th>
+                            <th scope="col">{{ academic_term('section', auth()->user()->school_id) }}</th>
                             <th scope="col" class="text-end">{{ get_phrase('Action') }}</th>
                         </tr>
                     </thead>
@@ -97,6 +97,9 @@
                                         >
                                           <li>
                                             <a class="dropdown-item" href="javascript:;" onclick="rightModal('{{ route('admin.edit.section', ['id' => $class_list->id]) }}', '{{ get_phrase('Edit Section') }}')">{{ get_phrase('Edit Section') }}</a>
+                                          </li>
+                                          <li>
+                                            <a class="dropdown-item" href="{{ route('admin.teacher.permission', ['class_id' => $class_list->id]) }}">{{ get_phrase('Assign Teachers') }}</a>
                                           </li>
                                           <li>
                                             <a class="dropdown-item" href="javascript:;" onclick="rightModal('{{ route('admin.edit.class', ['id' => $class_list->id]) }}', '{{ get_phrase('Edit Class') }}')">{{ get_phrase('Edit Class') }}</a>

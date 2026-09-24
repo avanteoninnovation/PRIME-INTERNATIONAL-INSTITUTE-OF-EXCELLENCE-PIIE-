@@ -62,6 +62,10 @@ use App\Models\Syllabus;
 use App\Models\TeacherPermission;
 use App\Models\TeacherProgrammeAssignment;
 use App\Models\User;
+use App\Support\Admissions\ApplicationDocuments;
+use App\Support\ProfilePhoto;
+use App\Support\Staff\StaffProvisioningException;
+use App\Support\Staff\StaffProvisioningService;
 use App\Support\StudentFeeInvoiceGenerator;
 use App\Support\StudentPortalActivation;
 use Illuminate\Http\Request;
@@ -72,8 +76,12 @@ use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Mail;
 use PDF;
+use App\Support\Audit\StatusChangeAudit;
+use App\Support\SafeUpload;
+use App\Support\Clubs\ClubTenancy;
 
 class AdminController extends Controller
 {
@@ -363,17 +371,7 @@ class AdminController extends Controller
      */
     private function staffFieldsFromRequest(array $data): array
     {
-        $firstName = trim($data['first_name'] ?? '');
-        $lastName  = trim($data['last_name'] ?? '');
-
-        return [
-            'name'            => trim("{$firstName} {$lastName}"),
-            'first_name'      => $firstName !== '' ? $firstName : null,
-            'last_name'       => $lastName !== '' ? $lastName : null,
-            'department_id'   => $data['department_id'] ?? null,
-            'designation_id'  => $data['designation_id'] ?? null,
-            'employment_type' => $data['employment_type'] ?? null,
-        ];
+        return StaffProvisioningService::staffFields($data);
     }
 
     /**
@@ -383,30 +381,128 @@ class AdminController extends Controller
      * (no forced change). The plaintext only ever lives in-memory long
      * enough to hash and email — it is never persisted or logged.
      */
-    private function resolveNewStaffPassword(array $data): array
-    {
-        if (($data['password_mode'] ?? 'auto') === 'manual' && !empty($data['password'])) {
-            return ['plain' => $data['password'], 'force_change' => false];
-        }
-
-        return ['plain' => Str::random(10), 'force_change' => true];
-    }
-
     private function sendStaffCredentialsEmail(string $email, string $name, string $plainPassword): void
     {
-        if (!empty(get_settings('smtp_user')) && get_settings('smtp_pass') && get_settings('smtp_host') && get_settings('smtp_port')) {
-            Mail::to($email)->send(new NewUserEmail([
-                'name'     => $name,
-                'email'    => $email,
-                'password' => $plainPassword,
-            ]));
-        }
+        app(StaffProvisioningService::class)->sendCredentials($email, $name, $plainPassword);
     }
 
     /** Every staff single-record action goes through here — the one place cross-school access is denied. */
     private function findStaffOrFail($id, int $role_id): User
     {
         return User::where('id', $id)->where('school_id', auth()->user()->school_id)->where('role_id', $role_id)->firstOrFail();
+    }
+
+    /**
+     * RBAC Phase 2B: credentials and account status of staff/administrator
+     * accounts are School Administrator only. Student (7) and parent (6)
+     * account actions keep their existing reach — student management is
+     * outside this phase.
+     */
+    private function mayAdministerAccountSecurity(User $target): bool
+    {
+        if (in_array((int) $target->role_id, [6, 7], true)) {
+            return true;
+        }
+
+        return (int) auth()->user()->role_id === 2;
+    }
+
+    /**
+     * RBAC Phase 2D: every student action resolves its target through here —
+     * a student (role 7) in the caller's own school — before it reads the
+     * account or touches any related record.
+     */
+    private function findStudentOrFail($id): User
+    {
+        return $this->findStaffOrFail($id, 7);
+    }
+
+    /**
+     * Security Phase 2E: a fee/invoice (student_fee_managers row) reached by
+     * id must belong to the caller's own school.
+     */
+    private function findSchoolFeeOrFail($id): StudentFeeManager
+    {
+        return StudentFeeManager::where('id', $id)->where('school_id', auth()->user()->school_id)->firstOrFail();
+    }
+
+    /** Security Phase 2E: true when $studentId is a student (role 7) in the caller's own school. */
+    private function isSchoolStudent($studentId): bool
+    {
+        return User::where('id', $studentId)->where('school_id', auth()->user()->school_id)->where('role_id', 7)->exists();
+    }
+
+    /**
+     * RBAC Phase 2D: a school must always keep at least one viable School
+     * Administrator — role 2, account_status not 'disable' and staff_status
+     * not suspended/inactive (exactly what AdminMiddleware requires). Guards
+     * delete / disable / suspend of an administrator account: never your own
+     * account, never the primary admin (school_role = 1) unless you are the
+     * primary admin, and never the last viable admin. Returns a redirect when
+     * the action must be refused, null when it may proceed.
+     */
+    private function rejectAdminLockout(User $target)
+    {
+        if ((int) $target->role_id !== 2) {
+            return null;
+        }
+
+        $actor = auth()->user();
+        if ((int) $target->id === (int) $actor->id) {
+            return redirect()->back()->with('error', 'You cannot delete, disable or suspend your own administrator account.');
+        }
+
+        if ((int) $target->school_role === 1 && (int) $actor->school_role !== 1) {
+            return redirect()->back()->with('error', 'Only the primary School Administrator can delete, disable or suspend the primary administrator.');
+        }
+
+        $anotherViableAdmin = User::where('school_id', $target->school_id)
+            ->where('role_id', 2)
+            ->where('id', '!=', $target->id)
+            ->where(fn ($q) => $q->whereNull('account_status')->orWhere('account_status', '!=', 'disable'))
+            // Same statuses as User::isStaffPortalBlocked().
+            ->where(fn ($q) => $q->whereNull('staff_status')->orWhereNotIn('staff_status', \App\Support\Staff\StaffStatus::BLOCKED))
+            ->exists();
+        if (!$anotherViableAdmin) {
+            return redirect()->back()->with('error', 'A school must keep at least one active School Administrator.');
+        }
+
+        return null;
+    }
+
+    /** True when $newEmail differs from $target's and already belongs to another account. */
+    private function loginEmailTaken(User $target, $newEmail): bool
+    {
+        $newEmail = trim((string) $newEmail);
+        if (strcasecmp($newEmail, (string) $target->email) === 0) {
+            return false;
+        }
+
+        return User::where('email', $newEmail)->where('id', '!=', $target->id)->exists();
+    }
+
+    /**
+     * RBAC Phase 2B: the login email is a security identity. Only a School
+     * Administrator may change it (HR may still edit the rest of a staff
+     * record), and it must stay unique. Returns a redirect when the request
+     * must be rejected, null when it may proceed.
+     */
+    private function rejectLoginEmailChange(User $target, $newEmail)
+    {
+        $newEmail = trim((string) $newEmail);
+        if (strcasecmp($newEmail, (string) $target->email) === 0) {
+            return null;
+        }
+
+        if ((int) auth()->user()->role_id !== 2) {
+            return redirect()->back()->with('error', 'Only a School Administrator can change a login email address.');
+        }
+
+        if ($this->loginEmailTaken($target, $newEmail)) {
+            return redirect()->back()->with('error', 'Email was already taken.');
+        }
+
+        return null;
     }
 
     private function resetStaffPassword($id, int $role_id)
@@ -530,53 +626,12 @@ class AdminController extends Controller
 
     public function adminCreate(Request $request)
     {
-        $data = $request->all();
-
-        if (! empty($data['photo'])) {
-
-            $imageName = time() . '.' . $data['photo']->extension();
-
-            $data['photo']->move(public_path('assets/uploads/user-images/'), $imageName);
-
-            $photo = $imageName;
-        } else {
-            $photo = '';
+        // Creation logic lives in StaffProvisioningService (identical behaviour; see StaffCreationCharacterizationTest).
+        try {
+            app(StaffProvisioningService::class)->provision(2, $request->all(), (int) auth()->user()->school_id);
+        } catch (StaffProvisioningException $e) {
+            return redirect()->back()->with('error', $e->getMessage());
         }
-
-        $info = [
-            'gender'      => $data['gender'],
-            'blood_group' => $data['blood_group'],
-            'birthday'    => strtotime($data['birthday']),
-            'phone'       => $data['phone'],
-            'address'     => $data['address'],
-            'photo'       => $photo,
-            'school_role' => 0,
-        ];
-
-        $data['user_information'] = json_encode($info);
-
-        $duplicate_user_check = User::get()->where('email', $data['email']);
-
-        if (count($duplicate_user_check) == 0) {
-
-            $staffFields = $this->staffFieldsFromRequest($data);
-            $password    = $this->resolveNewStaffPassword($data);
-
-            $user = User::create(array_merge($staffFields, [
-                'email'                 => $data['email'],
-                'password'              => Hash::make($password['plain']),
-                'role_id'               => '2',
-                'school_id'             => auth()->user()->school_id,
-                'user_information'      => $data['user_information'],
-                'status'                => 1,
-                'code'                  => staff_code(),
-                'staff_status'          => 'active',
-                'force_password_change' => $password['force_change'],
-            ]));
-        } else {
-            return redirect()->back()->with('error', 'Email was already taken.');
-        }
-        $this->sendStaffCredentialsEmail($user->email, $user->name, $password['plain']);
         return redirect()->back()->with('message', 'You have successfully add user.');
     }
 
@@ -594,11 +649,22 @@ class AdminController extends Controller
         $data = $request->all();
         $user = $this->findStaffOrFail($id, 2);
 
+        if ($rejected = $this->rejectLoginEmailChange($user, $data['email'] ?? null)) {
+            return $rejected;
+        }
+
+        $newStaffStatus = $data['staff_status'] ?? null;
+        if (in_array($newStaffStatus, \App\Support\Staff\StaffStatus::BLOCKED, true) && $newStaffStatus !== $user->staff_status
+            && ($rejected = $this->rejectAdminLockout($user))) {
+            return $rejected;
+        }
+
         if (! empty($data['photo'])) {
 
-            $imageName = time() . '.' . $data['photo']->extension();
-
-            $data['photo']->move(public_path('assets/uploads/user-images/'), $imageName);
+            $imageName = ProfilePhoto::store($data['photo']);
+            if ($imageName === null) {
+                return redirect()->back()->with('error', 'Profile photo must be a JPG or PNG image of at most 4 MB.');
+            }
 
             $photo = $imageName;
         } else {
@@ -634,6 +700,9 @@ class AdminController extends Controller
     public function adminDelete($id)
     {
         $user = $this->findStaffOrFail($id, 2);
+        if ($rejected = $this->rejectAdminLockout($user)) {
+            return $rejected;
+        }
         $user->delete();
         return redirect()->route('admin.admin')->with('message', 'You have successfully deleted user.');
     }
@@ -721,72 +790,102 @@ class AdminController extends Controller
 
         $userId = $request->input('user_id');
 
-        $data['password'] = Hash::make($request->password);
-        $user = User::find($userId);
-        if ($user) {
-            $user->update($data);
+        // RBAC Phase 2B: the target must belong to the caller's own school
+        // (previously User::find() reached any account, Super Admin
+        // included), and staff/administrator credentials are School
+        // Administrator only.
+        $user = User::where('id', $userId)->where('school_id', auth()->user()->school_id)->first();
+        if (!$user || !$this->mayAdministerAccountSecurity($user)) {
+            return redirect()->back()->with('error', 'You do not have permission to change this password.');
         }
+
+        $data['password'] = Hash::make($request->password);
+        $user->update($data);
 
         return redirect()->back()->with('message', 'You have successfully update password.');
     }
 
     public function adminDocuments($id = "")
     {
-        $user_details = User::find($id);
+        $user_details = $this->findStaffOrFail($id, 2);
         return view('admin.admin.documents', ['user_details' => $user_details]);
     }
 
     public function accountantDocuments($id = "")
     {
-        $user_details = User::find($id);
+        $user_details = $this->findStaffOrFail($id, 4);
         return view('admin.accountant.documents', ['user_details' => $user_details]);
     }
 
     public function librarianDocuments($id = "")
     {
-        $user_details = User::find($id);
+        $user_details = $this->findStaffOrFail($id, 5);
         return view('admin.librarian.documents', ['user_details' => $user_details]);
     }
 
     public function parentDocuments($id = "")
     {
-        $user_details = User::find($id);
+        $user_details = $this->findStaffOrFail($id, 6);
         return view('admin.parent.documents', ['user_details' => $user_details]);
     }
 
     public function studentDocuments($id = "")
     {
-        $user_details = User::find($id);
+        $user_details = $this->findStaffOrFail($id, 7);
         return view('admin.student.documents', ['user_details' => $user_details]);
     }
 
     public function teacherDocuments($id = "")
     {
-        $user_details = User::find($id);
+        $user_details = $this->findStaffOrFail($id, 3);
         return view('admin.teacher.documents', ['user_details' => $user_details]);
+    }
+
+    public function wardenDocuments($id = "")
+    {
+        $user_details = $this->findStaffOrFail($id, 10);
+        return view('admin.warden.documents', ['user_details' => $user_details]);
+    }
+
+    /**
+     * RBAC Phase 2C: a document owner is always resolved within the
+     * caller's own school — never from a bare user id — and uploads follow
+     * the same file policy as admission documents (ApplicationDocuments):
+     * PDF/JPG/JPEG/PNG only, checked by both extension and detected content,
+     * at most MAX_FILE_MB. The file is stored under an application-generated
+     * name; the client filename is never used on disk.
+     */
+    private function findDocumentOwnerOrFail($id): User
+    {
+        return User::where('id', $id)->where('school_id', auth()->user()->school_id)->firstOrFail();
     }
 
     public function documentsUpload(Request $request, $id = "")
     {
-        // Validate the request
+        $user = $this->findDocumentOwnerOrFail($id);
+
+        $allowed = ApplicationDocuments::ALLOWED_EXTENSIONS;
         $request->validate([
-            'file_name' => 'required',
-            'file'      => 'required',
+            'file_name' => 'required|string|max:100',
+            'file'      => 'required|file|mimes:' . implode(',', $allowed) . '|max:' . (ApplicationDocuments::MAX_FILE_MB * 1024),
+        ], [
+            'file.mimes' => 'Only PDF, JPG and PNG files are accepted.',
         ]);
 
-        $file     = $request->file('file');
-        $fileName = $file->getClientOriginalName();
+        $file      = $request->file('file');
+        $extension = strtolower($file->getClientOriginalExtension());
+        if (!in_array($extension, $allowed, true)) {
+            return redirect()->back()->with('error', 'Only PDF, JPG and PNG files are accepted.');
+        }
 
-        // Get the current user
-        $user = User::find($id);
-
-        $filePath = $file->move(public_path('assets/uploads/user-docs/' . $user->id . '/'), $fileName);
+        $fileName = bin2hex(random_bytes(20)) . '.' . $extension;
+        $file->move(public_path('assets/uploads/user-docs/' . $user->id . '/'), $fileName);
 
         // Get existing documents or initialize as an empty array
         $documents = $user->documents ? json_decode($user->documents, true) : [];
 
         // Add the new document with the provided file name
-        $documents[slugify($request->input('file_name'))] = $fileName;
+        $documents[slugify($request->input('file_name')) ?: 'document'] = $fileName;
 
         // Update the user's documents
         $user->update(['documents' => json_encode($documents)]);
@@ -796,8 +895,7 @@ class AdminController extends Controller
 
     public function documentsRemove($id = "", $file_name = "")
     {
-        // Find the user by ID
-        $user = User::find($id);
+        $user = $this->findDocumentOwnerOrFail($id);
 
         if ($user) {
             // Get the documents as an array
@@ -805,10 +903,18 @@ class AdminController extends Controller
 
             // Check if the file with the given file_name exists
             if (isset($documents[$file_name])) {
-                $file_path = public_path('assets/uploads/user-docs/' . $user->id . '/' . $documents[$file_name]);
+                $stored    = (string) $documents[$file_name];
+                $directory = public_path('assets/uploads/user-docs/' . $user->id);
+                $file_path = $directory . DIRECTORY_SEPARATOR . $stored;
+
+                // Only ever a plain file inside this owner's own folder.
+                $isContained = $stored !== ''
+                    && $stored === basename(str_replace('\\', '/', $stored))
+                    && realpath($file_path) !== false
+                    && str_starts_with(realpath($file_path), realpath($directory) . DIRECTORY_SEPARATOR);
 
                 // Check if the file exists
-                if (file_exists($file_path)) {
+                if ($isContained && file_exists($file_path)) {
                     // Delete the file
                     unlink($file_path);
 
@@ -884,50 +990,12 @@ class AdminController extends Controller
 
     public function adminTeacherCreate(Request $request)
     {
-        $data = $request->all();
-        if (! empty($data['photo'])) {
-
-            $imageName = time() . '.' . $data['photo']->extension();
-
-            $data['photo']->move(public_path('assets/uploads/user-images/'), $imageName);
-
-            $photo = $imageName;
-        } else {
-            $photo = '';
+        // Creation logic lives in StaffProvisioningService (identical behaviour; see StaffCreationCharacterizationTest).
+        try {
+            app(StaffProvisioningService::class)->provision(3, $request->all(), (int) auth()->user()->school_id);
+        } catch (StaffProvisioningException $e) {
+            return redirect()->back()->with('error', $e->getMessage());
         }
-        $info = [
-            'gender'      => $data['gender'],
-            'blood_group' => $data['blood_group'],
-            'birthday'    => strtotime($data['birthday']),
-            'phone'       => $data['phone'],
-            'address'     => $data['address'],
-            'photo'       => $photo,
-        ];
-
-        $data['user_information'] = json_encode($info);
-
-        $duplicate_user_check = User::get()->where('email', $data['email']);
-
-        if (count($duplicate_user_check) == 0) {
-
-            $staffFields = $this->staffFieldsFromRequest($data);
-            $password    = $this->resolveNewStaffPassword($data);
-
-            $user = User::create(array_merge($staffFields, [
-                'email'                 => $data['email'],
-                'password'              => Hash::make($password['plain']),
-                'role_id'               => '3',
-                'school_id'             => auth()->user()->school_id,
-                'user_information'      => $data['user_information'],
-                'status'                => 1,
-                'code'                  => staff_code(),
-                'staff_status'          => 'active',
-                'force_password_change' => $password['force_change'],
-            ]));
-        } else {
-            return redirect()->back()->with('error', 'Email was already taken.');
-        }
-        $this->sendStaffCredentialsEmail($user->email, $user->name, $password['plain']);
         return redirect()->back()->with('message', 'You have successfully add teacher.');
     }
 
@@ -952,11 +1020,16 @@ class AdminController extends Controller
         $data = $request->all();
         $user = $this->findStaffOrFail($id, 3);
 
+        if ($rejected = $this->rejectLoginEmailChange($user, $data['email'] ?? null)) {
+            return $rejected;
+        }
+
         if (! empty($data['photo'])) {
 
-            $imageName = time() . '.' . $data['photo']->extension();
-
-            $data['photo']->move(public_path('assets/uploads/user-images/'), $imageName);
+            $imageName = ProfilePhoto::store($data['photo']);
+            if ($imageName === null) {
+                return redirect()->back()->with('error', 'Profile photo must be a JPG or PNG image of at most 4 MB.');
+            }
 
             $photo = $imageName;
         } else {
@@ -1077,49 +1150,12 @@ class AdminController extends Controller
 
     public function accountantCreate(Request $request)
     {
-        $data = $request->all();
-        if (! empty($data['photo'])) {
-
-            $imageName = time() . '.' . $data['photo']->extension();
-
-            $data['photo']->move(public_path('assets/uploads/user-images/'), $imageName);
-
-            $photo = $imageName;
-        } else {
-            $photo = '';
+        // Creation logic lives in StaffProvisioningService (identical behaviour; see StaffCreationCharacterizationTest).
+        try {
+            app(StaffProvisioningService::class)->provision(4, $request->all(), (int) auth()->user()->school_id);
+        } catch (StaffProvisioningException $e) {
+            return redirect()->back()->with('error', $e->getMessage());
         }
-        $info = [
-            'gender'      => $data['gender'],
-            'blood_group' => $data['blood_group'],
-            'birthday'    => strtotime($data['birthday']),
-            'phone'       => $data['phone'],
-            'address'     => $data['address'],
-            'photo'       => $photo,
-        ];
-        $data['user_information'] = json_encode($info);
-
-        $duplicate_user_check = User::get()->where('email', $data['email']);
-
-        if (count($duplicate_user_check) == 0) {
-
-            $staffFields = $this->staffFieldsFromRequest($data);
-            $password    = $this->resolveNewStaffPassword($data);
-
-            $user = User::create(array_merge($staffFields, [
-                'email'                 => $data['email'],
-                'password'              => Hash::make($password['plain']),
-                'role_id'               => '4',
-                'school_id'             => auth()->user()->school_id,
-                'user_information'      => $data['user_information'],
-                'status'                => 1,
-                'code'                  => staff_code(),
-                'staff_status'          => 'active',
-                'force_password_change' => $password['force_change'],
-            ]));
-        } else {
-            return redirect()->back()->with('error', 'Email was already taken.');
-        }
-        $this->sendStaffCredentialsEmail($user->email, $user->name, $password['plain']);
         return redirect()->back()->with('message', 'You have successfully add accountant.');
     }
 
@@ -1145,11 +1181,16 @@ class AdminController extends Controller
         $data = $request->all();
         $user = $this->findStaffOrFail($id, 4);
 
+        if ($rejected = $this->rejectLoginEmailChange($user, $data['email'] ?? null)) {
+            return $rejected;
+        }
+
         if (! empty($data['photo'])) {
 
-            $imageName = time() . '.' . $data['photo']->extension();
-
-            $data['photo']->move(public_path('assets/uploads/user-images/'), $imageName);
+            $imageName = ProfilePhoto::store($data['photo']);
+            if ($imageName === null) {
+                return redirect()->back()->with('error', 'Profile photo must be a JPG or PNG image of at most 4 MB.');
+            }
 
             $photo = $imageName;
         } else {
@@ -1263,50 +1304,12 @@ class AdminController extends Controller
 
     public function librarianCreate(Request $request)
     {
-        $data = $request->all();
-        if (! empty($data['photo'])) {
-
-            $imageName = time() . '.' . $data['photo']->extension();
-
-            $data['photo']->move(public_path('assets/uploads/user-images/'), $imageName);
-
-            $photo = $imageName;
-        } else {
-            $photo = '';
+        // Creation logic lives in StaffProvisioningService (identical behaviour; see StaffCreationCharacterizationTest).
+        try {
+            app(StaffProvisioningService::class)->provision(5, $request->all(), (int) auth()->user()->school_id);
+        } catch (StaffProvisioningException $e) {
+            return redirect()->back()->with('error', $e->getMessage());
         }
-        $info = [
-            'gender'      => $data['gender'],
-            'blood_group' => $data['blood_group'],
-            'birthday'    => strtotime($data['birthday']),
-            'phone'       => $data['phone'],
-            'address'     => $data['address'],
-            'photo'       => $photo,
-        ];
-
-        $data['user_information'] = json_encode($info);
-
-        $duplicate_user_check = User::get()->where('email', $data['email']);
-
-        if (count($duplicate_user_check) == 0) {
-
-            $staffFields = $this->staffFieldsFromRequest($data);
-            $password    = $this->resolveNewStaffPassword($data);
-
-            $user = User::create(array_merge($staffFields, [
-                'email'                 => $data['email'],
-                'password'              => Hash::make($password['plain']),
-                'role_id'               => '5',
-                'school_id'             => auth()->user()->school_id,
-                'user_information'      => $data['user_information'],
-                'status'                => 1,
-                'code'                  => staff_code(),
-                'staff_status'          => 'active',
-                'force_password_change' => $password['force_change'],
-            ]));
-        } else {
-            return redirect()->back()->with('error', 'Email was already taken.');
-        }
-        $this->sendStaffCredentialsEmail($user->email, $user->name, $password['plain']);
         return redirect()->back()->with('message', 'You have successfully add librarian.');
     }
 
@@ -1324,11 +1327,16 @@ class AdminController extends Controller
         $data = $request->all();
         $user = $this->findStaffOrFail($id, 5);
 
+        if ($rejected = $this->rejectLoginEmailChange($user, $data['email'] ?? null)) {
+            return $rejected;
+        }
+
         if (! empty($data['photo'])) {
 
-            $imageName = time() . '.' . $data['photo']->extension();
-
-            $data['photo']->move(public_path('assets/uploads/user-images/'), $imageName);
+            $imageName = ProfilePhoto::store($data['photo']);
+            if ($imageName === null) {
+                return redirect()->back()->with('error', 'Profile photo must be a JPG or PNG image of at most 4 MB.');
+            }
 
             $photo = $imageName;
         } else {
@@ -1439,9 +1447,10 @@ class AdminController extends Controller
 
         if (! empty($data['photo'])) {
 
-            $imageName = time() . '.' . $data['photo']->extension();
-
-            $data['photo']->move(public_path('assets/uploads/user-images/'), $imageName);
+            $imageName = ProfilePhoto::store($data['photo']);
+            if ($imageName === null) {
+                return redirect()->back()->with('error', 'Profile photo must be a JPG or PNG image of at most 4 MB.');
+            }
 
             $photo = $imageName;
         } else {
@@ -1483,7 +1492,7 @@ class AdminController extends Controller
                 continue;
             }
 
-            $users = User::where('id', $student)->get();
+            $users = User::where('id', $student)->where('school_id', auth()->user()->school_id)->where('role_id', 7)->get();
 
             if (count($users) == 1) {
                 $users->first()->update([
@@ -1504,7 +1513,7 @@ class AdminController extends Controller
             }
         }
         if (! empty(get_settings('smtp_user')) && (get_settings('smtp_pass')) && (get_settings('smtp_host')) && (get_settings('smtp_port'))) {
-            Mail::to($data['email'])->send(new NewUserEmail($data));
+            \App\Support\Mail\SafeMail::send($data['email'], new NewUserEmail($data), 'account');
         }
 
         return redirect()->back()->with('message', 'You have successfully add parent.');
@@ -1512,7 +1521,7 @@ class AdminController extends Controller
 
     public function parentEditModal($id)
     {
-        $user    = User::find($id);
+        $user    = $this->findStaffOrFail($id, 6);
         $classes = Classes::get()->where('school_id', auth()->user()->school_id);
         return view('admin.parent.edit_parent', ['user' => $user, 'classes' => $classes]);
     }
@@ -1521,11 +1530,20 @@ class AdminController extends Controller
     {
         $data = $request->all();
 
+        // RBAC Phase 2C: only ever a parent in the caller's own school
+        // (previously User::find() reached any account, Super Admin
+        // included), and the login email must stay unique.
+        $parentUser = $this->findStaffOrFail($id, 6);
+        if ($this->loginEmailTaken($parentUser, $data['email'] ?? null)) {
+            return redirect()->back()->with('error', 'Email was already taken.');
+        }
+
         if (! empty($data['photo'])) {
 
-            $imageName = time() . '.' . $data['photo']->extension();
-
-            $data['photo']->move(public_path('assets/uploads/user-images/'), $imageName);
+            $imageName = ProfilePhoto::store($data['photo']);
+            if ($imageName === null) {
+                return redirect()->back()->with('error', 'Profile photo must be a JPG or PNG image of at most 4 MB.');
+            }
 
             $photo = $imageName;
         } else {
@@ -1552,14 +1570,11 @@ class AdminController extends Controller
 
         $data['user_information'] = json_encode($info);
 
-        $parentUser = User::find($id);
-        if ($parentUser) {
-            $parentUser->update([
-                'name'             => $data['name'],
-                'email'            => $data['email'],
-                'user_information' => $data['user_information'],
-            ]);
-        }
+        $parentUser->update([
+            'name'             => $data['name'],
+            'email'            => $data['email'],
+            'user_information' => $data['user_information'],
+        ]);
 
         //Previous parent has been empty
         foreach (User::where('parent_id', $id)->get() as $previousChild) {
@@ -1569,7 +1584,7 @@ class AdminController extends Controller
         $students = $data['student_id'] ?? [];
         foreach ($students as $student) {
             if ($student != '') {
-                $user = User::where('id', $student)->first();
+                $user = User::where('id', $student)->where('school_id', auth()->user()->school_id)->where('role_id', 7)->first();
 
                 if ($user != '') {
                     $user->update([
@@ -1584,7 +1599,7 @@ class AdminController extends Controller
 
     public function parentDelete($id)
     {
-        $user = User::find($id);
+        $user = $this->findStaffOrFail($id, 6);
         $user->delete();
         $admins = User::get()->where('role_id', 5);
         return redirect()->route('admin.parent')->with('message', 'You have successfully deleted parent.');
@@ -1633,50 +1648,12 @@ class AdminController extends Controller
 
     public function wardenCreate(Request $request)
     {
-        $data = $request->all();
-        if (! empty($data['photo'])) {
-
-            $imageName = time() . '.' . $data['photo']->extension();
-
-            $data['photo']->move(public_path('assets/uploads/user-images/'), $imageName);
-
-            $photo = $imageName;
-        } else {
-            $photo = '';
+        // Creation logic lives in StaffProvisioningService (identical behaviour; see StaffCreationCharacterizationTest).
+        try {
+            app(StaffProvisioningService::class)->provision(10, $request->all(), (int) auth()->user()->school_id);
+        } catch (StaffProvisioningException $e) {
+            return redirect()->back()->with('error', $e->getMessage());
         }
-        $info = [
-            'gender'      => $data['gender'],
-            'blood_group' => $data['blood_group'],
-            'birthday'    => strtotime($data['birthday']),
-            'phone'       => $data['phone'],
-            'address'     => $data['address'],
-            'photo'       => $photo,
-        ];
-
-        $data['user_information'] = json_encode($info);
-
-        $duplicate_user_check = User::get()->where('email', $data['email']);
-
-        if (count($duplicate_user_check) == 0) {
-
-            $staffFields = $this->staffFieldsFromRequest($data);
-            $password    = $this->resolveNewStaffPassword($data);
-
-            $user = User::create(array_merge($staffFields, [
-                'email'                 => $data['email'],
-                'password'              => Hash::make($password['plain']),
-                'role_id'               => '10',
-                'school_id'             => auth()->user()->school_id,
-                'user_information'      => $data['user_information'],
-                'status'                => 1,
-                'code'                  => staff_code(),
-                'staff_status'          => 'active',
-                'force_password_change' => $password['force_change'],
-            ]));
-        } else {
-            return redirect()->back()->with('error', 'Email was already taken.');
-        }
-        $this->sendStaffCredentialsEmail($user->email, $user->name, $password['plain']);
         return redirect()->back()->with('message', 'You have successfully add warden.');
     }
 
@@ -1695,11 +1672,16 @@ class AdminController extends Controller
         $data = $request->all();
         $user = $this->findStaffOrFail($id, 10);
 
+        if ($rejected = $this->rejectLoginEmailChange($user, $data['email'] ?? null)) {
+            return $rejected;
+        }
+
         if (! empty($data['photo'])) {
 
-            $imageName = time() . '.' . $data['photo']->extension();
-
-            $data['photo']->move(public_path('assets/uploads/user-images/'), $imageName);
+            $imageName = ProfilePhoto::store($data['photo']);
+            if ($imageName === null) {
+                return redirect()->back()->with('error', 'Profile photo must be a JPG or PNG image of at most 4 MB.');
+            }
 
             $photo = $imageName;
         } else {
@@ -1939,6 +1921,7 @@ class AdminController extends Controller
      */
     public function studentProfilePdf(Request $request, $id)
     {
+        $this->findStudentOrFail($id);
         $student_details = (new CommonController)->get_student_details_by_id($id);
         $profile = StudentProfile::where('user_id', $id)->first();
         $pdf = PDF::loadView('admin.student.profile_pdf', ['student_details' => $student_details, 'profile' => $profile]);
@@ -1952,6 +1935,7 @@ class AdminController extends Controller
      */
     public function studentProfileExportExcel($id)
     {
+        $this->findStudentOrFail($id);
         $student_details = (new CommonController)->get_student_details_by_id($id);
         $profile = StudentProfile::where('user_id', $id)->first();
 
@@ -1988,7 +1972,7 @@ class AdminController extends Controller
         $student->update(['password' => Hash::make($plainPassword)]);
 
         if (! empty(get_settings('smtp_user')) && get_settings('smtp_pass') && get_settings('smtp_host') && get_settings('smtp_port')) {
-            Mail::to($student->email)->send(new NewUserEmail([
+            \App\Support\Mail\SafeMail::send($student->email, new NewUserEmail([
                 'name'     => $student->name,
                 'email'    => $student->email,
                 'password' => $plainPassword,
@@ -2030,9 +2014,11 @@ class AdminController extends Controller
     {
         $school_id  = auth()->user()->school_id;
         $classes    = Classes::get()->where('school_id', $school_id);
+        $sessions   = Session::where('school_id', $school_id)->orderByDesc('id')->get();
+        $departments = Department::where('school_id', $school_id)->orderBy('name')->get();
         $programmes = Programme::where('school_id', $school_id)->where('is_active', 1)->orderBy('name')->get();
         $intakeSessions = IntakeSession::where('school_id', $school_id)->orderByDesc('id')->get();
-        $view_data  = ['classes' => $classes, 'programmes' => $programmes, 'intakeSessions' => $intakeSessions];
+        $view_data  = ['classes' => $classes, 'sessions' => $sessions, 'departments' => $departments, 'programmes' => $programmes, 'intakeSessions' => $intakeSessions];
         if (! $request->ajax()) {
             return view('admin.common.modal_standalone_wrapper', [
                 'page_title' => get_phrase('Create Student'),
@@ -2052,22 +2038,33 @@ class AdminController extends Controller
             'email'            => 'required|email|max:255',
             'password_option'  => 'nullable|in:auto,manual',
             'password'         => 'nullable|min:6',
-            'programme_id'     => 'nullable|exists:programmes,id',
-            'intake_session_id' => 'nullable|exists:intake_sessions,id',
+            'programme_id'     => 'nullable|exists:programmes,id,school_id,' . auth()->user()->school_id,
+            'intake_session_id' => 'nullable|exists:intake_sessions,id,school_id,' . auth()->user()->school_id,
             'nationality'      => 'nullable|max:80',
             'national_id_or_passport' => 'nullable|max:50',
             'year_of_study'    => 'nullable|integer|min:1|max:20',
             'next_of_kin_address'  => 'nullable|string',
             'next_of_kin_contact'  => 'nullable|max:30',
             'status'           => 'nullable|in:active,suspended,graduated,withdrawn,deferred',
-            'additional_photo' => 'nullable|image|max:4096',
+            'additional_photo' => 'nullable|mimes:jpg,jpeg,png|max:4096',
+            'class_id'         => 'required|integer|exists:classes,id',
+            'section_id'       => 'nullable|integer|exists:sections,id',
+            'session_id'       => 'nullable|integer|exists:sessions,id',
+            'department_id'    => 'nullable|integer|exists:departments,id',
         ]);
+
+        $this->validateStudentAcademicScope($data);
+
+        if (!empty($data['section_id']) && !Section::where('id', $data['section_id'])->where('class_id', $data['class_id'])->exists()) {
+            throw ValidationException::withMessages(['section_id' => 'The selected section does not belong to the selected class.']);
+        }
 
         if (! empty($data['photo'])) {
 
-            $imageName = time() . '.' . $data['photo']->extension();
-
-            $data['photo']->move(public_path('assets/uploads/user-images/'), $imageName);
+            $imageName = ProfilePhoto::store($data['photo']);
+            if ($imageName === null) {
+                return redirect()->back()->with('error', 'Profile photo must be a JPG or PNG image of at most 4 MB.');
+            }
 
             $photo = $imageName;
         } else {
@@ -2136,10 +2133,26 @@ class AdminController extends Controller
                 StudentFeeInvoiceGenerator::generateForStudent($student, (int) $data['programme_id'], $school_id);
             }
 
+            $runningSession = $data['session_id'] ?? get_school_settings($school_id)->value('running_session')
+                ?: Session::where('school_id', $school_id)->where('status', 1)->value('id');
+            Enrollment::create([
+                'user_id' => $student->id,
+                'class_id' => (int) $data['class_id'],
+                'section_id' => (int) ($data['section_id'] ?? 0),
+                'school_id' => $school_id,
+                'department_id' => (int) ($data['department_id'] ?? 0),
+                'session_id' => (int) ($runningSession ?? 0),
+            ]);
+
+            // Defensive no-op here (class_id is validated as required above,
+            // so Enrollment::create() just ran with a real class) — kept for
+            // parity with every other student-creation path and because
+            // EnrollmentDefaults::ensureRow() never overwrites an existing
+            // row, real or sentinel (see EnrollmentDefaultsTest).
             \App\Support\EnrollmentDefaults::ensureRow($student->id, $school_id);
 
             if (! empty(get_settings('smtp_user')) && (get_settings('smtp_pass')) && (get_settings('smtp_host')) && (get_settings('smtp_port'))) {
-                Mail::to($data['email'])->send(new NewUserEmail([
+                \App\Support\Mail\SafeMail::send($data['email'], new NewUserEmail([
                     'name'     => $data['name'],
                     'email'    => $data['email'],
                     'password' => $plainPassword,
@@ -2153,7 +2166,7 @@ class AdminController extends Controller
 
     public function studentIdCardGenerate($id)
     {
-        $student = \App\Models\User::findOrFail($id);
+        $student = $this->findStudentOrFail($id);
         $student_details = (new CommonController)->get_student_details_by_id($id);
         $studentProfile = \App\Models\StudentProfile::where('user_id', $id)->first();
         $programme = $studentProfile?->programme_id ? \App\Models\Programme::find($studentProfile->programme_id) : null;
@@ -2166,21 +2179,25 @@ class AdminController extends Controller
     }
     public function studentProfile($id)
     {
+        $this->findStudentOrFail($id);
         $student_details = (new CommonController)->get_student_details_by_id($id);
         return view('admin.student.student_profile', ['student_details' => $student_details]);
     }
 
     public function studentEditModal(Request $request, $id)
     {
-        $user            = User::find($id);
+        $user            = $this->findStudentOrFail($id);
         $student_details = (new CommonController)->get_student_details_by_id($id);
         $classes         = Classes::get()->where('school_id', auth()->user()->school_id);
+        $sessions        = Session::where('school_id', auth()->user()->school_id)->orderByDesc('id')->get();
+        $departments     = Department::where('school_id', auth()->user()->school_id)->orderBy('name')->get();
         $programmes      = Programme::where('school_id', auth()->user()->school_id)->where('is_active', 1)->orderBy('name')->get();
         $intakeSessions  = IntakeSession::where('school_id', auth()->user()->school_id)->orderByDesc('id')->get();
         $studentProfile  = StudentProfile::where('user_id', $id)->first();
         $view_data = [
             'user' => $user, 'student_details' => $student_details, 'classes' => $classes,
             'programmes' => $programmes, 'intakeSessions' => $intakeSessions, 'studentProfile' => $studentProfile,
+            'sessions' => $sessions, 'departments' => $departments,
         ];
         if (! $request->ajax()) {
             return view('admin.common.modal_standalone_wrapper', [
@@ -2196,25 +2213,44 @@ class AdminController extends Controller
     {
         $data = $request->all();
 
+        // RBAC Phase 2D: only ever a student in the caller's own school
+        // (previously User::find() reached any account, Super Admin
+        // included), and the login email must stay unique.
+        $student = $this->findStudentOrFail($id);
+        if ($this->loginEmailTaken($student, $data['email'] ?? null)) {
+            return redirect()->back()->with('error', 'Email was already taken.');
+        }
+
         $request->validate([
             'name'  => 'required|max:255',
             'email' => 'required|email|max:255',
-            'programme_id'     => 'nullable|exists:programmes,id',
-            'intake_session_id' => 'nullable|exists:intake_sessions,id',
+            'programme_id'     => 'nullable|exists:programmes,id,school_id,' . auth()->user()->school_id,
+            'intake_session_id' => 'nullable|exists:intake_sessions,id,school_id,' . auth()->user()->school_id,
             'nationality'       => 'nullable|max:80',
             'national_id_or_passport' => 'nullable|max:50',
             'year_of_study'     => 'nullable|integer|min:1|max:20',
             'next_of_kin_address'  => 'nullable|string',
             'next_of_kin_contact'  => 'nullable|max:30',
             'status'            => 'nullable|in:active,suspended,graduated,withdrawn,deferred',
-            'additional_photo'  => 'nullable|image|max:4096',
+            'additional_photo'  => 'nullable|mimes:jpg,jpeg,png|max:4096',
+            'class_id'          => 'required|integer|exists:classes,id',
+            'section_id'        => 'nullable|integer|exists:sections,id',
+            'session_id'        => 'nullable|integer|exists:sessions,id',
+            'department_id'     => 'nullable|integer|exists:departments,id',
         ]);
+
+        $this->validateStudentAcademicScope($data);
+
+        if (!empty($data['section_id']) && !Section::where('id', $data['section_id'])->where('class_id', $data['class_id'])->exists()) {
+            throw ValidationException::withMessages(['section_id' => 'The selected section does not belong to the selected class.']);
+        }
 
         if (! empty($data['photo'])) {
 
-            $imageName = time() . '.' . $data['photo']->extension();
-
-            $data['photo']->move(public_path('assets/uploads/user-images/'), $imageName);
+            $imageName = ProfilePhoto::store($data['photo']);
+            if ($imageName === null) {
+                return redirect()->back()->with('error', 'Profile photo must be a JPG or PNG image of at most 4 MB.');
+            }
 
             $photo = $imageName;
         } else {
@@ -2253,17 +2289,22 @@ class AdminController extends Controller
         // creates the row the first time a class is assigned, and from then
         // on updates it in place, exactly like a class/section-track
         // student's row already behaved.
-        $enrollmentSchoolId = auth()->user()->school_id;
-        Enrollment::updateOrCreate(
-            ['user_id' => $id, 'school_id' => $enrollmentSchoolId],
+        $schoolId = auth()->user()->school_id;
+        $runningSession = $data['session_id'] ?? get_school_settings($schoolId)->value('running_session')
+            ?: (Session::where('school_id', $schoolId)->where('status', 1)->value('id') ?? Session::value('id') ?? 1);
+        $previousEnrollment = Enrollment::where('user_id', $id)->where('school_id', $schoolId)->first();
+        $previousPlacement  = $previousEnrollment ? StatusChangeAudit::placement($previousEnrollment) : null;
+        $enrollment = Enrollment::updateOrCreate(
+            ['user_id' => $id, 'school_id' => $schoolId],
             [
-                'class_id'      => $data['class_id'] ?: 0,
-                'section_id'    => $data['section_id'] ?: 0,
-                'department_id' => 0,
-                'session_id'    => get_school_settings($enrollmentSchoolId)->value('running_session')
-                    ?: (Session::where('school_id', $enrollmentSchoolId)->value('id') ?? Session::value('id') ?? 1),
+                'class_id' => (int) $data['class_id'],
+                'section_id' => (int) ($data['section_id'] ?? 0),
+                'department_id' => (int) ($data['department_id'] ?? 0),
+                'session_id' => (int) ($runningSession ?? 0),
             ]
         );
+
+        StatusChangeAudit::enrollment($enrollment, $previousPlacement, 'Student record edit');
 
         $additionalImageName = null;
         if ($request->hasFile('additional_photo')) {
@@ -2292,8 +2333,40 @@ class AdminController extends Controller
         return redirect()->back()->with('message', 'You have successfully update student.');
     }
 
+    /**
+     * Keep student academic selections inside the administrator's school.
+     * The generic exists rules above provide friendly field validation; this
+     * guard prevents cross-school IDs from being attached to an enrollment.
+     */
+    private function validateStudentAcademicScope(array $data): void
+    {
+        $schoolId = (int) auth()->user()->school_id;
+
+        if (! Classes::where('id', $data['class_id'] ?? null)->where('school_id', $schoolId)->exists()) {
+            throw ValidationException::withMessages(['class_id' => 'The selected class is not available in this school.']);
+        }
+
+        if (! empty($data['session_id']) && ! Session::where('id', $data['session_id'])->where('school_id', $schoolId)->exists()) {
+            throw ValidationException::withMessages(['session_id' => 'The selected academic session is not available in this school.']);
+        }
+
+        if (! empty($data['department_id']) && ! Department::where('id', $data['department_id'])->where('school_id', $schoolId)->exists()) {
+            throw ValidationException::withMessages(['department_id' => 'The selected department is not available in this school.']);
+        }
+
+        if (! empty($data['section_id']) && ! Section::where('id', $data['section_id'])
+            ->where('class_id', $data['class_id'])
+            ->exists()) {
+            throw ValidationException::withMessages(['section_id' => 'The selected section is not available for this school/class.']);
+        }
+    }
+
     public function studentDelete($id)
     {
+        // RBAC Phase 2D: resolve the student (same school, role 7) before any
+        // related record below is touched.
+        $student = $this->findStudentOrFail($id);
+
         // A programme-based (HEI) student has no Enrollment row at all — only
         // a StudentProfile — so both must be handled without assuming either
         // exists, or this crashes/orphans data depending on which structure
@@ -2326,8 +2399,7 @@ class AdminController extends Controller
         $payment_history = PaymentHistory::get()->where('user_id', $id);
         $payment_history->map->delete();
 
-        $user = User::find($id);
-        $user->delete();
+        $student->delete();
 
         $students = User::get()->where('role_id', 7);
         return redirect()->back()->with('message', 'Student removed successfully.');
@@ -2338,16 +2410,23 @@ class AdminController extends Controller
      *
      * @return \Illuminate\Contracts\Support\Renderable
      */
-    public function teacherPermission()
+    public function teacherPermission(Request $request)
     {
         $classes  = Classes::get()->where('school_id', auth()->user()->school_id);
-        $default_class_id = optional($classes->first())->id;
+        $requestedClassId = (int) $request->input('class_id', 0);
+        $default_class_id = $requestedClassId && $classes->contains('id', $requestedClassId)
+            ? $requestedClassId : optional($classes->first())->id;
         $sections = collect();
-        $default_section_id = '';
+        $default_section_id = 0;
 
         if (!empty($default_class_id)) {
             $sections = Section::get()->where('class_id', $default_class_id);
-            $default_section_id = optional($sections->first())->id;
+            $default_section_id = optional($sections->first())->id ?: 0;
+        }
+
+        $requestedSectionId = (int) $request->input('section_id', 0);
+        if ($requestedSectionId && $sections->contains('id', $requestedSectionId)) {
+            $default_section_id = $requestedSectionId;
         }
 
         $teachers = User::where('role_id', 3)
@@ -2417,8 +2496,10 @@ class AdminController extends Controller
         $class_id    = $data['class_id'];
         $section_id  = $data['section_id'];
         $teacher_id  = $data['teacher_id'];
-        $column_name = $data['column_name'];
-        $value       = $data['value'];
+        $column_name = $data['column_name'] ?? '';
+        // Only the two assignment flags may be written (the column name comes from the request).
+        abort_unless(in_array($column_name, ['marks', 'attendance'], true), 422, 'Unknown teacher permission.');
+        $value       = (int) filter_var($data['value'] ?? 0, FILTER_VALIDATE_BOOLEAN);
 
         $check_row = TeacherPermission::where('class_id', $class_id)
             ->where('section_id', $section_id)
@@ -2437,15 +2518,19 @@ class AdminController extends Controller
                     'section_id' => $section_id,
                     'school_id'  => auth()->user()->school_id,
                     'teacher_id' => $teacher_id,
-                    $column_name => $data['value'],
+                    $column_name => $value,
                 ]);
         } else {
+            // teacher_permissions.marks / attendance / updated_at are NOT NULL integers with no
+            // default (migration 2022_07_24_134113): the first assignment writes all of them.
             TeacherPermission::create([
                 'class_id'   => $class_id,
                 'section_id' => $section_id,
                 'school_id'  => auth()->user()->school_id,
                 'teacher_id' => $teacher_id,
-                $column_name => 1,
+                'marks'      => $column_name === 'marks' ? $value : 0,
+                'attendance' => $column_name === 'attendance' ? $value : 0,
+                'updated_at' => time(),
             ]);
         }
     }
@@ -2457,6 +2542,18 @@ class AdminController extends Controller
      */
     public function offlineAdmissionForm($type = '')
     {
+        // Single Student Admission has been superseded by the staff-entry
+        // admission wizard (same Admission model/workflow as the online
+        // applicant portal — see App\Http\Controllers\Admin\AdmissionWizardController).
+        // This route/name is kept so existing bookmarks, the "Create Student"
+        // button (resources/views/admin/student/student_list.blade.php) and
+        // this page's own nav-permission key keep working; it now redirects
+        // into the wizard instead of rendering the old one-page form. Bulk
+        // and Excel admission are untouched — they still render this page.
+        if ($type === 'single' || $type === '') {
+            return redirect()->route('admin.hei_admissions.wizard.create');
+        }
+
         $data['parents']     = User::where(['role_id' => 6, 'school_id' => 1])->get();
         $data['departments'] = Department::get()->where('school_id', auth()->user()->school_id);
         $data['classes']     = Classes::get()->where('school_id', auth()->user()->school_id);
@@ -2485,9 +2582,7 @@ class AdminController extends Controller
 
             if (! empty($data['photo'])) {
 
-                $imageName = time() . '.' . $data['photo']->extension();
-
-                $data['photo']->move(public_path('assets/uploads/user-images/'), $imageName);
+                $imageName = ProfilePhoto::store($data['photo']) ?? '';
 
                 $photo = $imageName;
             } else {
@@ -2531,7 +2626,7 @@ class AdminController extends Controller
                 \App\Support\StudentFeeInvoiceGenerator::generateForClassBasedStudent($user, (int) $data['class_id'], auth()->user()->school_id);
 
                 if (! empty(get_settings('smtp_user')) && (get_settings('smtp_pass')) && (get_settings('smtp_host')) && (get_settings('smtp_port'))) {
-                    Mail::to($data['email'])->send(new NewUserEmail($data));
+                    \App\Support\Mail\SafeMail::send($data['email'], new NewUserEmail($data), 'account');
                 }
                 return redirect()->back()->with('message', 'Admission successfully done.');
             } else {
@@ -2586,7 +2681,8 @@ class AdminController extends Controller
                     'password'         => Hash::make($students_password[$key]),
                     'code'             => student_code(),
                     'role_id'          => '7',
-                    'parent_id'        => $students_parent[$key],
+                    // RBAC Phase 2D: only a parent in this school may be linked.
+                    'parent_id'        => User::where('id', $students_parent[$key] ?? null)->where('school_id', auth()->user()->school_id)->where('role_id', 6)->value('id'),
                     'school_id'        => auth()->user()->school_id,
                     'user_information' => $data['user_information'],
                     'status'           => 1,
@@ -2639,11 +2735,7 @@ class AdminController extends Controller
 
         $file = $data['csv_file'];
         if ($file) {
-            $filename  = $file->getClientOriginalName();
-            $extension = $file->getClientOriginalExtension(); //Get extension of uploaded file
-
-            // Upload file
-            $file->move(public_path('assets/csv_file/'), $filename);
+            $filename = SafeUpload::store($file, public_path('assets/csv_file/'), ['csv', 'txt']) ?? abort(422, 'This file type is not allowed.');
 
             // In case the uploaded file path is to be stored in the database
             $filepath = url('public/assets/csv_file/' . $filename);
@@ -2857,7 +2949,7 @@ class AdminController extends Controller
 
     public function classWiseSubject($id)
     {
-        $subjects = Subject::get()->where('class_id', $id);
+        $subjects = Classes::where('id', $id)->where('school_id', auth()->user()->school_id)->exists() ? Subject::get()->where('class_id', $id) : collect();
         $options  = '<option value="">' . 'Select a subject' . '</option>';
         foreach ($subjects as $subject):
             $options .= '<option value="' . $subject->id . '">' . $subject->name . '</option>';
@@ -3005,6 +3097,8 @@ class AdminController extends Controller
 
     public function dailyAttendanceFilter(Request $request)
     {
+        // Filter parameters are required; without them answer with a validation error (302 back / 422), never HTTP 500.
+        $request->validate(['month' => 'present', 'year' => 'present', 'class_id' => 'present', 'section_id' => 'present']);
         $data       = $request->all();
         $date       = '01 ' . $data['month'] . ' ' . $data['year'];
         $first_date = strtotime($date);
@@ -3040,6 +3134,8 @@ class AdminController extends Controller
 
     public function studentListAttendance(Request $request)
     {
+        // Filter parameters are required; without them answer with a validation error (302 back / 422), never HTTP 500.
+        $request->validate(['date' => 'present', 'class_id' => 'present', 'section_id' => 'present']);
         $data = $request->all();
 
         $page_data['attendance_date'] = $data['date'];
@@ -3091,6 +3187,10 @@ class AdminController extends Controller
 
     public function dailyAttendanceFilter_csv(Request $request)
     {
+        // The export encodes month/year in its first query key; without it answer with a validation error, never HTTP 500.
+        if (empty($request->all())) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['month' => get_phrase('Choose a month to export.')]);
+        }
 
         $data = $request->all();
 
@@ -3160,18 +3260,15 @@ class AdminController extends Controller
             }
         }
 
-        $txt = fopen($file, "w") or die("Unable to open file!");
-        fwrite($txt, $csv_content);
-        fclose($txt);
-
-        header('Content-Description: File Transfer');
-        header('Content-Disposition: attachment; filename=' . $file);
-        header('Expires: 0');
-        header('Cache-Control: must-revalidate');
-        header('Pragma: public');
-        header('Content-Length: ' . filesize($file));
-        header("Content-type: text/csv");
-        readfile($file);
+        // Security Phase 2F: streamed to the requester — no copy is written to
+        // the working directory (public/ under a web server) any more.
+        return response($csv_content, 200, [
+            'Content-Type'        => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="' . str_replace(['"', '/', '\\'], '', $file) . '"',
+            'Cache-Control'       => 'must-revalidate',
+            'Expires'             => '0',
+            'Pragma'              => 'public',
+        ]);
     }
 
     /**
@@ -3187,6 +3284,8 @@ class AdminController extends Controller
 
     public function routineList(Request $request)
     {
+        // Filter parameters are required; without them answer with a validation error (302 back / 422), never HTTP 500.
+        $request->validate(['class_id' => 'present', 'section_id' => 'present']);
         $data = $request->all();
 
         $class_id   = $data['class_id'];
@@ -3239,7 +3338,7 @@ class AdminController extends Controller
 
     public function routineEditModal($id)
     {
-        $routine     = Routine::find($id);
+        $routine     = Routine::where('school_id', auth()->user()->school_id)->findOrFail($id);
         $classes     = Classes::get()->where('school_id', auth()->user()->school_id);
         $teachers    = User::where(['role_id' => 3, 'school_id' => auth()->user()->school_id])->get();
         $class_rooms = ClassRoom::get()->where('school_id', auth()->user()->school_id);
@@ -3261,7 +3360,7 @@ class AdminController extends Controller
             return redirect()->back()->with('error', 'Please create or set an active academic session before updating routine.');
         }
 
-        $routine = Routine::find($id);
+        $routine = Routine::where('school_id', auth()->user()->school_id)->findOrFail($id);
 
         if ($routine) {
             $routine->update([
@@ -3285,7 +3384,7 @@ class AdminController extends Controller
 
     public function routineDelete($id)
     {
-        $routine = Routine::find($id);
+        $routine = Routine::where('school_id', auth()->user()->school_id)->findOrFail($id);
         $routine->delete();
         return redirect()->back()->with('message', 'You have successfully delete routine.');
     }
@@ -3303,6 +3402,8 @@ class AdminController extends Controller
 
     public function syllabusList(Request $request)
     {
+        // Filter parameters are required; without them answer with a validation error (302 back / 422), never HTTP 500.
+        $request->validate(['class_id' => 'present', 'section_id' => 'present']);
         $data = $request->all();
 
         $class_id   = $data['class_id'];
@@ -3337,10 +3438,7 @@ class AdminController extends Controller
         $filename = '';
 
         if ($file) {
-            $filename  = $file->getClientOriginalName();
-            $extension = $file->getClientOriginalExtension(); //Get extension of uploaded file
-
-            $file->move(public_path('assets/uploads/syllabus/'), $filename);
+            $filename = SafeUpload::store($file, public_path('assets/uploads/syllabus/'), null) ?? abort(422, 'This file type is not allowed.');
 
             $filepath = asset('assets/uploads/syllabus/' . $filename);
         }
@@ -3360,7 +3458,7 @@ class AdminController extends Controller
 
     public function syllabusEditModal($id)
     {
-        $syllabus = Syllabus::find($id);
+        $syllabus = Syllabus::where('school_id', auth()->user()->school_id)->findOrFail($id);
         $classes  = Classes::get()->where('school_id', auth()->user()->school_id);
         return view('admin.syllabus.edit_syllabus', ['syllabus' => $syllabus, 'classes' => $classes]);
     }
@@ -3380,15 +3478,12 @@ class AdminController extends Controller
             return redirect()->back()->with('error', 'Please create or set an active academic session before updating syllabus.');
         }
 
-        $syllabus = Syllabus::find($id);
+        $syllabus = Syllabus::where('school_id', auth()->user()->school_id)->findOrFail($id);
         $file = $data['syllabus_file'] ?? null;
         $filename = $syllabus->file ?? '';
 
         if ($file) {
-            $filename  = $file->getClientOriginalName();
-            $extension = $file->getClientOriginalExtension(); //Get extension of uploaded file
-
-            $file->move(public_path('assets/uploads/syllabus/'), $filename);
+            $filename = SafeUpload::store($file, public_path('assets/uploads/syllabus/'), null) ?? abort(422, 'This file type is not allowed.');
 
             $filepath = asset('assets/uploads/syllabus/' . $filename);
         }
@@ -3410,7 +3505,7 @@ class AdminController extends Controller
 
     public function syllabusDelete($id)
     {
-        $syllabus = Syllabus::find($id);
+        $syllabus = Syllabus::where('school_id', auth()->user()->school_id)->findOrFail($id);
         $syllabus->delete();
         return redirect()->back()->with('message', 'You have successfully delete syllabus.');
     }
@@ -3452,6 +3547,8 @@ class AdminController extends Controller
 
     public function gradebookList(Request $request)
     {
+        // Filter parameters are required; without them answer with a validation error (302 back / 422), never HTTP 500.
+        $request->validate(['class_id' => 'present', 'section_id' => 'present', 'exam_category_id' => 'present']);
         $data = $request->all();
 
         $active_session = get_school_settings(auth()->user()->school_id)->value('running_session');
@@ -3519,6 +3616,8 @@ class AdminController extends Controller
 
     public function marksFilter(Request $request)
     {
+        // Filter parameters are required; without them answer with a validation error (302 back / 422), never HTTP 500.
+        $request->validate(['exam_category_id' => 'present', 'class_id' => 'present', 'section_id' => 'present', 'subject_id' => 'present', 'session_id' => 'present']);
         $data = $request->all();
 
         $page_data['exam_category_id'] = $data['exam_category_id'];
@@ -3527,10 +3626,13 @@ class AdminController extends Controller
         $page_data['subject_id']       = $data['subject_id'];
         $page_data['session_id']       = $data['session_id'];
 
-        $page_data['class_name']    = Classes::find($data['class_id'])->name;
-        $page_data['section_name']  = Section::find($data['section_id'])->name;
-        $page_data['subject_name']  = Subject::find($data['subject_id'])->name;
-        $page_data['session_title'] = Session::find($data['session_id'])->session_title;
+        // Pre-RBAC cleanup: these ids come from the request — resolve them within this school
+        // (a section through its class), so another school's names are never echoed.
+        $class = Classes::where('school_id', auth()->user()->school_id)->findOrFail($data['class_id']);
+        $page_data['class_name']    = $class->name;
+        $page_data['section_name']  = Section::where('class_id', $class->id)->findOrFail($data['section_id'])->name;
+        $page_data['subject_name']  = Subject::where('school_id', auth()->user()->school_id)->findOrFail($data['subject_id'])->name;
+        $page_data['session_title'] = Session::where('school_id', auth()->user()->school_id)->findOrFail($data['session_id'])->session_title;
 
         $enroll_students = Enrollment::where('class_id', $page_data['class_id'])
             ->where('section_id', $page_data['section_id'])
@@ -3665,8 +3767,10 @@ class AdminController extends Controller
 
     public function promotionList(Request $request)
     {
+        // Filter parameters are required; without them answer with a validation error (302 back / 422), never HTTP 500.
+        $request->validate(['session_id_from' => 'present', 'class_id_from' => 'present', 'section_id_from' => 'present', 'class_id_to' => 'present', 'section_id_to' => 'present', 'session_id_to' => 'present']);
         $data           = $request->all();
-        $promotion_list = Enrollment::where(['session_id' => $data['session_id_from'], 'class_id' => $data['class_id_from'], 'section_id' => $data['section_id_from']])->get();
+        $promotion_list = Enrollment::where(['session_id' => $data['session_id_from'], 'class_id' => $data['class_id_from'], 'section_id' => $data['section_id_from']])->where('school_id', auth()->user()->school_id)->get();
         echo view('admin.promotion.promotion_list', ['promotion_list' => $promotion_list, 'class_id_to' => $data['class_id_to'], 'section_id_to' => $data['section_id_to'], 'session_id_to' => $data['session_id_to'], 'class_id_from' => $data['class_id_from'], 'section_id_from' => $data['section_id_from']]);
     }
 
@@ -3678,20 +3782,31 @@ class AdminController extends Controller
         $section_id     = $promotion_data[2];
         $session_id     = $promotion_data[3];
 
-        $enroll = Enrollment::find($enroll_id);
+        // Security Phase 2E: the enrollment and every destination (class,
+        // section of that class, session) must belong to the caller's school.
+        $schoolId = auth()->user()->school_id;
+        $enroll = Enrollment::where('id', $enroll_id)->where('school_id', $schoolId)->firstOrFail();
+        abort_unless(
+            Classes::where('id', $class_id)->where('school_id', $schoolId)->exists()
+            && Section::where('id', $section_id)->where('class_id', $class_id)->exists()
+            && Session::where('id', $session_id)->where('school_id', $schoolId)->exists(),
+            404
+        );
 
-        Enrollment::where('id', $enroll_id)->update([
+        $placementBefore = StatusChangeAudit::placement($enroll);
+        Enrollment::where('id', $enroll->id)->update([
             'class_id'   => $class_id,
             'section_id' => $section_id,
             'session_id' => $session_id,
         ]);
+        StatusChangeAudit::enrollment($enroll->fresh(), $placementBefore, 'Promotion');
 
         return true;
     }
 
     public function classWiseSections($id)
     {
-        $sections = Section::get()->where('class_id', $id);
+        $sections = Classes::where('id', $id)->where('school_id', auth()->user()->school_id)->exists() ? Section::get()->where('class_id', $id) : collect();
         $options  = '<option value="">' . 'Select a section' . '</option>';
         foreach ($sections as $section):
             $options .= '<option value="' . $section->id . '">' . $section->name . '</option>';
@@ -3712,7 +3827,7 @@ class AdminController extends Controller
 
             $data     = $request->all();
             $class_id = $data['class_id'] ?? '';
-            $subjects = Subject::where('class_id', $class_id)->paginate(10);
+            $subjects = Subject::where('school_id', auth()->user()->school_id)->where('class_id', $class_id)->paginate(10);
         } else {
             $subjects = Subject::where('school_id', auth()->user()->school_id)->paginate(10);
 
@@ -3736,7 +3851,7 @@ class AdminController extends Controller
         $request->validate([
             'name'         => 'required|string|max:255',
             'class_id'     => 'nullable|exists:classes,id',
-            'programme_id' => 'nullable|exists:programmes,id',
+            'programme_id' => 'nullable|exists:programmes,id,school_id,' . auth()->user()->school_id,
             'code'         => 'nullable|string|max:30',
         ]);
 
@@ -3786,7 +3901,7 @@ class AdminController extends Controller
 
     public function editSubject($id)
     {
-        $subject    = Subject::find($id);
+        $subject    = Subject::where('school_id', auth()->user()->school_id)->findOrFail($id);
         $classes    = Classes::where('school_id', auth()->user()->school_id)->get();
         $programmes = Programme::where('school_id', auth()->user()->school_id)->where('is_active', 1)->orderBy('name')->get();
         return view('admin.subject.edit_subject', ['subject' => $subject, 'classes' => $classes, 'programmes' => $programmes]);
@@ -3799,7 +3914,7 @@ class AdminController extends Controller
         $request->validate([
             'name'         => 'required|string|max:255',
             'class_id'     => 'nullable|exists:classes,id',
-            'programme_id' => 'nullable|exists:programmes,id',
+            'programme_id' => 'nullable|exists:programmes,id,school_id,' . auth()->user()->school_id,
             'code'         => 'nullable|string|max:30',
         ]);
 
@@ -3826,7 +3941,7 @@ class AdminController extends Controller
         }
 
         try {
-            Subject::where('id', $id)->update($subject_data);
+            Subject::where('school_id', auth()->user()->school_id)->where('id', $id)->update($subject_data);
         } catch (\Illuminate\Database\QueryException $e) {
             if ($e->getCode() == 23000) {
                 return redirect()->back()->with('error', get_phrase('A subject with this code already exists.'));
@@ -3839,7 +3954,7 @@ class AdminController extends Controller
 
     public function subjectDelete($id)
     {
-        $subject = Subject::find($id);
+        $subject = Subject::where('school_id', auth()->user()->school_id)->findOrFail($id);
         $subject->delete();
         $subjects = Subject::get()->where('school_id', auth()->user()->school_id);
         return redirect()->back()->with('message', 'You have successfully delete subject.');
@@ -3893,7 +4008,7 @@ class AdminController extends Controller
 
     public function editDepartment($id)
     {
-        $department = Department::find($id);
+        $department = Department::where('school_id', auth()->user()->school_id)->findOrFail($id);
         return view('admin.department.edit_department', ['department' => $department]);
     }
 
@@ -3904,7 +4019,7 @@ class AdminController extends Controller
         $duplicate_department_check = Department::get()->where('name', $data['name'])->where('school_id', auth()->user()->school_id);
 
         if (count($duplicate_department_check) == 0) {
-            $department = Department::find($id);
+            $department = Department::where('school_id', auth()->user()->school_id)->findOrFail($id);
 
             if ($department) {
                 $department->update([
@@ -3922,7 +4037,7 @@ class AdminController extends Controller
 
     public function departmentDelete($id)
     {
-        $department = Department::find($id);
+        $department = Department::where('school_id', auth()->user()->school_id)->findOrFail($id);
         $department->delete();
         return redirect()->back()->with('message', 'You have successfully delete department.');
     }
@@ -4034,7 +4149,7 @@ class AdminController extends Controller
 
     public function editClassRoom($id)
     {
-        $class_room = ClassRoom::find($id);
+        $class_room = ClassRoom::where('school_id', auth()->user()->school_id)->findOrFail($id);
         return view('admin.class_room.edit_class_room', ['class_room' => $class_room]);
     }
 
@@ -4045,7 +4160,7 @@ class AdminController extends Controller
         $duplicate_class_room_check = ClassRoom::get()->where('name', $data['name']);
 
         if (count($duplicate_class_room_check) == 0) {
-            ClassRoom::where('id', $id)->update([
+            ClassRoom::where('id', $id)->where('school_id', auth()->user()->school_id)->update([
                 'name'      => $data['name'],
                 'school_id' => auth()->user()->school_id,
             ]);
@@ -4059,7 +4174,7 @@ class AdminController extends Controller
 
     public function classRoomDelete($id)
     {
-        $department = ClassRoom::find($id);
+        $department = ClassRoom::where('school_id', auth()->user()->school_id)->findOrFail($id);
         $department->delete();
         return redirect()->back()->with('message', 'You have successfully delete class room.');
     }
@@ -4264,18 +4379,15 @@ class AdminController extends Controller
 
             $csv_content .= $invoice_no . ', ' . $student_details['name'] . ', ' . $student_details['class_name'] . ', ' . $invoice['title'] . ', ' . currency($invoice['total_amount']) . ', ' . date('d-M-Y', $invoice['timestamp']) . ', ' . currency($invoice['paid_amount']) . ', ' . $invoice['status'];
         }
-        $txt = fopen($file, "w") or die("Unable to open file!");
-        fwrite($txt, $csv_content);
-        fclose($txt);
-
-        header('Content-Description: File Transfer');
-        header('Content-Disposition: attachment; filename=' . $file);
-        header('Expires: 0');
-        header('Cache-Control: must-revalidate');
-        header('Pragma: public');
-        header('Content-Length: ' . filesize($file));
-        header("Content-type: text/csv");
-        readfile($file);
+        // Security Phase 2F: streamed to the requester — no copy is written to
+        // the working directory (public/ under a web server) any more.
+        return response($csv_content, 200, [
+            'Content-Type'        => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="' . str_replace(['"', '/', '\\'], '', $file) . '"',
+            'Cache-Control'       => 'must-revalidate',
+            'Expires'             => '0',
+            'Pragma'              => 'public',
+        ]);
     }
 
     public function feeManagerExportPdfPrint($date_from = "", $date_to = "", $selected_class = "", $selected_status = "")
@@ -4325,6 +4437,9 @@ class AdminController extends Controller
                 return back()->with('error', 'Paid amount is not equal to total amount');
             }
 
+            if (!$this->isSchoolStudent($data['student_id'] ?? null)) {
+                return back()->with('error', 'Student not found.');
+            }
             $parent_id         = User::find($data['student_id'])->toArray();
             $parent_id         = $parent_id['parent_id'];
             $data['parent_id'] = $parent_id;
@@ -4357,6 +4472,7 @@ class AdminController extends Controller
             $data['total_amount'] = $data['amount'] - ($data['discounted_price'] ?? 0);
             $enrolments           = Enrollment::where('class_id', $data['class_id'])
                 ->where('section_id', $data['section_id'])
+                ->where('school_id', auth()->user()->school_id)
                 ->get();
 
             foreach ($enrolments as $enrolment) {
@@ -4380,7 +4496,7 @@ class AdminController extends Controller
 
     public function classWiseStudents($id = '')
     {
-        $enrollments = Enrollment::get()->where('class_id', $id);
+        $enrollments = Enrollment::where('class_id', $id)->where('school_id', auth()->user()->school_id)->get();
         $options     = '<option value="">' . 'Select a student' . '</option>';
         foreach ($enrollments as $enrollment):
             $student = User::find($enrollment->user_id);
@@ -4391,7 +4507,7 @@ class AdminController extends Controller
 
     public function classWiseStudentsInvoice($id = '')
     {
-        $enrollments = Enrollment::get()->where('section_id', $id);
+        $enrollments = Enrollment::where('section_id', $id)->where('school_id', auth()->user()->school_id)->get();
         $options     = '<option value="">' . 'Select a student' . '</option>';
         foreach ($enrollments as $enrollment):
             $student = User::find($enrollment->user_id);
@@ -4402,6 +4518,7 @@ class AdminController extends Controller
 
     public function editFeeManager($id = '')
     {
+        $this->findSchoolFeeOrFail($id);
         $invoice_details = StudentFeeManager::find($id);
         $enrollments     = Enrollment::get()->where('class_id', $invoice_details->class_id);
         $classes         = Classes::where('school_id', auth()->user()->school_id)->get();
@@ -4413,6 +4530,10 @@ class AdminController extends Controller
         $data = $request->all();
 
         /*GET THE PREVIOUS INVOICE DETAILS FOR GETTING THE PAID AMOUNT*/
+        $this->findSchoolFeeOrFail($id);
+        if (!$this->isSchoolStudent($data['student_id'] ?? null)) {
+            return redirect()->back()->with('error', 'Student not found.');
+        }
         $previous_invoice_data = StudentFeeManager::find($id);
 
         if ($data['paid_amount'] > $data['total_amount']) {
@@ -4450,6 +4571,7 @@ class AdminController extends Controller
 
     public function studentFeeDelete($id)
     {
+        $this->findSchoolFeeOrFail($id);
         $invoice = StudentFeeManager::find($id);
         $invoice->delete();
         return redirect()->back()->with('message', 'You have successfully delete invoice.');
@@ -4472,7 +4594,7 @@ class AdminController extends Controller
             $expense_category_id = $data['expense_category_id'];
 
             $expense_categories = ExpenseCategory::where('school_id', auth()->user()->school_id)->get();
-            $selected_category  = ExpenseCategory::find($expense_category_id);
+            $selected_category  = ExpenseCategory::where('school_id', auth()->user()->school_id)->find($expense_category_id);
             if ($expense_category_id != 'all') {
                 $expenses = Expense::where('expense_category_id', $expense_category_id)
                     ->where('date', '>=', $date_from)
@@ -4528,7 +4650,7 @@ class AdminController extends Controller
 
     public function editExpense($id)
     {
-        $expense_details    = Expense::find($id);
+        $expense_details    = Expense::where('school_id', auth()->user()->school_id)->findOrFail($id);
         $expense_categories = ExpenseCategory::where('school_id', auth()->user()->school_id)->get();
         return view('admin.expenses.edit', ['expense_categories' => $expense_categories, 'expense_details' => $expense_details]);
     }
@@ -4539,7 +4661,7 @@ class AdminController extends Controller
 
         $active_session = get_school_settings(auth()->user()->school_id)->value('running_session');
 
-        Expense::where('id', $id)->update([
+        Expense::where('id', $id)->where('school_id', auth()->user()->school_id)->update([
             'expense_category_id' => $data['expense_category_id'],
             'date'                => strtotime($data['date']),
             'amount'              => $data['amount'],
@@ -4552,7 +4674,7 @@ class AdminController extends Controller
 
     public function expenseDelete($id)
     {
-        $expense = Expense::find($id);
+        $expense = Expense::where('school_id', auth()->user()->school_id)->findOrFail($id);
         $expense->delete();
         return redirect()->back()->with('message', 'You have successfully delete expense.');
     }
@@ -4598,7 +4720,7 @@ class AdminController extends Controller
 
     public function editExpenseCategory($id)
     {
-        $expense_category = ExpenseCategory::find($id);
+        $expense_category = ExpenseCategory::where('school_id', auth()->user()->school_id)->findOrFail($id);
         return view('admin.expense_category.edit', ['expense_category' => $expense_category]);
     }
 
@@ -4612,7 +4734,7 @@ class AdminController extends Controller
 
             $active_session = get_school_settings(auth()->user()->school_id)->value('running_session');
 
-            ExpenseCategory::where('id', $id)->update([
+            ExpenseCategory::where('id', $id)->where('school_id', auth()->user()->school_id)->update([
                 'name'       => $data['name'],
                 'school_id'  => auth()->user()->school_id,
                 'session_id' => $active_session,
@@ -4627,7 +4749,7 @@ class AdminController extends Controller
 
     public function expenseCategoryDelete($id)
     {
-        $expense_category = ExpenseCategory::find($id);
+        $expense_category = ExpenseCategory::where('school_id', auth()->user()->school_id)->findOrFail($id);
         $expense_category->delete();
         return redirect()->back()->with('message', 'You have successfully delete expense category.');
     }
@@ -4687,7 +4809,7 @@ class AdminController extends Controller
 
     public function editBook($id = "")
     {
-        $book_details = Book::find($id);
+        $book_details = Book::where('school_id', auth()->user()->school_id)->findOrFail($id);
         return view('admin.book.edit', ['book_details' => $book_details]);
     }
 
@@ -4698,7 +4820,7 @@ class AdminController extends Controller
         $duplicate_book_check = Book::get()->where('name', $data['name']);
 
         if (count($duplicate_book_check) == 0) {
-            $book = Book::find($id);
+            $book = Book::where('school_id', auth()->user()->school_id)->findOrFail($id);
 
             if ($book) {
                 $book->update([
@@ -4718,7 +4840,7 @@ class AdminController extends Controller
 
     public function bookDelete($id)
     {
-        $book = Book::find($id);
+        $book = Book::where('school_id', auth()->user()->school_id)->findOrFail($id);
         $book->delete();
         return redirect()->back()->with('message', 'You have successfully delete book.');
     }
@@ -4785,7 +4907,7 @@ class AdminController extends Controller
 
     public function editBookIssue($id = "")
     {
-        $book_issue_details = BookIssue::find($id);
+        $book_issue_details = BookIssue::where('school_id', auth()->user()->school_id)->findOrFail($id);
         $classes            = Classes::get()->where('school_id', auth()->user()->school_id);
         $books              = Book::get()->where('school_id', auth()->user()->school_id);
         return view('admin.book_issue.edit', ['book_issue_details' => $book_issue_details, 'classes' => $classes, 'books' => $books]);
@@ -4804,7 +4926,7 @@ class AdminController extends Controller
 
         unset($data['_token']);
 
-        $book_issue = BookIssue::find($id);
+        $book_issue = BookIssue::where('school_id', auth()->user()->school_id)->findOrFail($id);
 
         if ($book_issue) {
             $book_issue->update($data);
@@ -4815,7 +4937,7 @@ class AdminController extends Controller
 
     public function bookIssueReturn($id)
     {
-        $book_issue = BookIssue::find($id);
+        $book_issue = BookIssue::where('school_id', auth()->user()->school_id)->findOrFail($id);
 
         if ($book_issue) {
             $book_issue->update([
@@ -4829,7 +4951,7 @@ class AdminController extends Controller
 
     public function bookIssueDelete($id)
     {
-        $book_issue = BookIssue::find($id);
+        $book_issue = BookIssue::where('school_id', auth()->user()->school_id)->findOrFail($id);
         $book_issue->delete();
         return redirect()->back()->with('message', 'You have successfully delete a issued book.');
     }
@@ -4913,9 +5035,7 @@ class AdminController extends Controller
 
         if (! empty($data['image'])) {
 
-            $imageName = time() . '.' . $data['image']->extension();
-
-            $data['image']->move(public_path('assets/uploads/noticeboard/'), $imageName);
+            $imageName = SafeUpload::store($data['image'], public_path('assets/uploads/noticeboard/'), SafeUpload::IMAGES) ?? abort(422, 'This file type is not allowed.');
 
             $data['image'] = $imageName;
         }
@@ -4927,7 +5047,7 @@ class AdminController extends Controller
 
     public function editNoticeboard($id = "")
     {
-        $notice = Noticeboard::find($id);
+        $notice = Noticeboard::where('school_id', auth()->user()->school_id)->findOrFail($id);
         return view('admin.noticeboard.edit', ['notice' => $notice]);
     }
 
@@ -4943,23 +5063,21 @@ class AdminController extends Controller
 
         if (! empty($data['image'])) {
 
-            $imageName = time() . '.' . $data['image']->extension();
-
-            $data['image']->move(public_path('assets/uploads/noticeboard/'), $imageName);
+            $imageName = SafeUpload::store($data['image'], public_path('assets/uploads/noticeboard/'), SafeUpload::IMAGES) ?? abort(422, 'This file type is not allowed.');
 
             $data['image'] = $imageName;
         }
 
         unset($data['_token']);
 
-        Noticeboard::where('id', $id)->update($data);
+        Noticeboard::where('id', $id)->where('school_id', auth()->user()->school_id)->update($data);
 
         return redirect()->back()->with('message', 'Updated successfully.');
     }
 
     public function noticeboardDelete($id = '')
     {
-        $notice = Noticeboard::find($id);
+        $notice = Noticeboard::where('school_id', auth()->user()->school_id)->findOrFail($id);
         $notice->delete();
         return redirect()->back()->with('message', 'You have successfully delete a notice.');
     }
@@ -5078,7 +5196,7 @@ class AdminController extends Controller
 
     public function editEvent($id = "")
     {
-        $event = FrontendEvent::find($id);
+        $event = FrontendEvent::where('school_id', auth()->user()->school_id)->findOrFail($id);
         return view('admin.events.edit_event', ['event' => $event]);
     }
 
@@ -5095,14 +5213,14 @@ class AdminController extends Controller
 
         unset($data['_token']);
 
-        FrontendEvent::where('id', $id)->update($data);
+        FrontendEvent::where('id', $id)->where('school_id', auth()->user()->school_id)->update($data);
 
         return redirect()->back()->with('message', 'Updated successfully.');
     }
 
     public function eventDelete($id)
     {
-        $event = FrontendEvent::find($id);
+        $event = FrontendEvent::where('school_id', auth()->user()->school_id)->findOrFail($id);
         $event->delete();
         return redirect()->back()->with('message', 'You have successfully delete a event.');
     }
@@ -5131,9 +5249,7 @@ class AdminController extends Controller
 
             $old_image = $school_data->school_logo;
 
-            $ext         = $request->school_logoo->getClientOriginalExtension();
-            $newFileName = random(8) . '.' . $ext;
-            $request->school_logoo->move(public_path() . '/assets/uploads/school_logo', $newFileName); // This will save file in a folder.
+            $newFileName = SafeUpload::store($request->school_logoo, public_path() . '/assets/uploads/school_logo', SafeUpload::IMAGES) ?? abort(422, 'This file type is not allowed.');
             $school_data->school_logo = $newFileName;
             $school_data->save();
         }
@@ -5142,9 +5258,7 @@ class AdminController extends Controller
 
             $old_image = $school_data->email_logo;
 
-            $ext         = $request->email_logo->getClientOriginalExtension();
-            $newFileName = random(8) . '.' . $ext;
-            $request->email_logo->move(public_path() . '/assets/uploads/school_logo', $newFileName); // This will save file in a folder.
+            $newFileName = SafeUpload::store($request->email_logo, public_path() . '/assets/uploads/school_logo', SafeUpload::IMAGES) ?? abort(422, 'This file type is not allowed.');
             $school_data->email_logo = $newFileName;
             $school_data->save();
         }
@@ -5152,9 +5266,7 @@ class AdminController extends Controller
 
             $old_image = $school_data->socialLogo1;
 
-            $ext         = $request->socialLogo1->getClientOriginalExtension();
-            $newFileName = random(8) . '.' . $ext;
-            $request->socialLogo1->move(public_path() . '/assets/uploads/school_logo', $newFileName); // This will save file in a folder.
+            $newFileName = SafeUpload::store($request->socialLogo1, public_path() . '/assets/uploads/school_logo', SafeUpload::IMAGES) ?? abort(422, 'This file type is not allowed.');
             $school_data->socialLogo1 = $newFileName;
             $school_data->save();
         }
@@ -5162,9 +5274,7 @@ class AdminController extends Controller
 
             $old_image = $school_data->socialLogo2;
 
-            $ext         = $request->socialLogo2->getClientOriginalExtension();
-            $newFileName = random(8) . '.' . $ext;
-            $request->socialLogo2->move(public_path() . '/assets/uploads/school_logo', $newFileName); // This will save file in a folder.
+            $newFileName = SafeUpload::store($request->socialLogo2, public_path() . '/assets/uploads/school_logo', SafeUpload::IMAGES) ?? abort(422, 'This file type is not allowed.');
             $school_data->socialLogo2 = $newFileName;
             $school_data->save();
         }
@@ -5172,9 +5282,7 @@ class AdminController extends Controller
 
             $old_image = $school_data->socialLogo3;
 
-            $ext         = $request->socialLogo3->getClientOriginalExtension();
-            $newFileName = random(8) . '.' . $ext;
-            $request->socialLogo3->move(public_path() . '/assets/uploads/school_logo', $newFileName); // This will save file in a folder.
+            $newFileName = SafeUpload::store($request->socialLogo3, public_path() . '/assets/uploads/school_logo', SafeUpload::IMAGES) ?? abort(422, 'This file type is not allowed.');
             $school_data->socialLogo3 = $newFileName;
             $school_data->save();
         }
@@ -5197,6 +5305,7 @@ class AdminController extends Controller
 
     public function studentFeeinvoice($id)
     {
+        $this->findSchoolFeeOrFail($id);
         $invoice_details = StudentFeeManager::find($id)->toArray();
         $student_details = (new CommonController)->get_student_details_by_id($invoice_details['student_id'])->toArray();
 
@@ -5240,6 +5349,7 @@ class AdminController extends Controller
 
     public function update_offline_payment($id, $status)
     {
+        $feeBefore = $this->findSchoolFeeOrFail($id);
 
         $amount = StudentFeeManager::find($id)->toArray();
         $amount = $amount['total_amount'];
@@ -5263,13 +5373,14 @@ class AdminController extends Controller
 
             if (! empty(get_settings('smtp_user')) && (get_settings('smtp_pass')) && (get_settings('smtp_host')) && (get_settings('smtp_port'))) {
                 if (! empty($parents_id)) {
-                    Mail::to($student_email)->send(new StudentsEmail($studentFeeManager));
-                    Mail::to($parents_email)->send(new StudentsEmail($studentFeeManager));
+                    \App\Support\Mail\SafeMail::send($student_email, new StudentsEmail($studentFeeManager), 'fee-invoice');
+                    \App\Support\Mail\SafeMail::send($parents_email, new StudentsEmail($studentFeeManager), 'fee-invoice');
                 } else {
-                    Mail::to($student_email)->send(new StudentsEmail($studentFeeManager));
+                    \App\Support\Mail\SafeMail::send($student_email, new StudentsEmail($studentFeeManager), 'fee-invoice');
                 }
             }
 
+            StatusChangeAudit::feePayment($feeBefore, 'approved');
             return redirect()->back()->with('message', 'Payment Approved');
         } elseif ($status == 'decline') {
             StudentFeeManager::where('id', $id)->update([
@@ -5279,12 +5390,17 @@ class AdminController extends Controller
                 'payment_method' => 'offline'
             ]);
 
+            StatusChangeAudit::feePayment($feeBefore, 'declined');
             return redirect()->back()->with('message', 'Payment Decline');
         }
     }
 
     public function paymentSettings()
     {
+        // Payment-gateway settings (including their secret keys) need the sensitive finance.settings
+        // permission — today School Admin and Director via their base role (RBAC Phase 3A).
+        abort_unless(auth()->user()->hasPermission('finance.settings'), 403);
+
 
         $payment_gateways = PaymentMethods::where('school_id', auth()->user()->school_id)->get();
 
@@ -5355,6 +5471,10 @@ class AdminController extends Controller
 
     public function paymentSettings_post(Request $request)
     {
+        // Payment-gateway settings (including their secret keys) need the sensitive finance.settings
+        // permission — today School Admin and Director via their base role (RBAC Phase 3A).
+        abort_unless(auth()->user()->hasPermission('finance.settings'), 403);
+
         $data = $request->all();
 
         unset($data['_token']);
@@ -5367,9 +5487,7 @@ class AdminController extends Controller
 
                 $old_image = $school_data->off_pay_ins_file;
 
-                $ext         = $request->off_pay_ins_file->getClientOriginalExtension();
-                $newFileName = random(8) . '.' . $ext;
-                $request->off_pay_ins_file->move(public_path() . '/assets/uploads/offline_payment/', $newFileName); // This will save file in a folder.
+                $newFileName = SafeUpload::store($request->off_pay_ins_file, public_path() . '/assets/uploads/offline_payment/', null) ?? abort(422, 'This file type is not allowed.');
                 $school_data->off_pay_ins_file = $newFileName;
                 $school_data->save();
             }
@@ -5383,16 +5501,17 @@ class AdminController extends Controller
         }
         $method    = $data['method'];
         $update_id = $data['update_id'];
+        // Security Phase 2G: update_id comes from the request — only this school's own school/gateway rows may be updated.
 
         if ($method == 'currency') {
-            $Currency                      = School::find($update_id);
+            $Currency                      = School::where('id', auth()->user()->school_id)->findOrFail($update_id);
             $Currency['school_currency']   = $data['school_currency'];
             $Currency['currency_position'] = $data['currency_position'];
             $Currency->save();
         } elseif ($method == 'paypal') {
 
             $keys                    = [];
-            $paypal                  = PaymentMethods::find($update_id);
+            $paypal                  = PaymentMethods::where('school_id', auth()->user()->school_id)->findOrFail($update_id);
             $paypal['status']        = $data['status'];
             $paypal['mode']          = $data['mode'];
             $keys['test_client_id']  = $data['test_client_id'];
@@ -5404,7 +5523,7 @@ class AdminController extends Controller
             $paypal->save();
         } elseif ($method == 'stripe') {
             $keys                    = [];
-            $stripe                  = PaymentMethods::find($update_id);
+            $stripe                  = PaymentMethods::where('school_id', auth()->user()->school_id)->findOrFail($update_id);
             $stripe['status']        = $data['status'];
             $stripe['mode']          = $data['mode'];
             $keys['test_key']        = $data['test_key'];
@@ -5416,7 +5535,7 @@ class AdminController extends Controller
             $stripe->save();
         } elseif ($method == 'razorpay') {
             $keys                     = [];
-            $razorpay                 = PaymentMethods::find($update_id);
+            $razorpay                 = PaymentMethods::where('school_id', auth()->user()->school_id)->findOrFail($update_id);
             $razorpay['status']       = $data['status'];
             $razorpay['mode']         = $data['mode'];
             $keys['test_key']         = $data['test_key'];
@@ -5429,7 +5548,7 @@ class AdminController extends Controller
             $razorpay->save();
         } elseif ($method == 'paytm') {
             $keys                      = [];
-            $paytm                     = PaymentMethods::find($update_id);
+            $paytm                     = PaymentMethods::where('school_id', auth()->user()->school_id)->findOrFail($update_id);
             $paytm['status']           = $data['status'];
             $paytm['mode']             = $data['mode'];
             $keys['test_merchant_id']  = $data['test_merchant_id'];
@@ -5445,7 +5564,7 @@ class AdminController extends Controller
             $paytm->save();
         } elseif ($method == 'flutterwave') {
             $keys                        = [];
-            $flutterwave                 = PaymentMethods::find($update_id);
+            $flutterwave                 = PaymentMethods::where('school_id', auth()->user()->school_id)->findOrFail($update_id);
             $flutterwave['status']       = $data['status'];
             $flutterwave['mode']         = $data['mode'];
             $keys['test_key']            = $data['test_key'];
@@ -5473,7 +5592,7 @@ class AdminController extends Controller
             $paystack->save();
         } elseif ($method == 'marzpay') {
             $keys                       = [];
-            $marzpay                    = PaymentMethods::find($update_id);
+            $marzpay                    = PaymentMethods::where('school_id', auth()->user()->school_id)->findOrFail($update_id);
             $marzpay['status']          = $data['status'];
             $marzpay['mode']            = $data['mode'];
             $keys['sandbox_api_key']    = $data['sandbox_api_key'];
@@ -5802,7 +5921,7 @@ class AdminController extends Controller
             ]);
         }
 
-        Mail::to($school_email)->send(new FreeEmail($status));
+        \App\Support\Mail\SafeMail::send($school_email, new FreeEmail($status), 'school-status');
 
         return redirect()->route('admin.subscription')->with('message', 'Free Subscription Completed Successfully');
     }
@@ -5816,10 +5935,7 @@ class AdminController extends Controller
             $file = $data['document_image'];
 
             if ($file) {
-                $filename  = $file->getClientOriginalName();
-                $extension = $file->getClientOriginalExtension(); //Get extension of uploaded file
-
-                $file->move(public_path('assets/uploads/offline_payment'), $filename);
+                $filename = SafeUpload::store($file, public_path('assets/uploads/offline_payment'), null) ?? abort(422, 'This file type is not allowed.');
                 $data['document_image'] = $filename;
             } else {
                 $data['document_image'] = '';
@@ -5855,10 +5971,7 @@ class AdminController extends Controller
             $file = $data['document_image'];
 
             if ($file) {
-                $filename  = $file->getClientOriginalName();
-                $extension = $file->getClientOriginalExtension(); //Get extension of uploaded file
-
-                $file->move(public_path('assets/uploads/offline_payment'), $filename);
+                $filename = SafeUpload::store($file, public_path('assets/uploads/offline_payment'), null) ?? abort(422, 'This file type is not allowed.');
                 $data['document_image'] = $filename;
             } else {
                 $data['document_image'] = '';
@@ -5892,6 +6005,10 @@ class AdminController extends Controller
     {
         $data['name']        = $request->name;
         $data['email']       = $request->email;
+        // Security Phase 2F: a self-service profile edit must not claim another account's login email.
+        if (User::where('email', $request->email)->where('id', '!=', auth()->user()->id)->exists()) {
+            return redirect()->back()->with('error', 'Email was already taken.');
+        }
         $data['designation'] = $request->designation;
 
         $user_info['birthday'] = strtotime($request->eDefaultDateRange);
@@ -5902,10 +6019,11 @@ class AdminController extends Controller
         if (empty($request->photo)) {
             $user_info['photo'] = $request->old_photo;
         } else {
-            $file_name          = random(10) . '.png';
+            $file_name = ProfilePhoto::store($request->photo);
+            if ($file_name === null) {
+                return redirect()->back()->with('error', 'Profile photo must be a JPG or PNG image of at most 4 MB.');
+            }
             $user_info['photo'] = $file_name;
-
-            $request->photo->move(public_path('assets/uploads/user-images/'), $file_name);
         }
 
         $data['user_information'] = json_encode($user_info);
@@ -5959,13 +6077,16 @@ class AdminController extends Controller
 
     public function activeSession($id)
     {
+        // Security Phase 2G: the session must belong to this school before it can become the running session.
+        Session::where('school_id', auth()->user()->school_id)->findOrFail($id);
+
         $previous_session_id = get_school_settings(auth()->user()->school_id)->value('running_session');
 
-        Session::where('id', $previous_session_id)->update([
+        Session::where('id', $previous_session_id)->where('school_id', auth()->user()->school_id)->update([
             'status' => '0',
         ]);
 
-        $session = Session::where('id', $id)->update([
+        $session = Session::where('id', $id)->where('school_id', auth()->user()->school_id)->update([
             'status' => '1',
         ]);
 
@@ -6008,7 +6129,7 @@ class AdminController extends Controller
 
     public function editSession($id = '')
     {
-        $session = Session::find($id);
+        $session = Session::where('school_id', auth()->user()->school_id)->findOrFail($id);
         return view('admin.session.edit', ['session' => $session]);
     }
 
@@ -6018,7 +6139,7 @@ class AdminController extends Controller
 
         unset($data['_token']);
 
-        Session::where('id', $id)->update($data);
+        Session::where('id', $id)->where('school_id', auth()->user()->school_id)->update($data);
 
         return redirect()->back()->with('message', 'You have successfully update session.');
     }
@@ -6028,7 +6149,7 @@ class AdminController extends Controller
         $previous_session_id = get_school_settings(auth()->user()->school_id)->value('running_session');
 
         if ($previous_session_id != $id) {
-            $session = Session::find($id);
+            $session = Session::where('school_id', auth()->user()->school_id)->findOrFail($id);
             $session->delete();
             return redirect()->back()->with('message', 'You have successfully delete a session.');
         } else {
@@ -6040,6 +6161,12 @@ class AdminController extends Controller
     public function account_disable($id)
     {
         $user = User::where('id', $id)->where('school_id', auth()->user()->school_id)->first();
+        if ($user && !$this->mayAdministerAccountSecurity($user)) {
+            return redirect()->back()->with('error', 'You do not have permission to change this account status.');
+        }
+        if ($user && ($rejected = $this->rejectAdminLockout($user))) {
+            return $rejected;
+        }
         if ($user) {
             $user->update([
                 'account_status' => 'disable',
@@ -6052,6 +6179,9 @@ class AdminController extends Controller
     public function account_enable($id)
     {
         $user = User::where('id', $id)->where('school_id', auth()->user()->school_id)->first();
+        if ($user && !$this->mayAdministerAccountSecurity($user)) {
+            return redirect()->back()->with('error', 'You do not have permission to change this account status.');
+        }
         if ($user) {
             $user->update([
                 'account_status' => 'enable',
@@ -6100,7 +6230,7 @@ class AdminController extends Controller
     public function edit_feedback($id)
     {
 
-        $feedback = Feedback::find($id);
+        $feedback = Feedback::where('school_id', auth()->user()->school_id)->findOrFail($id);
         $classes  = Classes::get()->where('school_id', auth()->user()->school_id);
         return view('admin.feedback.edit_feedback', ['classes' => $classes], ['feedback' => $feedback]);
     }
@@ -6111,14 +6241,14 @@ class AdminController extends Controller
 
         unset($data['_token']);
 
-        Feedback::where('id', $id)->update($data);
+        Feedback::where('id', $id)->where('school_id', auth()->user()->school_id)->update($data);
 
         return redirect()->back()->with('message', 'You have successfully update feedback.');
     }
 
     public function delete_feedback($id)
     {
-        Feedback::where('id', $id)->delete();
+        Feedback::where('id', $id)->where('school_id', auth()->user()->school_id)->delete();
         return redirect()->back()->with('message', 'Delete successfully.');
     }
 
@@ -6334,7 +6464,7 @@ class AdminController extends Controller
 
     public function appraisalQuestionEdit($id)
     {
-        $appraisal = Appraisal::find($id);
+        $appraisal = Appraisal::where('school_id', auth()->user()->school_id)->findOrFail($id);
         $classes   = Classes::get()->where('school_id', auth()->user()->school_id);
         $teachers  = User::get()->where('role_id', 3)->where('school_id', auth()->user()->school_id);
         return view('admin.appraisal.appraisalQuestionEdit', ['classes' => $classes, 'appraisal' => $appraisal, 'teachers' => $teachers]);
@@ -6351,7 +6481,7 @@ class AdminController extends Controller
             'status'     => 'required|in:0,1',
         ]);
 
-        $appraisal = Appraisal::find($id);
+        $appraisal = Appraisal::where('school_id', auth()->user()->school_id)->findOrFail($id);
 
         $appraisal->class_id   = $request->input('class_id');
         $appraisal->teacher_id = json_encode($request->input('teacher_id'));
@@ -6367,7 +6497,7 @@ class AdminController extends Controller
 
     public function appraisalQuestionDelete($id)
     {
-        Appraisal::where('id', $id)->delete();
+        Appraisal::where('id', $id)->where('school_id', auth()->user()->school_id)->delete();
         return redirect()->back()->with('message', 'Delete successfully.');
     }
 
@@ -6423,7 +6553,7 @@ class AdminController extends Controller
     }
     public function edit_hostel($id)
     {
-        $page_data['hostel']  = Hostel::find($id);
+        $page_data['hostel']  = Hostel::where('school_id', auth()->user()->school_id)->findOrFail($id);
         $page_data['wardens'] = User::where('role_id', 10)->where('school_id', auth()->user()->school_id)->get();
         return view('admin.hostel.edit', $page_data);
     }
@@ -6431,12 +6561,12 @@ class AdminController extends Controller
     {
         $data = $request->all();
         unset($data['_token']);
-        Hostel::where('id', $id)->update($data);
+        Hostel::where('id', $id)->where('school_id', auth()->user()->school_id)->update($data);
         return redirect()->route('admin.hostel.hostel_list')->with('message', 'Hostel updated successfully');
     }
     public function delete_hostel($id)
     {
-        Hostel::where('id', $id)->delete();
+        Hostel::where('id', $id)->where('school_id', auth()->user()->school_id)->delete();
         return redirect()->route('admin.hostel.hostel_list')->with('message', 'Hostel deleted successfully');
     }
     // Hostel Room Management
@@ -6459,7 +6589,7 @@ class AdminController extends Controller
     }
     public function edit_hostel_room($id)
     {
-        $page_data['hostel_room'] = HostelRoom::find($id);
+        $page_data['hostel_room'] = HostelRoom::where('school_id', auth()->user()->school_id)->findOrFail($id);
         $page_data['hostels']     = Hostel::where('school_id', auth()->user()->school_id)->get();
         return view('admin.hostel_room.edit', $page_data);
     }
@@ -6467,12 +6597,12 @@ class AdminController extends Controller
     {
         $data = $request->all();
         unset($data['_token']);
-        HostelRoom::where('id', $id)->update($data);
+        HostelRoom::where('id', $id)->where('school_id', auth()->user()->school_id)->update($data);
         return redirect()->route('admin.hostel.room_list')->with('message', 'Hostel Room updated successfully');
     }
     public function delete_hostel_room($id)
     {
-        HostelRoom::where('id', $id)->delete();
+        HostelRoom::where('id', $id)->where('school_id', auth()->user()->school_id)->delete();
         return redirect()->route('admin.hostel.room_list')->with('message', 'Hostel Room deleted successfully');
     }
     public function hostel_room_allocation_list()
@@ -6492,7 +6622,7 @@ class AdminController extends Controller
         $data['school_id'] = auth()->user()->school_id;
         HostelRoomAllocation::create($data);
 
-        $room = HostelRoom::find($data['room_id']);
+        $room = HostelRoom::where('school_id', auth()->user()->school_id)->find($data['room_id']);
         if ($room) {
             $currentOccupied = HostelRoomAllocation::where('room_id', $room->id)->count();
             $room->update(['occupied' => $currentOccupied]);
@@ -6511,14 +6641,14 @@ class AdminController extends Controller
     }
     public function edit_hostel_room_allocation($id)
     {
-        $page_data['hostel_room_allocation'] = HostelRoomAllocation::find($id);
+        $page_data['hostel_room_allocation'] = HostelRoomAllocation::where('school_id', auth()->user()->school_id)->findOrFail($id);
         $page_data['hostel_rooms']           = HostelRoom::where('school_id', auth()->user()->school_id)->get();
         $page_data['students']               = User::where('role_id', 7)->where('school_id', auth()->user()->school_id)->get();
         return view('admin.hostel_room_allocation.edit', $page_data);
     }
     public function update_hostel_room_allocation(Request $request, $id)
     {
-        $allocation = HostelRoomAllocation::find($id);
+        $allocation = HostelRoomAllocation::where('school_id', auth()->user()->school_id)->findOrFail($id);
         $oldRoomId  = $allocation->room_id;
 
         $data = $request->all();
@@ -6527,7 +6657,7 @@ class AdminController extends Controller
 
         // Update occupied count for old and new room
         if ($oldRoomId != $data['room_id']) {
-            $oldRoom = HostelRoom::find($oldRoomId);
+            $oldRoom = HostelRoom::where('school_id', auth()->user()->school_id)->find($oldRoomId);
             if ($oldRoom) {
                 $oldRoom->update([
                     'occupied' => HostelRoomAllocation::where('room_id', $oldRoom->id)->count(),
@@ -6535,7 +6665,7 @@ class AdminController extends Controller
             }
         }
 
-        $newRoom = HostelRoom::find($data['room_id']);
+        $newRoom = HostelRoom::where('school_id', auth()->user()->school_id)->find($data['room_id']);
         if ($newRoom) {
             $newRoom->update([
                 'occupied' => HostelRoomAllocation::where('room_id', $newRoom->id)->count(),
@@ -6545,14 +6675,14 @@ class AdminController extends Controller
     }
     public function delete_hostel_room_allocation($id)
     {
-        $allocation = HostelRoomAllocation::find($id);
+        $allocation = HostelRoomAllocation::where('school_id', auth()->user()->school_id)->findOrFail($id);
 
         if ($allocation) {
             $roomId = $allocation->room_id;
             $allocation->delete();
 
             // Update occupied count
-            $room = HostelRoom::find($roomId);
+            $room = HostelRoom::where('school_id', auth()->user()->school_id)->find($roomId);
             if ($room) {
                 $room->update([
                     'occupied' => HostelRoomAllocation::where('room_id', $room->id)->count(),
@@ -6574,9 +6704,9 @@ class AdminController extends Controller
 
     public function approveApplication($id)
     {
-        $application = HostelApplication::findOrFail($id);
+        $application = HostelApplication::where('school_id', auth()->user()->school_id)->findOrFail($id);
 
-        $room = HostelRoom::find($application->room_id);
+        $room = HostelRoom::where('school_id', auth()->user()->school_id)->find($application->room_id);
         if ($room->occupied >= $room->capacity) {
             return redirect()->back()->with('error', 'Room is already full');
         }
@@ -6608,10 +6738,10 @@ class AdminController extends Controller
 
     public function rejectApplication($id)
     {
-        $application = HostelApplication::findOrFail($id);
+        $application = HostelApplication::where('school_id', auth()->user()->school_id)->findOrFail($id);
 
         if ($application->status == 1) {
-            $room = HostelRoom::find($application->room_id);
+            $room = HostelRoom::where('school_id', auth()->user()->school_id)->find($application->room_id);
 
             if ($room && $room->occupied > 0) {
                 $room->occupied -= 1;
@@ -6693,20 +6823,22 @@ class AdminController extends Controller
 
     public function acceptOfflinePaymentHostel($id)
     {
-        $fee = HostelFee::where('status', 0)->findOrFail($id);
+        $fee = HostelFee::where('status', 0)->where('school_id', auth()->user()->school_id)->findOrFail($id);
 
         $fee->status = 1;
         $fee->save();
 
+        StatusChangeAudit::hostelPayment($fee, 0, 'accepted');
         return redirect()->back()->with('message', get_phrase('Offline payment accepted successfully.'));
     }
     public function rejectOfflinePaymentHostel($id)
     {
-        $fee = HostelFee::where('status', 0)->findOrFail($id);
+        $fee = HostelFee::where('status', 0)->where('school_id', auth()->user()->school_id)->findOrFail($id);
 
         $fee->status = 2;
         $fee->save();
 
+        StatusChangeAudit::hostelPayment($fee, 0, 'rejected');
         return redirect()->back()->with('message', get_phrase('Offline payment rejected successfully.'));
     }
 
@@ -6729,7 +6861,7 @@ class AdminController extends Controller
         $search     = $request->search;
         $advisorId = $request->advisor_id;
 
-        $clubs = Club::with('advisor')
+        $clubs = ClubTenancy::clubs()->with('advisor')
             ->when($search, function ($query) use ($search) {
                 $query->where('club_name', 'LIKE', "%{$search}%");
             })
@@ -6740,7 +6872,7 @@ class AdminController extends Controller
             ->paginate(10)
             ->withQueryString();
 
-        $teachers = User::where('role_id', 3)
+        $teachers = User::where('school_id', auth()->user()->school_id)->where('role_id', 3)
             ->where('status', 1)
             ->get();
 
@@ -6754,7 +6886,7 @@ class AdminController extends Controller
 
     public function createClub()
     {
-        $teachers = User::where('role_id', 3)
+        $teachers = User::where('school_id', auth()->user()->school_id)->where('role_id', 3)
             ->where('status', 1)
             ->get();
         return view('admin.club.create_club', compact('teachers'));
@@ -6764,10 +6896,10 @@ class AdminController extends Controller
     {
         $request->validate([
             'club_name'  => 'required|string|max:255',
-            'advisor_id' => 'nullable|exists:users,id',
+            'advisor_id' => 'nullable|' . ClubTenancy::schoolUserRule(),
             'status'    => 'nullable|in:0,1',
         ]);
-        Club::create([
+        ClubTenancy::createClub([
             'club_name'   => $request->club_name,
             'advisor_id'  => $request->advisor_id,
             'description' => $request->description,
@@ -6780,7 +6912,7 @@ class AdminController extends Controller
 
     public function toggleStatus($id)
     {
-        $club = Club::findOrFail($id);
+        $club = ClubTenancy::findClubOrFail($id);
         $club->status = !$club->status;
         $club->save();
 
@@ -6791,14 +6923,15 @@ class AdminController extends Controller
 
     public function editClub($id)
     {
-        $club = Club::findOrFail($id);
-        $teachers = User::where('role_id', 3)->get();
+        $club = ClubTenancy::findClubOrFail($id);
+        $teachers = User::where('school_id', auth()->user()->school_id)->where('role_id', 3)->get();
         return view('admin.club.edit_club', compact('club', 'teachers'));
     }
 
     public function updateClub(Request $request, $id)
     {
-        $club = Club::findOrFail($id);
+        $club = ClubTenancy::findClubOrFail($id);
+        $request->validate(['advisor_id' => 'nullable|' . ClubTenancy::schoolUserRule()]);
         $club->update($request->all());
 
         return redirect()->route('admin.club.index')
@@ -6806,7 +6939,7 @@ class AdminController extends Controller
     }
     public function deleteClub($id)
     {
-        Club::findOrFail($id)->delete();
+        ClubTenancy::findClubOrFail($id)->delete();
         return back()->with('success', 'Club deleted');
     }
 
@@ -6814,6 +6947,8 @@ class AdminController extends Controller
 
     public function clubMembers(Request $request, Club $club)
     {
+        ClubTenancy::assertOwned($club);
+
         $search     = $request->search;
         $class_id   = $request->class_id;
         $section_id = $request->section_id;
@@ -6851,7 +6986,9 @@ class AdminController extends Controller
 
     public function addMemberForm(Club $club)
     {
-        $students = User::where('role_id', 7)
+        ClubTenancy::assertOwned($club);
+
+        $students = User::where('school_id', auth()->user()->school_id)->where('role_id', 7)
             ->whereNotIn('id', function ($q) use ($club) {
                 $q->select('student_id')
                     ->from('club_members')
@@ -6866,8 +7003,8 @@ class AdminController extends Controller
     public function storeMember(Request $request)
     {
         $request->validate([
-            'club_id'    => 'required|exists:clubs,id',
-            'student_id' => 'required|exists:users,id',
+            'club_id'    => 'required|exists:clubs,id,school_id,' . ClubTenancy::schoolId(),
+            'student_id' => 'required|' . ClubTenancy::schoolUserRule(),
         ]);
 
         $member = ClubMember::where('club_id', $request->club_id)
@@ -6890,7 +7027,9 @@ class AdminController extends Controller
     }
     public function searchMembers(Request $request, $clubId)
     {
-        $students = User::where('role', 'student')
+        ClubTenancy::findClubOrFail($clubId);
+
+        $students = User::where('school_id', auth()->user()->school_id)->where('role_id', 7) // students; users.role does not exist
             ->where('name', 'LIKE', '%' . $request->q . '%')
             ->with(['enrollment.class', 'enrollment.section'])
             ->limit(20)
@@ -6915,7 +7054,7 @@ class AdminController extends Controller
         $search  = $request->q;
         $clubId  = $request->club_id;
 
-        $students = User::where('role_id', 7)
+        $students = User::where('school_id', auth()->user()->school_id)->where('role_id', 7)
             ->where(function ($query) use ($search) {
                 $query->where('name', 'LIKE', "%{$search}%")
                     ->orWhere('email', 'LIKE', "%{$search}%");
@@ -6939,7 +7078,7 @@ class AdminController extends Controller
     }
     public function approveMember($id)
     {
-        ClubMember::where('id', $id)->update([
+        ClubTenancy::findMemberOrFail($id)->update([
             'status' => 1,
         ]);
 
@@ -6947,7 +7086,7 @@ class AdminController extends Controller
     }
     public function member_disable($id)
     {
-        ClubMember::where('id', $id)->update([
+        ClubTenancy::findMemberOrFail($id)->update([
             'status' => 0,
         ]);
 
@@ -6956,12 +7095,12 @@ class AdminController extends Controller
 
     public function rejectMember($id)
     {
-        ClubMember::where('id', $id)->update(['status' => 2]);
+        ClubTenancy::findMemberOrFail($id)->update(['status' => 2]);
         return back()->with('success', 'Rejected');
     }
     public function deleteMember($id)
     {
-        ClubMember::where('id', $id)->delete();
+        ClubTenancy::findMemberOrFail($id)->delete();
         return back()->with('success', 'Member removed');
     }
 
@@ -6969,6 +7108,8 @@ class AdminController extends Controller
 
     public function notice1_index(Club $club)
     {
+        ClubTenancy::assertOwned($club);
+
         $notices = ClubNotice::where('club_id', $club->id)
             ->latest()
             ->get();
@@ -6978,13 +7119,15 @@ class AdminController extends Controller
 
     public function notice_create(Club $club)
     {
+        ClubTenancy::assertOwned($club);
+
         return view('admin.club.notice.create', compact('club'));
     }
 
     public function notice_store(Request $request)
     {
         $data = $request->validate([
-            'club_id' => 'required',
+            'club_id' => 'required|exists:clubs,id,school_id,' . ClubTenancy::schoolId(),
             'title' => 'required',
             'description' => 'nullable|required',
             'notice_date' => 'required',
@@ -6994,9 +7137,7 @@ class AdminController extends Controller
 
         if (! empty($data['image'])) {
 
-            $imageName = time() . '.' . $data['image']->extension();
-
-            $data['image']->move(public_path('assets/uploads/club/'), $imageName);
+            $imageName = SafeUpload::store($data['image'], public_path('assets/uploads/club/'), SafeUpload::IMAGES) ?? abort(422, 'This file type is not allowed.');
 
             $data['image'] = $imageName;
         }
@@ -7019,12 +7160,12 @@ class AdminController extends Controller
 
     public function notice_edit($id)
     {
-        $notice = ClubNotice::findOrFail($id);
+        $notice = ClubTenancy::findNoticeOrFail($id);
         return view('admin.club.notice.edit', compact('notice'));
     }
     public function notice_update(Request $request, $id)
     {
-        $notice = ClubNotice::findOrFail($id);
+        $notice = ClubTenancy::findNoticeOrFail($id);
 
         $data = $request->validate([
             'title' => 'required',
@@ -7039,8 +7180,7 @@ class AdminController extends Controller
             if ($notice->image && file_exists(public_path('assets/uploads/club/' . $notice->image))) {
                 unlink(public_path('assets/uploads/club/' . $notice->image));
             }
-            $imageName = time() . '.' . $request->image->extension();
-            $request->image->move(public_path('assets/uploads/club/'), $imageName);
+            $imageName = SafeUpload::store($request->image, public_path('assets/uploads/club/'), SafeUpload::IMAGES) ?? abort(422, 'This file type is not allowed.');
 
             $data['image'] = $imageName;
         }
@@ -7053,7 +7193,7 @@ class AdminController extends Controller
 
     public function notice_delete($id)
     {
-        ClubNotice::where('id', $id)->delete();
+        ClubTenancy::findNoticeOrFail($id)->delete();
         return back()->with('success', 'Notice deleted');
     }
 
@@ -7094,9 +7234,7 @@ class AdminController extends Controller
         ];
 
         if ($request->hasFile('sign')) {
-            $ext = $request->file('sign')->getClientOriginalExtension();
-            $newFileName = time() . '.' . $ext;
-            $request->file('sign')->move(public_path('assets/upload/user-docs/'), $newFileName);
+            $newFileName = SafeUpload::store($request->file('sign'), public_path('assets/upload/user-docs/'), SafeUpload::IMAGES) ?? abort(422, 'This file type is not allowed.');
             $admitCardData['sign'] = $newFileName; // Add the sign filename to $admitCardData
         }
 
@@ -7107,13 +7245,13 @@ class AdminController extends Controller
 
     public function admitCardEdit($id)
     {
-        $admitCardEdit = AdmitCard::find($id);
+        $admitCardEdit = AdmitCard::where('school_id', auth()->user()->school_id)->findOrFail($id);
         return view('admin.examination.admit_card_edit', ['admitCardEdit' => $admitCardEdit]);
     }
 
     public function admitCardUpdate(Request $request, $id)
     {
-        $admitCard = AdmitCard::findOrFail($id);
+        $admitCard = AdmitCard::where('school_id', auth()->user()->school_id)->findOrFail($id);
 
         $admitCard->template = $request->template;
         $admitCard->heading = $request->heading;
@@ -7126,8 +7264,7 @@ class AdminController extends Controller
         if ($request->hasFile('sign')) {
             // Store the new image
             $newImage = $request->file('sign');
-            $newFileName = time() . '.' . $newImage->getClientOriginalExtension();
-            $newImage->move(public_path('assets/upload/user-docs/'), $newFileName);
+            $newFileName = SafeUpload::store($newImage, public_path('assets/upload/user-docs/'), SafeUpload::IMAGES) ?? abort(422, 'This file type is not allowed.');
 
             // Delete the old image if it exists
             if ($admitCard->sign && file_exists(public_path() . 'assets/upload/user-docs/' . $admitCard->sign)) {
@@ -7147,7 +7284,7 @@ class AdminController extends Controller
 
     public function admitCardDelete($id)
     {
-        AdmitCard::where('id', $id)->delete();
+        AdmitCard::where('id', $id)->where('school_id', auth()->user()->school_id)->delete();
         return redirect()->back()->with('message', 'Delete successfully.');
     }
 
@@ -7162,15 +7299,19 @@ class AdminController extends Controller
 
     public function admitCardFilter(Request $request)
     {
+        // Filter parameters are required; without them answer with a validation error (302 back / 422), never HTTP 500.
+        $request->validate(['class_id' => 'present', 'section_id' => 'present', 'session_id' => 'present', 'admit_card_id' => 'present']);
         $data = $request->all();
 
         $page_data['class_id'] = $data['class_id'];
         $page_data['section_id'] = $data['section_id'];
         $page_data['session_id'] = $data['session_id'];
 
-        $page_data['class_name'] = Classes::find($data['class_id'])->name;
-        $page_data['section_name'] = Section::find($data['section_id'])->name;
-        $page_data['session_title'] = Session::find($data['session_id'])->session_title;
+        // Security Phase 2G: class/section come from the request — the class must be this school's and the section that class's.
+        $class = Classes::where('school_id', auth()->user()->school_id)->findOrFail($data['class_id']);
+        $page_data['class_name'] = $class->name;
+        $page_data['section_name'] = Section::where('class_id', $class->id)->findOrFail($data['section_id'])->name;
+        $page_data['session_title'] = Session::where('school_id', auth()->user()->school_id)->find($data['session_id'])->session_title;
         $admit_cards = AdmitCard::where('school_id', auth()->user()->school_id)->get();
         $classes = Classes::where('school_id', auth()->user()->school_id)->get();
         $sessions = Session::where('school_id', auth()->user()->school_id)->get();
@@ -7179,7 +7320,7 @@ class AdminController extends Controller
             ->where('section_id', $page_data['section_id'])
             ->paginate(10);
 
-        $selected_admit_card = AdmitCard::where('id', $data['admit_card_id'])->first();
+        $selected_admit_card = AdmitCard::where('id', $data['admit_card_id'])->where('school_id', auth()->user()->school_id)->first();
         $page_data['classes'] = Classes::where('school_id', auth()->user()->school_id)->get();
 
 

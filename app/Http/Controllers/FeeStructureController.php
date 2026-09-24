@@ -65,7 +65,12 @@ class FeeStructureController extends Controller
 
         $fs = FeeStructure::create($validated);
         AuditLog::record('create', 'Fee Structures', "Created fee: {$fs->name} — {$fs->amount}");
-        return response()->json(['status' => 'success', 'message' => get_phrase('Fee structure created')]);
+        if ($request->expectsJson()) {
+            return response()->json(['status' => 'success', 'message' => get_phrase('Fee structure created')]);
+        }
+
+        return redirect()->route('admin.fee_structures.index')
+            ->with('success', get_phrase('Fee structure created'));
     }
 
     public function update(Request $request, $id)

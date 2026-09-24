@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
+use App\Support\SafeUpload;
 
 class AssignmentController extends Controller
 {
@@ -106,7 +107,8 @@ class AssignmentController extends Controller
 
     public function gradeSubmission(Request $request, $submission_id)
     {
-        $sub = AssignmentSubmission::findOrFail($submission_id);
+        // Security Phase 2G: a submission belongs to a school through its assignment.
+        $sub = AssignmentSubmission::whereHas('assignment', fn ($q) => $q->where('school_id', auth()->user()->school_id))->findOrFail($submission_id);
         $request->validate(['marks_awarded' => 'required|numeric|min:0', 'feedback' => 'nullable|string']);
         $sub->update(['marks_awarded' => $request->marks_awarded, 'feedback' => $request->feedback, 'status' => 'graded']);
         return redirect()->back()->with('success', get_phrase('Submission graded'));
@@ -162,8 +164,8 @@ class AssignmentController extends Controller
 
         if ($request->hasFile('file')) {
             $file         = $request->file('file');
-            $filename     = time() . '_' . $file->getClientOriginalName();
-            $file->move(public_path('assets/uploads/assignments'), $filename);
+            // Security Phase 2F: generated name; script/web-executable types refused.
+            $filename     = SafeUpload::store($file, public_path('assets/uploads/assignments')) ?? abort(422, 'This file type is not allowed.');
             $data['file_path'] = 'assets/uploads/assignments/' . $filename;
         }
 

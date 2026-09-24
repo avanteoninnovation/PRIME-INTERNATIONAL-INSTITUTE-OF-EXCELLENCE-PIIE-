@@ -12,15 +12,29 @@
 
 <div class="mainSection-title">
     <div class="row"><div class="col-12">
-        <div class="d-flex justify-content-between align-items-center flex-wrap gr-15">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gr-15">
             <div class="d-flex flex-column">
                 <h4>{{ $admission->full_name }}</h4>
                 <ul class="d-flex align-items-center eBreadcrumb-2">
                     <li><a href="{{ route('admin.hei_admissions.index') }}">{{ get_phrase('Admissions') }}</a></li>
                     <li><a href="#">{{ $admission->app_number }}</a></li>
                 </ul>
+                {{-- Status badges live in their own flex row, below the
+                     breadcrumb and never sharing a line with the page
+                     actions on the right — this is the structural fix for
+                     the badge/nav overlap: normal flow + wrap, no absolute
+                     positioning. --}}
+                <div class="d-flex align-items-center flex-wrap gap-2 mt-2">
+                    <span class="badge bg-{{ $admission->statusColor() }}">{{ $admission->statusLabel() }}</span>
+                    <span class="badge {{ App\Support\Admissions\ApplicationFee::isRequired($admission) ? ($admission->isFeeSettled() ? 'bg-success' : ($admission->fee_status === 'pending' ? 'bg-info text-dark' : 'bg-warning text-dark')) : 'bg-secondary' }}">
+                        {{ get_phrase('Fee') }}: {{ ucfirst($admission->fee_status) }}
+                    </span>
+                    @if($admission->source === 'staff_entry')
+                        <span class="badge bg-light text-dark border">{{ get_phrase('Staff Entry') }}</span>
+                    @endif
+                </div>
             </div>
-            <div class="export-btn-area d-flex gap-2">
+            <div class="export-btn-area d-flex gap-2 flex-wrap">
                 <a href="{{ route('admin.hei_admissions.index') }}" class="export_btn export_btn-outline">
                     <i class="bi bi-arrow-left"></i> {{ get_phrase('Back to Applications') }}
                 </a>
@@ -257,12 +271,38 @@
 
         {{-- Fee --}}
         <div class="eSection-wrap mb-3">
-            <h5 class="mb-3"><i class="bi bi-credit-card"></i> {{ get_phrase('Application Fee') }}</h5>
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                <h5 class="mb-0"><i class="bi bi-credit-card"></i> {{ get_phrase('Application Fee') }}</h5>
+                <span class="badge {{ $admission->isFeeSettled() ? 'bg-success' : ($admission->fee_status === 'pending' ? 'bg-info text-dark' : 'bg-warning text-dark') }}">
+                    {{ ucfirst($admission->fee_status) }}
+                </span>
+            </div>
 
-            <p class="mb-3">
-                {{ get_phrase('Payable') }}: <strong>{{ $feeAmount > 0 ? ApplicationFee::format((float) $feeAmount) : get_phrase('No fee for this intake') }}</strong>
-                <span class="badge bg-{{ $admission->isFeeSettled() ? 'success' : 'warning' }} ms-2">{{ ucfirst($admission->fee_status) }}</span>
-            </p>
+            @if($feeAmount > 0)
+                <div class="row g-3 mb-3">
+                    <div class="col-6 col-md-3">
+                        <small class="text-muted d-block">{{ get_phrase('Application Fee') }}</small>
+                        <strong>{{ ApplicationFee::format((float) $feeAmount) }}</strong>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <small class="text-muted d-block">{{ get_phrase('Payment Reference') }}</small>
+                        <strong id="paymentRefValue">{{ $admission->app_number }}</strong>
+                        <button type="button" class="btn btn-sm btn-link p-0 ms-1" title="{{ get_phrase('Copy') }}" onclick="copyPaymentReference()">
+                            <i class="bi bi-clipboard"></i>
+                        </button>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <small class="text-muted d-block">{{ get_phrase('Amount Paid') }}</small>
+                        <strong>{{ ApplicationFee::format($feePaid) }}</strong>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <small class="text-muted d-block">{{ get_phrase('Outstanding') }}</small>
+                        <strong class="{{ $feeOutstanding > 0 ? 'text-danger' : 'text-success' }}">{{ ApplicationFee::format($feeOutstanding) }}</strong>
+                    </div>
+                </div>
+            @else
+                <p class="text-muted mb-3">{{ get_phrase('No application fee is payable for this intake.') }}</p>
+            @endif
 
             @forelse($admission->payments->sortByDesc('id') as $payment)
                 <div class="p-3 mb-2" style="border:1px solid #e7e9ee; border-radius:8px;">
@@ -305,6 +345,77 @@
                 <p class="text-muted mb-3">{{ get_phrase('No payment has been recorded.') }}</p>
             @endforelse
 
+            @if($feeAmount > 0 && ! $admission->isFeeSettled())
+                <div class="d-flex flex-wrap gap-2 mt-3 pt-3" style="border-top:1px solid #f1f2f4;">
+                    <form action="{{ route('admin.hei_admissions.payment.request', $admission->id) }}" method="POST">
+                        @csrf
+                        <button type="submit" class="eBtn eBtn-sm eBtn-primary">
+                            <i class="bi bi-envelope"></i>
+                            {{ $admission->applicant_id ? get_phrase('Resend Payment Instructions') : get_phrase('Send Payment Instructions') }}
+                        </button>
+                    </form>
+                    <button type="button" class="eBtn eBtn-sm eBtn-outline" data-bs-toggle="collapse" data-bs-target="#recordPaymentForm">
+                        <i class="bi bi-cash-stack"></i> {{ get_phrase('Record Offline Payment') }}
+                    </button>
+                    <button type="button" class="eBtn eBtn-sm eBtn-outline" data-bs-toggle="collapse" data-bs-target="#waiveFeeForm">
+                        <i class="bi bi-x-circle"></i> {{ get_phrase('Waive Fee') }}
+                    </button>
+                </div>
+
+                <div class="collapse mt-3" id="recordPaymentForm">
+                    <div class="p-3" style="background:#f8f9fb; border-radius:8px;">
+                        <h6 class="mb-3">{{ get_phrase('Record Offline Payment') }}</h6>
+                        <form action="{{ route('admin.hei_admissions.payment.record', $admission->id) }}" method="POST">
+                            @csrf
+                            <div class="row g-2">
+                                <div class="col-md-3">
+                                    <label class="form-label">{{ get_phrase('Amount') }} *</label>
+                                    <input type="number" step="0.01" min="0.01" name="amount" class="form-control eForm-control" value="{{ $feeOutstanding > 0 ? $feeOutstanding : $feeAmount }}" required>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">{{ get_phrase('Method') }} *</label>
+                                    <select name="method" class="form-select eForm-control" required>
+                                        <option value="cash">{{ get_phrase('Cash') }}</option>
+                                        <option value="bank_transfer">{{ get_phrase('Bank Transfer') }}</option>
+                                        <option value="mobile_money">{{ get_phrase('Mobile Money') }}</option>
+                                        <option value="cheque">{{ get_phrase('Cheque') }}</option>
+                                        <option value="other">{{ get_phrase('Other') }}</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">{{ get_phrase('External Reference') }}</label>
+                                    <input type="text" name="external_reference" class="form-control eForm-control" placeholder="{{ get_phrase('Receipt / transaction #') }}">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">{{ get_phrase('Payment Date') }} *</label>
+                                    <input type="date" name="paid_at" class="form-control eForm-control" value="{{ now()->toDateString() }}" max="{{ now()->toDateString() }}" required>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label">{{ get_phrase('Note / Evidence') }}</label>
+                                    <textarea name="note" class="form-control eForm-control" rows="2" placeholder="{{ get_phrase('Optional — where/how this was verified.') }}"></textarea>
+                                </div>
+                            </div>
+                            <button type="submit" class="eBtn eBtn-sm eBtn-success mt-3">{{ get_phrase('Save Payment') }}</button>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="collapse mt-3" id="waiveFeeForm">
+                    <div class="p-3" style="background:#f8f9fb; border-radius:8px;">
+                        <h6 class="mb-3">{{ get_phrase('Waive Application Fee') }}</h6>
+                        <form action="{{ route('admin.hei_admissions.payment.waive', $admission->id) }}" method="POST">
+                            @csrf
+                            <label class="form-label">{{ get_phrase('Reason') }} *</label>
+                            <textarea name="reason" class="form-control eForm-control" rows="2" required placeholder="{{ get_phrase('Required — this becomes part of the audit record.') }}"></textarea>
+                            {{-- eBtn-warning's white-on-#f58a5e pairing falls well below
+                                 accessible contrast (~2:1) — eBtn-outline-black is used
+                                 here and below instead of touching that shared class. --}}
+                            <button type="submit" class="eBtn eBtn-sm eBtn-outline-black mt-3">{{ get_phrase('Confirm Waiver') }}</button>
+                        </form>
+                    </div>
+                </div>
+            @endif
+
         </div>
     </div>
 
@@ -315,10 +426,10 @@
         <div class="eSection-wrap mb-3">
             <h5 class="mb-3"><i class="bi bi-clipboard-check"></i> {{ get_phrase('Decision') }}</h5>
 
-            <form action="{{ route('admin.hei_admissions.status', $admission->id) }}" method="POST">
+            <form action="{{ route('admin.hei_admissions.status', $admission->id) }}" method="POST" id="decisionForm">
                 @csrf
                 <label class="form-label">{{ get_phrase('Status') }}</label>
-                <select name="status" class="form-control eForm-control mb-3">
+                <select name="status" id="decisionStatus" class="form-control eForm-control mb-3" onchange="toggleAcademicAssignment(this.value)">
                     @foreach($statuses as $option)
                         <option value="{{ $option }}" {{ $admission->status === $option ? 'selected' : '' }}>
                             {{ ucwords(str_replace('_', ' ', $option)) }}
@@ -333,6 +444,55 @@
                 <label class="form-label">{{ get_phrase('Portal password (on enrolment)') }}</label>
                 <input type="text" name="password" class="form-control eForm-control mb-3"
                        placeholder="{{ get_phrase('Leave blank to generate one automatically') }}">
+
+                {{-- Step 6 — Admission & Enrollment. Admin-only academic
+                     assignment, shown when the status is (or is being set
+                     to) Enrolled. Never exposed to the applicant portal. --}}
+                <div id="academicAssignment" class="{{ $admission->status === \App\Models\Admission::STATUS_ENROLLED ? '' : 'd-none' }} mb-3 p-3" style="background:#f8f9fb; border-radius:8px;">
+                    <div class="fw-semibold mb-2" style="font-size:13.5px;">{{ get_phrase('Academic Assignment') }}</div>
+
+                    @if($existingEnrolment)
+                        <p class="mb-0" style="font-size:13.5px;">
+                            {{ get_phrase('Already enrolled') }}:
+                            <strong>{{ optional(\App\Models\Classes::find($existingEnrolment->class_id))->name ?? $blank }}</strong>
+                            / <strong>{{ optional(\App\Models\Section::find($existingEnrolment->section_id))->name ?? $blank }}</strong>
+                            ({{ optional(\App\Models\Session::find($existingEnrolment->session_id))->session_title ?? $blank }})
+                        </p>
+                    @else
+                        <label class="form-label">{{ get_phrase('Class') }} *</label>
+                        <select name="class_id" id="eClassId" class="form-control eForm-control mb-2" onchange="classWiseSectionForEnrolment(this.value)">
+                            <option value="">{{ get_phrase('— Select —') }}</option>
+                            @foreach($classes as $class)
+                                <option value="{{ $class->id }}">{{ $class->name }}</option>
+                            @endforeach
+                        </select>
+
+                        <label class="form-label">{{ get_phrase('Section') }} *</label>
+                        <select name="section_id" id="eSectionId" class="form-control eForm-control mb-2">
+                            <option value="">{{ get_phrase('— Select a class first —') }}</option>
+                        </select>
+
+                        <label class="form-label">{{ get_phrase('Department') }}</label>
+                        <select name="department_id" class="form-control eForm-control mb-2">
+                            <option value="">{{ get_phrase('— Use programme\'s department —') }}</option>
+                            @foreach($departments as $department)
+                                <option value="{{ $department->id }}" {{ optional($admission->programme)->department_id == $department->id ? 'selected' : '' }}>{{ $department->name }}</option>
+                            @endforeach
+                        </select>
+
+                        <label class="form-label">{{ get_phrase('Academic Session') }} *</label>
+                        <select name="session_id" class="form-control eForm-control mb-2">
+                            <option value="">{{ get_phrase('— Select —') }}</option>
+                            @foreach($academicSessions as $session)
+                                <option value="{{ $session->id }}">{{ $session->session_title }}</option>
+                            @endforeach
+                        </select>
+
+                        <div class="text-muted" style="font-size:12.5px;">
+                            {{ get_phrase('Required to complete enrolment. Class and Section come from the school\'s own academic structure, not the candidate\'s application.') }}
+                        </div>
+                    @endif
+                </div>
 
                 <button type="submit" class="eBtn w-100">{{ get_phrase('Update Status') }}</button>
             </form>
@@ -350,7 +510,7 @@
                     @csrf
                     <textarea name="correction_note" class="form-control eForm-control mb-2" rows="3" required
                               placeholder="{{ get_phrase('What exactly does the applicant need to change?') }}">{{ $admission->correction_note }}</textarea>
-                    <button type="submit" class="eBtn eBtn-warning w-100">{{ get_phrase('Return to Applicant') }}</button>
+                    <button type="submit" class="eBtn eBtn-outline-black w-100">{{ get_phrase('Return to Applicant') }}</button>
                 </form>
             </div>
         @endif
@@ -389,5 +549,46 @@
         </div>
     </div>
 </div>
+
+<script type="text/javascript">
+    "use strict";
+
+    function toggleAcademicAssignment(status) {
+        var wrap = document.getElementById('academicAssignment');
+        if (!wrap) return;
+        wrap.classList.toggle('d-none', status !== 'enrolled');
+    }
+
+    function classWiseSectionForEnrolment(classId) {
+        var target = document.getElementById('eSectionId');
+        if (!target || !classId) return;
+
+        var url = "{{ route('admin.class_wise_sections', ['id' => ':classId']) }}".replace(':classId', classId);
+
+        fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(function (response) { return response.text(); })
+            .then(function (html) { target.innerHTML = html; })
+            .catch(function () {});
+    }
+
+    function copyPaymentReference() {
+        var el = document.getElementById('paymentRefValue');
+        if (!el) return;
+        var text = el.textContent.trim();
+
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).catch(function () {});
+        } else {
+            var scratch = document.createElement('textarea');
+            scratch.value = text;
+            scratch.style.position = 'fixed';
+            scratch.style.opacity = '0';
+            document.body.appendChild(scratch);
+            scratch.select();
+            try { document.execCommand('copy'); } catch (e) {}
+            document.body.removeChild(scratch);
+        }
+    }
+</script>
 
 @endsection

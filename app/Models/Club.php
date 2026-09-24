@@ -22,6 +22,8 @@ class Club extends Model
     {
         return $this->hasMany(ClubMember::class);
     }
+    // school_id is deliberately not fillable: it is always set from the
+    // creator's own school (Security Phase 2H), never from request input.
     public function school()
 {
     return $this->belongsTo(\App\Models\School::class, 'school_id');

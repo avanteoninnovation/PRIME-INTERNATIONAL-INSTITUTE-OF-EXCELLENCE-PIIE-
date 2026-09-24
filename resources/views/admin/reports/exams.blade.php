@@ -21,15 +21,15 @@
             <thead><tr><th>#</th><th>{{ get_phrase('Student') }}</th><th>{{ get_phrase('Exam') }}</th><th class="text-center">{{ get_phrase('Score') }}</th><th class="text-center">{{ get_phrase('Total') }}</th><th class="text-center">{{ get_phrase('%') }}</th><th class="text-center">{{ get_phrase('Result') }}</th><th>{{ get_phrase('Submitted') }}</th></tr></thead>
             <tbody>
             @forelse($submissions as $i => $sub)
-            @php $pct = $sub->total_marks>0 ? round($sub->score/$sub->total_marks*100,1) : 0; @endphp
+            @php $pct = $sub->result_total_marks>0 ? round($sub->score/$sub->result_total_marks*100,1) : 0; @endphp
             <tr>
                 <td>{{ $submissions->firstItem() + $i }}</td>
                 <td>{{ optional($sub->student)->name ?? '—' }}</td>
                 <td>{{ optional($sub->exam)->title ?? '—' }}</td>
                 <td class="text-center">{{ $sub->score }}</td>
-                <td class="text-center">{{ $sub->total_marks }}</td>
+                <td class="text-center">{{ $sub->result_total_marks }}</td>
                 <td class="text-center">{{ $pct }}%</td>
-                <td class="text-center"><span class="badge bg-{{ $sub->passed?'success':'danger' }}">{{ $sub->passed ? get_phrase('Pass') : get_phrase('Fail') }}</span></td>
+                <td class="text-center"><span class="badge bg-{{ $sub->passed?'success':'danger' }}">{{ is_null($sub->passed) ? get_phrase('Pending') : ($sub->passed ? get_phrase('Pass') : get_phrase('Fail')) }}</span></td>
                 <td>{{ $sub->created_at?->format('d M Y H:i') }}</td>
             </tr>
             @empty

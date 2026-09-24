@@ -23,13 +23,8 @@ class StudentIdCardTest extends TestCase
         $this->bootAdmissionsTestSchema();
 
         // get_student_details_by_id() (CommonController) looks up a Role
-        // row by role_id — not part of the shared schema since most tests
-        // never touch it.
-        \Illuminate\Support\Facades\Schema::create('roles', function (\Illuminate\Database\Schema\Blueprint $table) {
-            $table->increments('role_id');
-            $table->string('name');
-            $table->unsignedBigInteger('school_id')->default(0);
-        });
+        // row by role_id — the roles table itself is part of the shared
+        // schema (AdmissionsTestHelper), seeded here per-test as needed.
         DB::table('roles')->insert(['role_id' => 7, 'name' => 'Student', 'school_id' => 0]);
     }
 

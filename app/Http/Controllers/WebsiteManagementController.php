@@ -12,6 +12,9 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;
+use App\Support\PublicTenantResolver;
+use App\Support\SafeUpload;
+use Illuminate\Validation\Rule;
 
 class WebsiteManagementController extends Controller
 {
@@ -20,7 +23,9 @@ class WebsiteManagementController extends Controller
         if (!Schema::hasTable('website_pages')) {
             Schema::create('website_pages', function (Blueprint $table) {
                 $table->id();
-                $table->string('page_key')->unique();
+                $table->unsignedBigInteger('school_id')->nullable()->index();
+                $table->string('page_key');
+                $table->unique(['school_id', 'page_key']);
                 $table->string('title');
                 $table->string('slug')->nullable();
                 $table->tinyInteger('status')->default(1);
@@ -34,6 +39,7 @@ class WebsiteManagementController extends Controller
         if (!Schema::hasTable('website_sections')) {
             Schema::create('website_sections', function (Blueprint $table) {
                 $table->id();
+                $table->unsignedBigInteger('school_id')->nullable()->index();
                 $table->string('page_key')->index();
                 $table->string('section_key')->index();
                 $table->string('title')->nullable();
@@ -50,6 +56,7 @@ class WebsiteManagementController extends Controller
         if (!Schema::hasTable('website_items')) {
             Schema::create('website_items', function (Blueprint $table) {
                 $table->id();
+                $table->unsignedBigInteger('school_id')->nullable()->index();
                 $table->string('section_key')->index();
                 $table->string('item_type')->default('general');
                 $table->string('title')->nullable();
@@ -69,7 +76,9 @@ class WebsiteManagementController extends Controller
         if (!Schema::hasTable('website_settings')) {
             Schema::create('website_settings', function (Blueprint $table) {
                 $table->id();
-                $table->string('key')->unique();
+                $table->unsignedBigInteger('school_id')->nullable()->index();
+                $table->string('key');
+                $table->unique(['school_id', 'key']);
                 $table->longText('value')->nullable();
                 $table->tinyInteger('is_json')->default(0);
                 $table->tinyInteger('status')->default(1);
@@ -80,7 +89,9 @@ class WebsiteManagementController extends Controller
         if (!Schema::hasTable('website_seo_settings')) {
             Schema::create('website_seo_settings', function (Blueprint $table) {
                 $table->id();
-                $table->string('page_key')->unique();
+                $table->unsignedBigInteger('school_id')->nullable()->index();
+                $table->string('page_key');
+                $table->unique(['school_id', 'page_key']);
                 $table->string('meta_title')->nullable();
                 $table->text('meta_description')->nullable();
                 $table->text('meta_keywords')->nullable();
@@ -92,20 +103,72 @@ class WebsiteManagementController extends Controller
 
         if (Schema::hasTable('website_pages') && WebsitePage::count() === 0) {
             (new WebsiteContentSeeder())->run();
+
+            // Security Phase 2H: the default content is the public site's, so it belongs to the
+            // school PIIE serves its public site for (App\Support\PublicTenantResolver).
+            $publicSchoolId = PublicTenantResolver::resolveSchoolId();
+            if ($publicSchoolId) {
+                foreach ([WebsitePage::class, WebsiteSection::class, WebsiteItem::class, WebsiteSetting::class, WebsiteSeoSetting::class] as $model) {
+                    $model::whereNull('school_id')->update(['school_id' => $publicSchoolId]);
+                }
+            }
         }
+    }
+
+    /**
+     * Security Phase 2H: the school whose website is being managed. School staff
+     * manage only their own school's site; Super Admin manages the public site,
+     * which PIIE attributes to one school (App\Support\PublicTenantResolver).
+     * A submitted school_id is never read.
+     */
+    private function cmsSchoolId(): int
+    {
+        $schoolId = (int) auth()->user()->role_id === 1
+            ? PublicTenantResolver::resolveSchoolId()
+            : auth()->user()->school_id;
+
+        abort_if(empty($schoolId), 404);
+
+        return (int) $schoolId;
+    }
+
+    /** A CMS row of the managed school, or 404. */
+    private function findOwned(string $model, $id)
+    {
+        return $model::where('school_id', $this->cmsSchoolId())->findOrFail($id);
+    }
+
+    /** Creates a CMS row owned by the managed school (school_id is never mass-assigned). */
+    private function createOwned(string $model, array $data)
+    {
+        $row = new $model($data);
+        $row->school_id = $this->cmsSchoolId();
+        $row->save();
+
+        return $row;
+    }
+
+    /** Updates the managed school's row for a key, or creates it. */
+    private function upsertOwned(string $model, array $match, array $values)
+    {
+        $row = $model::where('school_id', $this->cmsSchoolId())->where($match)->first();
+
+        return $row ? tap($row)->update($values) : $this->createOwned($model, $match + $values);
     }
 
     private function viewData()
     {
         $this->ensureWebsiteTablesAndSeed();
 
+        $schoolId = $this->cmsSchoolId();
+
         return [
             'modules' => $this->moduleMap(),
-            'pages' => WebsitePage::orderBy('sort_order')->orderBy('id')->get(),
-            'sections' => WebsiteSection::orderBy('sort_order')->orderBy('id')->get(),
-            'items' => WebsiteItem::orderBy('sort_order')->orderBy('id')->get(),
-            'seo' => WebsiteSeoSetting::orderBy('page_key')->get()->keyBy('page_key'),
-            'settings' => WebsiteSetting::orderBy('key')->get()->keyBy('key'),
+            'pages' => WebsitePage::where('school_id', $schoolId)->orderBy('sort_order')->orderBy('id')->get(),
+            'sections' => WebsiteSection::where('school_id', $schoolId)->orderBy('sort_order')->orderBy('id')->get(),
+            'items' => WebsiteItem::where('school_id', $schoolId)->orderBy('sort_order')->orderBy('id')->get(),
+            'seo' => WebsiteSeoSetting::where('school_id', $schoolId)->orderBy('page_key')->get()->keyBy('page_key'),
+            'settings' => WebsiteSetting::where('school_id', $schoolId)->orderBy('key')->get()->keyBy('key'),
         ];
     }
 
@@ -156,13 +219,13 @@ class WebsiteManagementController extends Controller
             File::makeDirectory($dir, 0755, true);
         }
 
+        // Security Phase 2F: generated name with an allowed extension (the image|mimes rule only
+        // checks content); the old image is removed only once the new one is safely stored.
+        $name = SafeUpload::store($request->file($field), $dir, ['jpg', 'jpeg', 'png', 'webp']) ?? abort(422, 'This file type is not allowed.');
+
         if (!empty($old) && File::exists($dir . $old)) {
             File::delete($dir . $old);
         }
-
-        $file = $request->file($field);
-        $name = time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
-        $file->move($dir, $name);
 
         return $name;
     }
@@ -191,7 +254,7 @@ class WebsiteManagementController extends Controller
         $this->ensureWebsiteTablesAndSeed();
 
         $data = $request->validate([
-            'page_key' => 'required|string|max:191|unique:website_pages,page_key',
+            'page_key' => ['required', 'string', 'max:191', Rule::unique('website_pages', 'page_key')->where('school_id', $this->cmsSchoolId())],
             'title' => 'required|string|max:191',
             'slug' => 'nullable|string|max:191',
             'sort_order' => 'nullable|integer',
@@ -203,7 +266,7 @@ class WebsiteManagementController extends Controller
         $data['created_by'] = auth()->id();
         $data['updated_by'] = auth()->id();
 
-        WebsitePage::create($data);
+        $this->createOwned(WebsitePage::class, $data);
 
         return $this->backToPanel($request, 'Website page created successfully.');
     }
@@ -212,10 +275,10 @@ class WebsiteManagementController extends Controller
     {
         $this->ensureWebsiteTablesAndSeed();
 
-        $page = WebsitePage::findOrFail($id);
+        $page = $this->findOwned(WebsitePage::class, $id);
 
         $data = $request->validate([
-            'page_key' => 'required|string|max:191|unique:website_pages,page_key,' . $page->id,
+            'page_key' => ['required', 'string', 'max:191', Rule::unique('website_pages', 'page_key')->where('school_id', $page->school_id)->ignore($page->id)],
             'title' => 'required|string|max:191',
             'slug' => 'nullable|string|max:191',
             'sort_order' => 'nullable|integer',
@@ -235,7 +298,7 @@ class WebsiteManagementController extends Controller
     {
         $this->ensureWebsiteTablesAndSeed();
 
-        $page = WebsitePage::findOrFail($id);
+        $page = $this->findOwned(WebsitePage::class, $id);
         $page->delete();
 
         return $this->backToPanel($request, 'Website page deleted successfully.');
@@ -261,7 +324,7 @@ class WebsiteManagementController extends Controller
         $data['status'] = $data['status'] ?? 1;
         $data['image'] = $this->saveImage($request, 'image');
 
-        WebsiteSection::create($data);
+        $this->createOwned(WebsiteSection::class, $data);
 
         return $this->backToPanel($request, 'Section created successfully.');
     }
@@ -270,7 +333,7 @@ class WebsiteManagementController extends Controller
     {
         $this->ensureWebsiteTablesAndSeed();
 
-        $section = WebsiteSection::findOrFail($id);
+        $section = $this->findOwned(WebsiteSection::class, $id);
 
         $data = $request->validate([
             'page_key' => 'required|string|max:191',
@@ -297,7 +360,7 @@ class WebsiteManagementController extends Controller
     {
         $this->ensureWebsiteTablesAndSeed();
 
-        $section = WebsiteSection::findOrFail($id);
+        $section = $this->findOwned(WebsiteSection::class, $id);
 
         if (!empty($section->image)) {
             $file = public_path('assets/uploads/website/' . $section->image);
@@ -335,7 +398,7 @@ class WebsiteManagementController extends Controller
         $data['status'] = $data['status'] ?? 1;
         $data['image'] = $this->saveImage($request, 'image');
 
-        WebsiteItem::create($data);
+        $this->createOwned(WebsiteItem::class, $data);
 
         return $this->backToPanel($request, 'Item created successfully.');
     }
@@ -344,7 +407,7 @@ class WebsiteManagementController extends Controller
     {
         $this->ensureWebsiteTablesAndSeed();
 
-        $item = WebsiteItem::findOrFail($id);
+        $item = $this->findOwned(WebsiteItem::class, $id);
 
         $data = $request->validate([
             'section_key' => 'required|string|max:191',
@@ -375,7 +438,7 @@ class WebsiteManagementController extends Controller
     {
         $this->ensureWebsiteTablesAndSeed();
 
-        $item = WebsiteItem::findOrFail($id);
+        $item = $this->findOwned(WebsiteItem::class, $id);
 
         if (!empty($item->image)) {
             $file = public_path('assets/uploads/website/' . $item->image);
@@ -402,7 +465,7 @@ class WebsiteManagementController extends Controller
         ]);
 
         foreach ($validated['settings'] as $setting) {
-            WebsiteSetting::updateOrCreate(
+            $this->upsertOwned(WebsiteSetting::class,
                 ['key' => $setting['key']],
                 [
                     'value' => $setting['value'] ?? null,
@@ -430,7 +493,7 @@ class WebsiteManagementController extends Controller
         ]);
 
         foreach ($validated['seo'] as $row) {
-            WebsiteSeoSetting::updateOrCreate(
+            $this->upsertOwned(WebsiteSeoSetting::class,
                 ['page_key' => $row['page_key']],
                 [
                     'meta_title' => $row['meta_title'] ?? null,

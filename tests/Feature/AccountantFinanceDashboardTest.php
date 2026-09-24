@@ -30,12 +30,8 @@ class AccountantFinanceDashboardTest extends TestCase
 
         // Needed by CommonController::get_student_details_by_id(), which
         // the dashboard's recent-payments/top-outstanding lists call per
-        // invoice to resolve a student's display name.
-        Schema::create('roles', function (Blueprint $table) {
-            $table->increments('role_id');
-            $table->string('name');
-            $table->unsignedBigInteger('school_id')->default(0);
-        });
+        // invoice to resolve a student's display name. The roles table
+        // itself is part of the shared schema (AdmissionsTestHelper).
         \Illuminate\Support\Facades\DB::table('roles')->insert(['role_id' => 7, 'name' => 'Student', 'school_id' => 0]);
     }
 

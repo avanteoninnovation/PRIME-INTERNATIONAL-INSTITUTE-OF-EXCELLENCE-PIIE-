@@ -33,6 +33,7 @@ use App\Models\Admin;
 use App\Models\ExpenseCategory;
 use App\Models\Expense;
 use App\Models\StudentFeeManager;
+use App\Support\Admissions\ApplicationDocuments;
 use App\Models\Payments;
 use App\Models\Feedback;
 use App\Models\MessageThrade;
@@ -41,6 +42,8 @@ use App\Models\PaymentMethods;
 
 use Illuminate\Foundation\Auth\User as AuthUser;
 use PhpParser\Builder\Class_;
+use App\Support\ProfilePhoto;
+use App\Support\Audit\StatusChangeAudit;
 
 class ParentController extends Controller
 {
@@ -90,7 +93,7 @@ class ParentController extends Controller
 
     public function studentIdCardGenerate($id)
     {
-        $student = \App\Models\User::findOrFail($id);
+        $student = $this->findOwnChildOrFail($id);
         $student_details = (new CommonController)->get_student_details_by_id($id);
         $studentProfile = \App\Models\StudentProfile::where('user_id', $id)->first();
         $programme = $studentProfile?->programme_id ? \App\Models\Programme::find($studentProfile->programme_id) : null;
@@ -141,6 +144,7 @@ class ParentController extends Controller
 
     public function FeePayment(Request $request, $id)
     {
+        $this->findOwnFeeOrFail($id);
 
         $fee_details = StudentFeeManager::where('id', $id)->first()->toArray();
         $user_info = User::where('id', auth()->user()->id)->first()->toArray();
@@ -257,22 +261,20 @@ class ParentController extends Controller
 
             $csv_content .= $invoice_no . ', ' . $student_details['name'] . ', ' . $student_details['class_name'] . ', ' . $invoice['title'] . ', ' . currency($invoice['total_amount']) . ', ' . date('d-M-Y', $invoice['timestamp']) . ', ' . currency($invoice['paid_amount']) . ', ' . $invoice['status'];
         }
-        $txt = fopen($file, "w") or die("Unable to open file!");
-        fwrite($txt, $csv_content);
-        fclose($txt);
-
-        header('Content-Description: File Transfer');
-        header('Content-Disposition: attachment; filename=' . $file);
-        header('Expires: 0');
-        header('Cache-Control: must-revalidate');
-        header('Pragma: public');
-        header('Content-Length: ' . filesize($file));
-        header("Content-type: text/csv");
-        readfile($file);
+        // Security Phase 2F: streamed to the requester — no copy is written to
+        // the working directory (public/ under a web server) any more.
+        return response($csv_content, 200, [
+            'Content-Type'        => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="' . str_replace(['"', '/', '\\'], '', $file) . '"',
+            'Cache-Control'       => 'must-revalidate',
+            'Expires'             => '0',
+            'Pragma'              => 'public',
+        ]);
     }
 
     public function studentFeeinvoice(Request $request, $id)
     {
+        $this->findOwnFeeOrFail($id);
 
         $invoice_details = StudentFeeManager::find($id)->toArray();
         $student_details = (new CommonController)->get_student_details_by_id($invoice_details['student_id'])->toArray();
@@ -302,7 +304,7 @@ class ParentController extends Controller
     public function subjectList_by_student_name(Request $request)
     {
         $data = $request->all();
-        $enrollment = Enrollment::where('user_id', $data['user_id'])->first();
+        $enrollment = Enrollment::where('user_id', $this->findOwnChildOrFail($data['user_id'] ?? 0)->id)->first();
         $class_id = $enrollment ? $enrollment->class_id : null;
         $class_name = $class_id ? Classes::where('id', $class_id)->get()->toArray() : [];
         $subjects = $class_id ? Subject::where('class_id', $class_id)->get()->toArray() : [];
@@ -311,8 +313,44 @@ class ParentController extends Controller
 
    
 
+    /**
+     * Security Phase 2G: a student id taken from the route or request must be one
+     * of this parent's own children, in this parent's own school.
+     */
+    /**
+     * A child's academic info as an array. get_student_academic_info() returns an
+     * Enrollment model for an enrolled student but a plain object for a child with no
+     * enrollment yet (new or historical records); both must render, never crash.
+     */
+    private function academicInfo($studentId): array
+    {
+        $info = (new CommonController)->get_student_academic_info($studentId);
+
+        return $info instanceof \Illuminate\Contracts\Support\Arrayable ? $info->toArray() : (array) $info;
+    }
+
+    private function findOwnChildOrFail($id): User
+    {
+        return User::where('role_id', 7)->where('school_id', auth()->user()->school_id)
+            ->where('parent_id', auth()->user()->id)->findOrFail($id);
+    }
+
+    /**
+     * Security Phase 2E: a fee reached by id must be one of this parent's
+     * own invoices — the same rule FeeManagerList() uses.
+     */
+    private function findOwnFeeOrFail($id): StudentFeeManager
+    {
+        return StudentFeeManager::where('id', $id)->where('parent_id', auth()->user()->id)->where('school_id', auth()->user()->school_id)->firstOrFail();
+    }
+
     public function offlinePayment(Request $request, $id = "")
     {
+        $feeBefore = $this->findOwnFeeOrFail($id);
+        $request->validate(['document_image' => 'nullable|file|mimes:' . implode(',', ApplicationDocuments::ALLOWED_EXTENSIONS) . '|max:' . (ApplicationDocuments::MAX_FILE_MB * 1024)]);
+        if ($request->hasFile('document_image') && !in_array(strtolower($request->file('document_image')->getClientOriginalExtension()), ApplicationDocuments::ALLOWED_EXTENSIONS, true)) {
+            return redirect()->back()->with('error', 'Only PDF, JPG and PNG files are accepted.');
+        }
         $data = $request->all();
 
         if ($data['amount'] > 0) {
@@ -320,7 +358,7 @@ class ParentController extends Controller
             $file = $data['document_image'];
 
             if ($file) {
-                $filename = $file->getClientOriginalName();
+                $filename = bin2hex(random_bytes(20)) . '.' . strtolower($file->getClientOriginalExtension());
                 $extension = $file->getClientOriginalExtension(); //Get extension of uploaded file
 
                 
@@ -341,6 +379,7 @@ class ParentController extends Controller
 
 
 
+            StatusChangeAudit::feePayment($feeBefore, 'submitted');
             return redirect()->route('parent.fee_manager.list')->with('message', 'offline payment requested successfully');
         }else{
             return redirect()->route('parent.fee_manager.list')->with('message', 'offline payment requested fail');
@@ -365,7 +404,7 @@ class ParentController extends Controller
     public function syllabusList_by_student_name(Request $request)
     {
         $data = $request->all();
-        $enrollment = Enrollment::where('user_id', $data['user_id'])->first();
+        $enrollment = Enrollment::where('user_id', $this->findOwnChildOrFail($data['user_id'] ?? 0)->id)->first();
         $class_id = $enrollment ? $enrollment->class_id : null;
         $class_name = $class_id ? Classes::where('id', $class_id)->get()->toArray() : [];
         $syllabus = $class_id ? Syllabus::where('class_id', $class_id)->get()->toArray() : [];
@@ -381,9 +420,7 @@ class ParentController extends Controller
         if (!empty($child)) {
             $child = $child->toArray();
             foreach ($child as $info) {
-                $each_child = (new CommonController)->get_student_academic_info($info['id']);
-
-                $each_child = $each_child->toArray();
+                $each_child = $this->academicInfo($info['id']);
                 array_push($student_data, $each_child);
             }
         }
@@ -398,7 +435,7 @@ class ParentController extends Controller
     {
         $data = $request->all();
 
-        $student_id = $data['student_id'];
+        $student_id = $this->findOwnChildOrFail($data['student_id'] ?? 0)->id;
 
         $enrollment = Enrollment::where('user_id', $student_id)->first();
 
@@ -417,9 +454,7 @@ class ParentController extends Controller
         if (!empty($child)) {
             $child = $child->toArray();
             foreach ($child as $info) {
-                $each_child = (new CommonController)->get_student_academic_info($info['id']);
-
-                $each_child = $each_child->toArray();
+                $each_child = $this->academicInfo($info['id']);
                 array_push($child_data, $each_child);
             }
         }
@@ -432,7 +467,7 @@ class ParentController extends Controller
             $page_data['attendance_date'] = strtotime($date);
             $page_data['month'] = $data['month'];
             $page_data['year'] = $data['year'];
-            $student_data = (new CommonController)->get_student_academic_info($data['student_id']);
+            $student_data = $this->academicInfo($this->findOwnChildOrFail($data['student_id'] ?? 0)->id);
 
             $first_date = strtotime($date);
 
@@ -461,6 +496,10 @@ class ParentController extends Controller
 
     public function dailyAttendanceFilter_csv(Request $request)
     {
+        // The export encodes month/year in its first query key; without it answer with a validation error, never HTTP 500.
+        if (empty($request->all())) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['month' => get_phrase('Choose a month to export.')]);
+        }
 
         $data = $request->all();
 
@@ -547,18 +586,15 @@ class ParentController extends Controller
             }
         }
 
-        $txt = fopen($file, "w") or die("Unable to open file!");
-        fwrite($txt, $csv_content);
-        fclose($txt);
-
-        header('Content-Description: File Transfer');
-        header('Content-Disposition: attachment; filename=' . $file);
-        header('Expires: 0');
-        header('Cache-Control: must-revalidate');
-        header('Pragma: public');
-        header('Content-Length: ' . filesize($file));
-        header("Content-type: text/csv");
-        readfile($file);
+        // Security Phase 2F: streamed to the requester — no copy is written to
+        // the working directory (public/ under a web server) any more.
+        return response($csv_content, 200, [
+            'Content-Type'        => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="' . str_replace(['"', '/', '\\'], '', $file) . '"',
+            'Cache-Control'       => 'must-revalidate',
+            'Expires'             => '0',
+            'Pragma'              => 'public',
+        ]);
     }
 
     public function marks()
@@ -570,9 +606,7 @@ class ParentController extends Controller
         if (!empty($child)) {
             $child = $child->toArray();
             foreach ($child as $info) {
-                $each_child = (new CommonController)->get_student_academic_info($info['id']);
-
-                $each_child = $each_child->toArray();
+                $each_child = $this->academicInfo($info['id']);
                 array_push($student_data, $each_child);
             }
         }
@@ -584,7 +618,7 @@ class ParentController extends Controller
     {
         $data = $request->all();
         $exam_categories = ExamCategory::where('school_id', auth()->user()->school_id)->get();
-        $user_id = $data['student_id'];
+        $user_id = $this->findOwnChildOrFail($data['student_id'] ?? 0)->id;
         $student_details = (new CommonController)->get_student_details_by_id($user_id);
 
         $subjects = Subject::where(['class_id' => $student_details['class_id'], 'school_id' => auth()->user()->school_id])->get();
@@ -653,7 +687,7 @@ class ParentController extends Controller
 
     public function editNoticeboard($id = "")
     {
-        $notice = Noticeboard::find($id);
+        $notice = Noticeboard::where('school_id', auth()->user()->school_id)->findOrFail($id);
         return view('parent.noticeboard.edit', ['notice' => $notice]);
     }
 
@@ -664,6 +698,10 @@ class ParentController extends Controller
     function profile_update(Request $request){
         $data['name'] = $request->name;
         $data['email'] = $request->email;
+        // Security Phase 2F: a self-service profile edit must not claim another account's login email.
+        if (User::where('email', $request->email)->where('id', '!=', auth()->user()->id)->exists()) {
+            return redirect()->back()->with('error', 'Email was already taken.');
+        }
         
         $user_info['birthday'] = strtotime($request->eDefaultDateRange);
         $user_info['gender'] = $request->gender;
@@ -674,10 +712,11 @@ class ParentController extends Controller
         if(empty($request->photo)){
             $user_info['photo'] = $request->old_photo;
         }else{
-            $file_name = random(10).'.png';
+            $file_name = ProfilePhoto::store($request->photo);
+            if ($file_name === null) {
+                return redirect()->back()->with('error', 'Profile photo must be a JPG or PNG image of at most 4 MB.');
+            }
             $user_info['photo'] = $file_name;
-
-            $request->photo->move(public_path('assets/uploads/user-images/'), $file_name);
         }
 
         $data['user_information'] = json_encode($user_info);
@@ -750,9 +789,7 @@ class ParentController extends Controller
         if (!empty($child)) {
             $child = $child->toArray();
             foreach ($child as $info) {
-                $each_child = (new CommonController)->get_student_academic_info($info['id']);
-
-                $each_child = $each_child->toArray();
+                $each_child = $this->academicInfo($info['id']);
                 array_push($student_data, $each_child);
             }
         }
@@ -764,7 +801,8 @@ class ParentController extends Controller
     {
         $data = $request->all();
         $exam_categories = ExamCategory::where('school_id', auth()->user()->school_id)->get();
-        $user_id = $data['student_id'];
+        // Unrouted duplicate of marks_list(): held to the same own-child rule in case it is ever routed.
+        $user_id = $this->findOwnChildOrFail($data['student_id'] ?? 0)->id;
         $student_details = (new CommonController)->get_student_details_by_id($user_id);
 
         $subjects = Subject::where(['class_id' => $student_details['class_id'], 'school_id' => auth()->user()->school_id])->get();
@@ -775,8 +813,10 @@ class ParentController extends Controller
 
     public function feedback_list(Request $request, $value = '')
     {
+        // Filter parameters are required; without them answer with a validation error (302 back / 422), never HTTP 500.
+        $request->validate(['student_id' => 'present']);
         $data = $request->all();
-        $user_id = $data['student_id'];
+        $user_id = $this->findOwnChildOrFail($data['student_id'])->id;   // own child only (404 otherwise)
         //$student_details = (new CommonController)->get_student_details_by_id($user_id);
         $feedbacks = Feedback::where(['student_id' => $user_id,'school_id'=> auth()->user()->school_id])->orderBy('created_at', 'DESC')->paginate(20);
 

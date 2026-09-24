@@ -27,6 +27,24 @@ class OnlineExamPermissionService
 
     public function has(User $user, string $permission): bool
     {
+        if ($this->hasBase($user, $permission)) {
+            return true;
+        }
+
+        // RBAC Phase 3A: a delegated online_exams.* grant (own school only). Exam lifecycle,
+        // ownership and school rules in the policies/controllers still apply on top.
+        return in_array($permission, self::KEYS, true)
+            && $this->isAccountActive($user)
+            && $this->hasDelegatedGrant($user, $permission);
+    }
+
+    /**
+     * The base-role / legacy rules only (administrator bypass, menu_permission,
+     * role_perm settings and role fallbacks) — everything except delegated RBAC
+     * grants. RBAC Phase 3B uses it to show where a staff member's access comes from.
+     */
+    public function hasBase(User $user, string $permission): bool
+    {
         if (!in_array($permission, self::KEYS, true)) {
             return false;
         }
@@ -227,6 +245,13 @@ class OnlineExamPermissionService
         }
 
         return false;
+    }
+
+    private function hasDelegatedGrant(User $user, string $permission): bool
+    {
+        $rbacKey = array_search($permission, PermissionRegistry::onlineExamKeys(), true);
+
+        return $rbacKey !== false && app(PermissionService::class)->hasGrant($user, $rbacKey);
     }
 
     private function isAccountActive(User $user): bool

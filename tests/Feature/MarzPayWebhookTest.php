@@ -140,4 +140,62 @@ class MarzPayWebhookTest extends TestCase
     {
         $this->postJson(route('webhooks.marzpay'), ['garbage' => true])->assertOk();
     }
+
+    /**
+     * MarzPay redelivers on anything but a 200 — this proves the redelivery
+     * itself is harmless: applyApplication() bails on
+     * `$payment->isSettled()` before writing anything a second time.
+     */
+    public function test_a_duplicate_application_payment_webhook_does_not_double_apply(): void
+    {
+        $admission = $this->makeAdmission($this->schoolId);
+
+        $payment = ApplicationPayment::create([
+            'school_id' => $this->schoolId, 'admission_id' => $admission, 'method' => 'marzpay',
+            'status' => ApplicationPayment::STATUS_PENDING, 'amount' => 5000, 'reference' => 'ref-dup',
+            'gateway_txn_id' => 'txn-dup',
+        ]);
+
+        $this->fakeVerifiedTransaction('successful');
+
+        $this->postWebhook('application', $payment->id);
+        $firstPaidAt = $payment->refresh()->paid_at;
+
+        // Simulate MarzPay redelivering the same event a second time.
+        $this->postWebhook('application', $payment->id);
+
+        $this->assertSame(1, ApplicationPayment::where('admission_id', $admission)->count(), 'A duplicate webhook must never create a second payment row.');
+        $this->assertSame(ApplicationPayment::STATUS_PAID, $payment->fresh()->status);
+        $this->assertEquals($firstPaidAt, $payment->fresh()->paid_at, 'A duplicate webhook must not re-timestamp an already-settled payment.');
+    }
+
+    /**
+     * Confirms the webhook can never settle the wrong application: routing
+     * is by our own ApplicationPayment primary key (from metadata.context_id,
+     * set only when we ourselves created the row), never by any
+     * client-suppliable reference string.
+     */
+    public function test_a_webhook_for_one_payment_never_settles_a_different_admissions_payment(): void
+    {
+        $admissionA = $this->makeAdmission($this->schoolId, ['email' => 'a@example.com']);
+        $admissionB = $this->makeAdmission($this->schoolId, ['email' => 'b@example.com']);
+
+        $paymentA = ApplicationPayment::create([
+            'school_id' => $this->schoolId, 'admission_id' => $admissionA, 'method' => 'marzpay',
+            'status' => ApplicationPayment::STATUS_PENDING, 'amount' => 5000, 'reference' => 'ref-a',
+            'gateway_txn_id' => 'txn-1',
+        ]);
+        $paymentB = ApplicationPayment::create([
+            'school_id' => $this->schoolId, 'admission_id' => $admissionB, 'method' => 'marzpay',
+            'status' => ApplicationPayment::STATUS_PENDING, 'amount' => 5000, 'reference' => 'ref-b',
+            'gateway_txn_id' => 'txn-1',
+        ]);
+
+        $this->fakeVerifiedTransaction('successful');
+
+        $this->postWebhook('application', $paymentA->id);
+
+        $this->assertSame(ApplicationPayment::STATUS_PAID, $paymentA->fresh()->status);
+        $this->assertSame(ApplicationPayment::STATUS_PENDING, $paymentB->fresh()->status, 'Only the payment identified by context_id may be settled, regardless of a shared gateway reference.');
+    }
 }

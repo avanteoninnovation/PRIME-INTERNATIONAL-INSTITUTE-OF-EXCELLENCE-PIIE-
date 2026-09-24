@@ -13,6 +13,15 @@
 </div></div></div>
 
 @include('admin.settings.partials.settings_nav', ['active' => 'permissions'])
+{{-- RBAC Phase 3B: kept working as-is (legacy global role_perm matrix); new staff delegation lives in Roles & Permissions. --}}
+<div class="alert alert-warning d-flex gap-2 align-items-start" role="note">
+    <i class="bi bi-exclamation-triangle"></i>
+    <div>
+        <strong>{{ get_phrase('Legacy role matrix') }}</strong> —
+        {{ get_phrase('these settings are shared by every school on the platform, and only the Online Exams entries still take effect. To give staff additional responsibilities in your school, use') }}
+        @if(\Illuminate\Support\Facades\Route::has('admin.rbac.roles.index'))<a href="{{ route('admin.rbac.roles.index') }}" class="fw-semibold">{{ get_phrase('Roles & Permissions') }}</a>.@endif
+    </div>
+</div>
 @if(session('success'))<div class="alert alert-success"><i class="bi bi-check-circle"></i> {{ session('success') }}</div>@endif
 
 <div class="eSection-wrap">
@@ -45,9 +54,11 @@
         </div>
     </div>
     @endforeach
+    @if((int) auth()->user()->role_id === 2)
     <div class="mt-3">
         <button type="submit" class="eBtn eBtn-primary"><i class="bi bi-shield-check"></i> {{ get_phrase('Save Permissions') }}</button>
     </div>
+    @endif
     </form>
     </div>
 </div>

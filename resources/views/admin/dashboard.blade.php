@@ -1,7 +1,25 @@
-@extends('layouts.app')
+@extends('admin.navigation')
 
 @section('content')
+{{-- The dashboard now uses the canonical admin sidebar (admin.navigation) like every other admin page.
+     Font Awesome 6 (the stat-card icons) and the content-wrapper spacing below used to come from
+     layouts.app; they are carried here so the dashboard looks exactly as before. --}}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 <style>
+    .main_content {
+        padding: 20px 25px !important;
+        overflow: visible !important;
+    }
+    .container-fluid {
+        padding: 0 10px !important;
+        overflow: visible !important;
+    }
+    @media (max-width: 768px) {
+        .main_content {
+            padding: 15px !important;
+        }
+    }
+
     /* ============================================ */
     /* FIXED DASHBOARD STYLES - Text Not Cut Off    */
     /* ============================================ */

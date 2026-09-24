@@ -10,11 +10,11 @@
           class="d-flex justify-content-between align-items-center flex-wrap gr-15"
         >
           <div class="d-flex flex-column">
-            <h4>{{ get_phrase('Subjects') }}</h4>
+            <h4>{{ academic_term('subjects', auth()->user()->school_id) }}</h4>
             <ul class="d-flex align-items-center eBreadcrumb-2">
               <li><a href="#">{{ get_phrase('Home') }}</a></li>
               <li><a href="#">{{ get_phrase('Academic') }}</a></li>
-              <li><a href="#">{{ get_phrase('Subjects') }}</a></li>
+              <li><a href="#">{{ academic_term('subjects', auth()->user()->school_id) }}</a></li>
             </ul>
           </div>
           <div class="export-btn-area">
@@ -51,8 +51,8 @@
                         <tr>
                             <th>#</th>
                             <th>{{ get_phrase('Name') }}</th>
-                            <th>{{ get_phrase('Class') }}</th>
-                            <th>{{ get_phrase('Programme') }}</th>
+                            <th>{{ academic_term('class', auth()->user()->school_id) }}</th>
+                            <th>{{ academic_term('programme', auth()->user()->school_id) }}</th>
                             <th class="text-end">{{ get_phrase('Action') }}</th>
                         </tr>
                     </thead>

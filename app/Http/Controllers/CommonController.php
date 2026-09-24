@@ -237,7 +237,7 @@ class CommonController extends Controller
 
     public function classWiseStudents($id = '')
     {
-        $enrollments = Enrollment::get()->where('class_id', $id);
+        $enrollments = Enrollment::where('class_id', $id)->where('school_id', auth()->user()->school_id)->get();
         $options = '<option value="">' . 'Select a student' . '</option>';
         foreach ($enrollments as $enrollment) :
             $student = User::find($enrollment->user_id);
@@ -248,7 +248,7 @@ class CommonController extends Controller
 
     public function classWiseSubject($id)
     {
-        $subjects = Subject::get()->where('class_id', $id);
+        $subjects = Classes::where('id', $id)->where('school_id', auth()->user()->school_id)->exists() ? Subject::get()->where('class_id', $id) : collect();
         $options = '<option value="">' . 'Select a subject' . '</option>';
         foreach ($subjects as $subject) :
             $options .= '<option value="' . $subject->id . '">' . $subject->name . '</option>';
@@ -259,7 +259,7 @@ class CommonController extends Controller
 
     public function classWiseSections($id)
     {
-        $sections = Section::get()->where('class_id', $id);
+        $sections = Classes::where('id', $id)->where('school_id', auth()->user()->school_id)->exists() ? Section::get()->where('class_id', $id) : collect();
         $options = '<option value="">' . 'Select a section' . '</option>';
         foreach ($sections as $section) :
             $options .= '<option value="' . $section->id . '">' . $section->name . '</option>';
@@ -280,7 +280,8 @@ class CommonController extends Controller
 
     public function studentWiseParent($id)
     {
-        $student = User::find($id);
+        // Security Phase 2F: only a student in the caller's own school.
+        $student = User::where('id', $id)->where('school_id', auth()->user()->school_id)->where('role_id', 7)->firstOrFail();
         
         $parent_details = User::find($student->parent_id);
 
@@ -345,7 +346,8 @@ class CommonController extends Controller
 
     public function idWiseUserName($id='')
     {
-        $result = User::where('id', $id)->value('name');
+        // Security Phase 2F: names are only resolved within the caller's own school.
+        $result = User::where('id', $id)->where('school_id', auth()->user()->school_id)->value('name');
         return $result;
     }
 

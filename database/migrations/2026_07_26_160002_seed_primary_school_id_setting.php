@@ -26,6 +26,10 @@ return new class extends Migration
 
         $defaultSchoolId = DB::table('schools')->orderBy('id')->value('id');
 
+        if ($defaultSchoolId === null) {
+            return;
+        }
+
         DB::table('global_settings')->insert([
             'key' => 'primary_school_id',
             'value' => $defaultSchoolId,

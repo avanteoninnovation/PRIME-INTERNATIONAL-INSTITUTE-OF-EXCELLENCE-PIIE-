@@ -113,7 +113,7 @@
             <div class="card-header bg-white fw-semibold">{{ get_phrase('Notices') }}</div>
             <div class="card-body">
                 @php
-                    $notices = DB::table('noticeboards')->where('school_id', $schoolId)->orderBy('id','desc')->limit(5)->get();
+                    $notices = DB::table('noticeboard')->where('school_id', $schoolId)->orderBy('id','desc')->limit(5)->get();
                 @endphp
                 @forelse($notices as $notice)
                     <div class="border-bottom pb-2 mb-2">

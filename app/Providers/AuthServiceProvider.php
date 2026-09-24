@@ -15,6 +15,8 @@ use App\Policies\OnlineExamProctoringEventPolicy;
 use App\Policies\OnlineExamQuestionPolicy;
 use App\Policies\OnlineExamSubmissionPolicy;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
+use App\Support\Permissions\PermissionService;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Gate;
 
 class AuthServiceProvider extends ServiceProvider
@@ -41,6 +43,12 @@ class AuthServiceProvider extends ServiceProvider
     public function boot()
     {
         $this->registerPolicies();
+
+        // RBAC Phase 3A: one entry point for staff permissions — $user->can('permission', 'finance.view'),
+        // @can('permission', 'finance.view') or @permission('finance.view') … @endpermission in Blade.
+        // Deliberately not a Gate::before, so existing policies are unaffected.
+        Gate::define('permission', fn ($user, string $key) => app(PermissionService::class)->allows($user, $key));
+        Blade::if('permission', fn (string $key) => app(PermissionService::class)->allows(auth()->user(), $key));
 
         //
     }

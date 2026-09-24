@@ -74,6 +74,58 @@ class ApplicationWorkflow
     }
 
     /**
+     * Staff submits a staff-entry application on the candidate's behalf.
+     *
+     * Same completeness gate and resulting state as submit() — an
+     * administrator-entered application must clear exactly the same bar
+     * before it can reach the review queue — the only difference is the
+     * timeline entry's actor, since there is no Applicant to attribute it to
+     * for a staff-entry admission (applicant_id is null).
+     */
+    public static function submitByStaff(Admission $admission, User $staff): bool
+    {
+        if (! ApplicationProgress::canSubmit($admission)) {
+            return false;
+        }
+
+        $wasCorrection = $admission->status === Admission::STATUS_NEEDS_CORRECTION;
+        $fromStatus    = $admission->status;
+
+        $admission->fill([
+            'status'                  => Admission::STATUS_SUBMITTED,
+            'submitted_at'            => now(),
+            'declaration_accepted_at' => $admission->declaration_accepted_at ?: now(),
+            'current_step'            => ApplicationProgress::STEP_REVIEW,
+            'correction_note'         => null,
+        ]);
+
+        $admission->save();
+
+        AdmissionStatusEvent::create([
+            'school_id'    => $admission->school_id,
+            'admission_id' => $admission->id,
+            'from_status'  => $fromStatus,
+            'to_status'    => Admission::STATUS_SUBMITTED,
+            'title'        => $wasCorrection
+                ? get_phrase('Application resubmitted after corrections')
+                : get_phrase('Application submitted'),
+            'note'         => get_phrase('Submitted by an administrator on the candidate\'s behalf.'),
+            'actor_type'   => 'staff',
+            'actor_id'     => $staff->id,
+            'actor_name'   => $staff->name,
+        ]);
+
+        AuditLog::record('create', 'Admissions', "Application {$admission->app_number} submitted by staff {$staff->name}.", [
+            'event_type'  => 'DATA',
+            'record_type' => Admission::class,
+            'record_id'   => $admission->id,
+            'school_id'   => $admission->school_id,
+        ]);
+
+        return true;
+    }
+
+    /**
      * Staff-driven status change.
      *
      * `$note` becomes the decision note the applicant sees; internal-only

@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-class CreateDailyAttendancesTable extends Migration
+return new class extends Migration
 {
     /**
      * Run the migrations.
@@ -22,7 +22,6 @@ class CreateDailyAttendancesTable extends Migration
             $table->integer('session_id');
             $table->integer('school_id');
             $table->integer('timestamp');
-            $table->timestamp();
         });
     }
 
@@ -35,4 +34,4 @@ class CreateDailyAttendancesTable extends Migration
     {
         Schema::dropIfExists('daily_aatendance');
     }
-}
+};

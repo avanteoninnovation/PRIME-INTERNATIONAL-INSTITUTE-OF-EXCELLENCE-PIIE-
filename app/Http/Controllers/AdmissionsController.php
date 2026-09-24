@@ -8,23 +8,26 @@ use App\Models\AdmissionDocument;
 use App\Models\AdmissionDocumentRequirement;
 use App\Models\ApplicationPayment;
 use App\Models\AuditLog;
+use App\Models\Classes;
+use App\Models\Department;
+use App\Models\Enrollment;
 use App\Models\IntakeSession;
 use App\Models\Programme;
 use App\Models\School;
-use App\Models\StudentProfile;
+use App\Models\Session;
 use App\Models\User;
 use App\Support\Admissions\ApplicantNotifier;
+use App\Support\Admissions\ApplicantPortalAccess;
 use App\Support\Admissions\ApplicationDocuments;
 use App\Support\Admissions\ApplicationFee;
 use App\Support\Admissions\ApplicationProgress;
 use App\Support\Admissions\ApplicationReference;
 use App\Support\Admissions\ApplicationWorkflow;
-use App\Support\StudentFeeInvoiceGenerator;
 use App\Support\StudentPortalActivation;
+use App\Support\StudentProvisioningService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\Rule;
 use PDF;
 
@@ -128,14 +131,30 @@ class AdmissionsController extends Controller
             ])
             ->findOrFail($id);
 
+        // Already-enrolled applications show their existing academic
+        // assignment read-only instead of the Step 6 form — the conversion
+        // already happened, so this is what actually landed, not a proposal.
+        $enrolledStudent   = User::where('school_id', $this->school_id)->where('email', $admission->email)->where('role_id', 7)->first();
+        $existingEnrolment = $enrolledStudent ? Enrollment::where('user_id', $enrolledStudent->id)->first() : null;
+
+        $feeAmount = ApplicationFee::amountFor($admission);
+        $feePaid   = (float) $admission->payments->whereIn('status', [ApplicationPayment::STATUS_PAID, ApplicationPayment::STATUS_WAIVED])->sum('amount');
+
         return view('admin.admissions.review', [
-            'admission'    => $admission,
-            'docChecklist' => ApplicationDocuments::checklist($admission),
-            'timeline'     => $admission->statusEvents()->orderBy('created_at')->orderBy('id')->get(),
-            'feeAmount'    => ApplicationFee::amountFor($admission),
-            'progress'     => ApplicationProgress::percent($admission),
-            'blockers'     => ApplicationProgress::blockers($admission),
-            'statuses'     => Admission::STAFF_SETTABLE_STATUSES,
+            'admission'         => $admission,
+            'docChecklist'      => ApplicationDocuments::checklist($admission),
+            'timeline'          => $admission->statusEvents()->orderBy('created_at')->orderBy('id')->get(),
+            'feeAmount'         => $feeAmount,
+            'feePaid'           => $feePaid,
+            'feeOutstanding'    => max(0, $feeAmount - $feePaid),
+            'progress'          => ApplicationProgress::percent($admission),
+            'blockers'          => ApplicationProgress::blockers($admission),
+            'statuses'          => Admission::STAFF_SETTABLE_STATUSES,
+            // Step 6 — Admission & Enrollment (academic assignment).
+            'classes'           => Classes::where('school_id', $this->school_id)->orderBy('name')->get(),
+            'departments'       => Department::where('school_id', $this->school_id)->orderBy('name')->get(),
+            'academicSessions'  => Session::where('school_id', $this->school_id)->orderByDesc('id')->get(),
+            'existingEnrolment' => $existingEnrolment,
         ]);
     }
 
@@ -258,6 +277,178 @@ class AdmissionsController extends Controller
         }
 
         return back()->with('success', get_phrase('Payment updated.'));
+    }
+
+    /**
+     * "Send Payment Request" / "Resend Payment Instructions" — the one
+     * action that gets a staff-entry candidate (or any candidate who has
+     * not yet acted on their own payment step) into the applicant portal to
+     * pay. Never creates a payment record itself and never touches
+     * fee_status; it only issues (or reissues) portal access and emails the
+     * same reference/amount every time. Reusable for online applicants too
+     * — e.g. one who has not checked their email — not just staff-entry.
+     */
+    public function sendPaymentRequest($id)
+    {
+        $admission = Admission::where('school_id', $this->school_id)->findOrFail($id);
+
+        if (! ApplicationFee::isRequired($admission)) {
+            return back()->with('error', get_phrase('No application fee is payable for this intake.'));
+        }
+
+        if ($admission->isFeeSettled()) {
+            return back()->with('error', get_phrase('This application fee is already settled.'));
+        }
+
+        if (blank($admission->email)) {
+            return back()->with('error', get_phrase('This application has no email address yet — add one on the Personal Information step first.'));
+        }
+
+        // Rate-limited per admission, not globally, so one applicant
+        // hammering "resend" cannot affect anyone else's ability to send a
+        // request, and a genuinely different reviewer sending it for a
+        // different application is never blocked by someone else's resend.
+        $throttleKey = 'admission-payment-request:' . $admission->id;
+
+        if (RateLimiter::tooManyAttempts($throttleKey, 1)) {
+            $seconds = RateLimiter::availableIn($throttleKey);
+
+            return back()->with('error', get_phrase('Payment instructions were already sent recently. Please wait') . ' ' . ceil($seconds / 60) . ' ' . get_phrase('minute(s) before resending.'));
+        }
+
+        // Existing applicant_id means this is at least the second time
+        // access has been issued — that is what makes the email a
+        // "reminder" rather than a first "an application has been created
+        // for you" notice, regardless of which admin triggers it.
+        $isReminder = (bool) $admission->applicant_id;
+
+        $applicant = ApplicantPortalAccess::ensureLinked($admission);
+        $portalUrl = ApplicantPortalAccess::paymentLinkFor($applicant);
+
+        $sent = ApplicantNotifier::staffEntryPaymentRequest($admission, $portalUrl, $isReminder);
+
+        RateLimiter::hit($throttleKey, 120); // 2 minutes
+
+        AuditLog::record('update', 'Admissions', ($isReminder ? "Payment reminder resent" : "Payment request sent") . " for {$admission->app_number}.", [
+            'event_type'  => 'ACTION',
+            'record_type' => Admission::class,
+            'record_id'   => $admission->id,
+            'school_id'   => $this->school_id,
+        ]);
+
+        return back()->with($sent ? 'success' : 'error', $sent
+            ? get_phrase('Payment instructions sent to') . ' ' . $admission->email . '.'
+            : get_phrase('Portal access was created, but the email could not be sent — check the mail configuration under Super Admin > Settings.'));
+    }
+
+    /**
+     * Option D — an authorized user records a payment that happened
+     * entirely outside the system (cash at the front desk, a bank transfer
+     * with no applicant-submitted proof). Always creates a new, fully
+     * attributed ApplicationPayment row — fee_status is never hand-set,
+     * only ever derived by ApplicationFee::refreshStatus() from rows like
+     * this one, exactly as every other payment path already works.
+     */
+    public function recordPayment(Request $request, $id)
+    {
+        $admission = Admission::where('school_id', $this->school_id)->findOrFail($id);
+
+        $validated = $request->validate([
+            'amount'                => 'required|numeric|min:0.01',
+            'method'                => 'required|string|max:30',
+            'external_reference'    => 'nullable|string|max:191',
+            'paid_at'               => 'required|date',
+            'note'                  => 'nullable|string|max:500',
+        ]);
+
+        $payment = ApplicationPayment::create([
+            'school_id'       => $this->school_id,
+            'admission_id'    => $admission->id,
+            'applicant_id'    => $admission->applicant_id,
+            'amount'          => $validated['amount'],
+            'currency'        => ApplicationFee::currency(),
+            'method'          => $validated['method'],
+            'status'          => ApplicationPayment::STATUS_PAID,
+            'reference'       => 'MANUAL-' . $admission->id . '-' . strtoupper(\Illuminate\Support\Str::random(6)),
+            'gateway_txn_id'  => $validated['external_reference'] ?? null,
+            'note'            => $validated['note'] ?? null,
+            'confirmed_by'    => Auth::id(),
+            'paid_at'         => $validated['paid_at'],
+        ]);
+
+        ApplicationFee::refreshStatus($admission);
+
+        AuditLog::record('create', 'Admissions', "Manual application-fee payment recorded for {$admission->app_number} ({$validated['method']}, " . ApplicationFee::format((float) $validated['amount']) . ").", [
+            'event_type'  => 'DATA',
+            'record_type' => ApplicationPayment::class,
+            'record_id'   => $payment->id,
+            'school_id'   => $this->school_id,
+        ]);
+
+        ApplicantNotifier::paymentReceived($admission, $payment);
+
+        return back()->with('success', get_phrase('Payment recorded.'));
+    }
+
+    /**
+     * Option E — an explicit fee waiver. Distinguishable from a payment at
+     * every layer: its own ApplicationPayment row (method='waived', no
+     * amount collected) so fee_status=waived vs fee_status=paid never
+     * collapse into the same evidence trail, and a mandatory reason on the
+     * audit record — "waived" with no explanation is not an audit record,
+     * it is just a status flip.
+     */
+    public function waiveFee(Request $request, $id)
+    {
+        $validated = $request->validate([
+            'reason' => 'required|string|max:500',
+        ], [
+            'reason.required' => get_phrase('Please state why this fee is being waived.'),
+        ]);
+
+        // Locked for the duration of the check-then-create so two
+        // near-simultaneous submissions (a double-click, or one admin
+        // waiving while another records a payment) can't both pass the
+        // "not already settled" check before either has written — the
+        // second request always sees the first one's result.
+        $payment = \Illuminate\Support\Facades\DB::transaction(function () use ($id, $validated) {
+            $admission = Admission::where('school_id', $this->school_id)->lockForUpdate()->findOrFail($id);
+
+            if ($admission->isFeeSettled()) {
+                return null;
+            }
+
+            $payment = ApplicationPayment::create([
+                'school_id'    => $this->school_id,
+                'admission_id' => $admission->id,
+                'applicant_id' => $admission->applicant_id,
+                'amount'       => ApplicationFee::amountFor($admission),
+                'currency'     => ApplicationFee::currency(),
+                'method'       => 'waived',
+                'status'       => ApplicationPayment::STATUS_WAIVED,
+                'reference'    => 'WAIVER-' . $admission->id . '-' . strtoupper(\Illuminate\Support\Str::random(6)),
+                'note'         => $validated['reason'],
+                'confirmed_by' => Auth::id(),
+                'paid_at'      => now(),
+            ]);
+
+            ApplicationFee::refreshStatus($admission);
+
+            return $payment;
+        });
+
+        if (! $payment) {
+            return back()->with('error', get_phrase('This application fee is already settled.'));
+        }
+
+        AuditLog::record('create', 'Admissions', "Application fee waived for {$payment->admission->app_number}: {$validated['reason']}", [
+            'event_type'  => 'DATA',
+            'record_type' => ApplicationPayment::class,
+            'record_id'   => $payment->id,
+            'school_id'   => $this->school_id,
+        ]);
+
+        return back()->with('success', get_phrase('Application fee waived.'));
     }
 
     // ── Document requirements ─────────────────────────────────────────────
@@ -403,13 +594,23 @@ class AdmissionsController extends Controller
     {
         $admission = Admission::where('school_id', $this->school_id)->findOrFail($id);
 
-        $request->validate([
+        $validated = $request->validate([
             'status' => ['required', Rule::in(Admission::STAFF_SETTABLE_STATUSES)],
             // Shown to the applicant alongside the new status.
             'decision_note' => 'nullable|string|max:2000',
             // Optional administrator-chosen portal password when enrolling —
             // if omitted, a password is generated automatically.
             'password' => 'nullable|string|min:6',
+            // Academic assignment (Step 6 — Admission & Enrollment). Admin-only,
+            // never applicant-supplied. class_id/section_id/session_id are
+            // required together; department_id is deliberately excluded from
+            // that group — it falls back to the chosen programme's
+            // department below when omitted, so a reviewer only has to
+            // override it, not always supply it.
+            'class_id'      => ['nullable', 'required_with:section_id,session_id', Rule::exists('classes', 'id')->where(fn ($q) => $q->where('school_id', $this->school_id))],
+            'section_id'    => ['nullable', 'required_with:class_id,session_id', Rule::exists('sections', 'id')->where(fn ($q) => $q->where('class_id', $request->class_id))],
+            'department_id' => ['nullable', Rule::exists('departments', 'id')->where(fn ($q) => $q->where('school_id', $this->school_id))],
+            'session_id'    => ['nullable', 'required_with:class_id,section_id', Rule::exists('sessions', 'id')->where(fn ($q) => $q->where('school_id', $this->school_id))],
         ]);
 
         $oldStatus = $admission->status;
@@ -427,7 +628,15 @@ class AdmissionsController extends Controller
         // re-runs conversion — createStudentFromAdmission() is additionally
         // idempotent on its own for safety (see its docblock).
         if ($request->status === Admission::STATUS_ENROLLED && $oldStatus !== Admission::STATUS_ENROLLED) {
-            $this->createStudentFromAdmission($admission, $request->password);
+            $this->createStudentFromAdmission($admission, $request->password, [
+                'class_id'      => $validated['class_id'] ?? null,
+                'section_id'    => $validated['section_id'] ?? null,
+                // Falls back to the chosen programme's department when the
+                // reviewer didn't override it — the common case is "confirm",
+                // not "hunt for a department" on every enrolment.
+                'department_id' => $validated['department_id'] ?? optional($admission->programme)->department_id,
+                'session_id'    => $validated['session_id'] ?? null,
+            ]);
         }
 
         return redirect()->back()->with('success', get_phrase('Status updated'));
@@ -676,81 +885,69 @@ class AdmissionsController extends Controller
     /**
      * Converts an accepted/enrolled Admission into a portal student account.
      *
-     * Idempotent by design so a retried call (e.g. the status-update request
-     * firing twice) never creates duplicate accounts, profiles, or invoices:
-     *  - the User is looked up by email first; only created if missing.
-     *  - the StudentProfile is upserted (updateOrCreate keyed on user_id).
-     *  - the fee invoice generator dedupes internally (see its docblock).
-     * Credentials are only generated/emailed the first time the User row is
-     * actually created, never on a subsequent idempotent call. The account
-     * always starts with force_password_change=true so the student is
-     * required to set their own password before reaching the portal,
-     * regardless of whether the temp password was auto-generated or chosen
-     * by the enrolling admin.
+     * Delegates the actual provisioning to StudentProvisioningService — the
+     * one place shared with the staff-entry/admin wizard's own enrolment
+     * step, so an application never produces a differently-shaped student
+     * merely because of who entered it. This method's job is just to map
+     * an Admission's columns onto the service's input shape and translate
+     * the result back into this controller's audit/notification behaviour.
+     *
+     * @param array{class_id: ?int, section_id: ?int, department_id: ?int, session_id: ?int} $academicAssignment
      */
-    private function createStudentFromAdmission(Admission $admission, ?string $chosenPassword = null): void
+    private function createStudentFromAdmission(Admission $admission, ?string $chosenPassword = null, array $academicAssignment = []): void
     {
-        $existingUser = User::where('email', $admission->email)->first();
+        $result = StudentProvisioningService::provision([
+            'school_id'         => $this->school_id,
+            'first_name'        => $admission->first_name,
+            'last_name'         => $admission->last_name,
+            'email'             => $admission->email,
+            'password'          => $chosenPassword,
+            'gender'            => $admission->gender,
+            'phone'             => $admission->phone,
+            'address'           => $admission->physical_address,
+            'class_id'          => $academicAssignment['class_id'] ?? null,
+            'section_id'        => $academicAssignment['section_id'] ?? null,
+            'department_id'     => $academicAssignment['department_id'] ?? null,
+            'session_id'        => $academicAssignment['session_id'] ?? null,
+            'programme_id'      => $admission->programme_id,
+            'intake_session_id' => $admission->intake_session_id,
+            'nationality'       => $admission->nationality,
+            'applicant_id'      => $admission->applicant_id,
+        ]);
 
-        if ($existingUser && (int) $existingUser->role_id !== 7) {
-            // Email already belongs to a non-student account — do not touch
-            // it automatically; leave for an admin to resolve manually.
+        if ($result['error'] === 'email_taken_by_non_student') {
+            // Do not touch the existing account automatically; leave for an
+            // admin to resolve manually.
             AuditLog::record('error', 'Admissions', "Could not convert application {$admission->app_number} to a student — email {$admission->email} already belongs to a non-student account.");
             return;
         }
 
-        $student = $existingUser;
-        $plainPassword = null;
+        $student = $result['student'];
 
-        if (! $student) {
-            $plainPassword = $chosenPassword ?: Str::random(10);
-            $name = trim("{$admission->first_name} {$admission->last_name}");
-
-            $student = User::create([
-                'name'                   => $name,
-                'email'                  => $admission->email,
-                'password'               => Hash::make($plainPassword),
-                'code'                   => student_code(),
-                'role_id'                => 7, // student
-                'school_id'              => $this->school_id,
-                'account_status'         => 'active',
-                'status'                 => 1,
-                'force_password_change'  => true,
-                'user_information'       => json_encode([
-                    'phone'   => $admission->phone,
-                    'address' => $admission->physical_address,
-                ]),
-            ]);
-
+        if ($result['created']) {
             AuditLog::record('create', 'Admissions', "Student portal account created for {$student->name} (#{$student->id}) from application {$admission->app_number}.");
         }
 
-        StudentProfile::updateOrCreate(
-            ['user_id' => $student->id],
-            [
-                'school_id'         => $this->school_id,
-                'first_name'        => $admission->first_name,
-                'last_name'         => $admission->last_name,
-                'programme_id'      => $admission->programme_id,
-                'intake_session_id' => $admission->intake_session_id,
-                'nationality'       => $admission->nationality,
-            ]
-        );
-
-        StudentFeeInvoiceGenerator::generateForStudent($student, $admission->programme_id, $this->school_id);
-
-        \App\Support\EnrollmentDefaults::ensureRow($student->id, $this->school_id);
-
-        // Link the portal account to the student it became, so the applicant
-        // portal can point them at the student login rather than leaving them
-        // on a finished application with nowhere to go.
-        if ($admission->applicant_id) {
-            \App\Models\Applicant::where('id', $admission->applicant_id)
-                ->update(['converted_user_id' => $student->id]);
+        if ($result['enrollment']) {
+            AuditLog::record('create', 'Admissions', "Enrolment created for {$student->name} (#{$student->id}) from application {$admission->app_number}.", [
+                'event_type'  => 'DATA',
+                'record_type' => Enrollment::class,
+                'record_id'   => $result['enrollment']->id,
+                'school_id'   => $this->school_id,
+            ]);
         }
 
-        if ($plainPassword !== null) {
-            $sent = StudentPortalActivation::sendActivationEmail($student, $plainPassword, $admission->programme_id, $admission->intake_session_id);
+        // StudentProvisioningService only creates a real Enrollment when a
+        // complete academic assignment (Step 6) was given. This is the
+        // fallback for every other case — no-op if a row already exists
+        // (see EnrollmentDefaults's own docblock for why a present-but-
+        // class-less row still behaves correctly downstream, and still
+        // resolves the student's current session for session-scoped
+        // Online Exam visibility, which an entirely absent row would not).
+        \App\Support\EnrollmentDefaults::ensureRow($student->id, $this->school_id);
+
+        if ($result['plain_password'] !== null) {
+            $sent = StudentPortalActivation::sendActivationEmail($student, $result['plain_password'], $admission->programme_id, $admission->intake_session_id);
 
             if ($sent) {
                 AuditLog::record('update', 'Admissions', "Student portal activation email sent to {$student->email} (#{$student->id}).");

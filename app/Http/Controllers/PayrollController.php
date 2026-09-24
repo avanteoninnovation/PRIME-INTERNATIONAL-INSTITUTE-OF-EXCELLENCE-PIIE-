@@ -195,6 +195,6 @@ class PayrollController extends Controller
             ->where('staff_id', Auth::id())
             ->orderByDesc('pay_period')
             ->paginate(12);
-        return view('teacher.payroll.index', compact('payslips'));
+        return view('teacher.payroll.index', ['payrolls' => $payslips]);   // the view reads $payrolls
     }
 }
