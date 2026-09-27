@@ -25,6 +25,9 @@ $running_session = Session::find($current_session);
                     </ul>
                 </div>
                 <div class="export-btn-area">
+                    @if(app(\App\Support\Permissions\PermissionService::class)->allows(auth()->user(), 'academic.structure.manage'))
+                        <a href="{{ route('admin.academic_structure.index') }}" class="export_btn me-2">{{ get_phrase('Academic Years & Periods') }}</a>
+                    @endif
                     <a href="javascript:;" class="export_btn" onclick="rightModal('{{ route('admin.create.session') }}', '{{ get_phrase('Create Session') }}')"><i class="bi bi-plus"></i>{{ get_phrase('Add Session') }}</a>
                 </div>
             </div>

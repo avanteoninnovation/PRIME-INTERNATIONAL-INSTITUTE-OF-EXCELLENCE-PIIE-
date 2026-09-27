@@ -22,4 +22,9 @@ class Session extends Model
     {
         return $this->hasMany(LiveClass::class, 'academic_session_id');
     }
+
+    public function academicYear()
+    {
+        return $this->belongsTo(AcademicYear::class);
+    }
 }

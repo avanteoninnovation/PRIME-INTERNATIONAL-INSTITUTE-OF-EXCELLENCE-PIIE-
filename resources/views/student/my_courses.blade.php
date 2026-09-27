@@ -1,6 +1,10 @@
 @extends('student.navigation')
 @section('content')
 
+@if(($workflow ?? 'legacy') === 'hei')
+    @include('student.my_courses_hei')
+@else
+
 <div class="mainSection-title">
     <div class="row">
         <div class="col-12">
@@ -139,4 +143,5 @@
         </div>
     </div>
 </div>
+@endif
 @endsection

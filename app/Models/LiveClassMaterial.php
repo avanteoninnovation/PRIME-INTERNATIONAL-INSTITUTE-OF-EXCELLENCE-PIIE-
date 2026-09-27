@@ -41,6 +41,16 @@ class LiveClassMaterial extends Model
         'link_url', 'uploaded_by',
     ];
 
+    public function toArray(): array
+    {
+        $data = parent::toArray();
+        $liveClass = $this->liveClass;
+        if ($liveClass && $liveClass->course_offering_id !== null) {
+            unset($data['stored_name'], $data['link_url']);
+        }
+        return $data;
+    }
+
     public function liveClass()
     {
         return $this->belongsTo(LiveClass::class, 'live_class_id');
@@ -68,13 +78,22 @@ class LiveClassMaterial extends Model
 
     public function getUrlAttribute(): string
     {
-        return $this->isFile()
-            ? asset($this->uploadDir() . '/' . $this->stored_name)
-            : (string) $this->link_url;
+        $liveClass = $this->liveClass;
+        if ($liveClass && $liveClass->course_offering_id !== null) {
+            return route('live_classes.materials.access', ['liveClass' => $liveClass->id, 'material' => $this->id]);
+        }
+
+        return $this->isFile() ? asset($this->uploadDir() . '/' . $this->stored_name) : (string) $this->link_url;
     }
 
     public function getAbsolutePathAttribute(): ?string
     {
+        $liveClass = $this->liveClass;
+        if ($liveClass && $liveClass->course_offering_id !== null) {
+            return app(\App\Support\LiveClasses\LiveClassAssetStorage::class)
+                ->resolvePrivatePath((string) $this->stored_name, $liveClass, (string) $this->category);
+        }
+
         return $this->isFile() ? public_path($this->uploadDir() . '/' . $this->stored_name) : null;
     }
 

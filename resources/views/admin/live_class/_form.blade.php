@@ -137,26 +137,28 @@
             </select>
         </div>
 
-        <div class="col-md-8 mt-3">
-            <label class="eForm-label">{{ get_phrase('Meeting URL') }}</label>
-            <input type="url" class="form-control eForm-control" name="meeting_url" value="{{ old('meeting_url', $liveClass->meeting_url) }}" placeholder="https://...">
-            <small class="text-muted d-block mt-1">{{ get_phrase('Leave blank to have the selected platform auto-create the meeting link.') }}</small>
-        </div>
+        @if(!$liveClass->course_offering_id)
+            <div class="col-md-8 mt-3">
+                <label class="eForm-label">{{ get_phrase('Meeting URL') }}</label>
+                <input type="url" class="form-control eForm-control" name="meeting_url" value="{{ old('meeting_url', $liveClass->meeting_url) }}" placeholder="https://...">
+                <small class="text-muted d-block mt-1">{{ get_phrase('Leave blank to have the selected platform auto-create the meeting link.') }}</small>
+            </div>
 
-        <div class="col-md-4 mt-3">
-            <label class="eForm-label">{{ get_phrase('Meeting ID') }}</label>
-            <input type="text" class="form-control eForm-control" name="meeting_id" value="{{ old('meeting_id', $liveClass->meeting_id) }}">
-        </div>
+            <div class="col-md-4 mt-3">
+                <label class="eForm-label">{{ get_phrase('Meeting ID') }}</label>
+                <input type="text" class="form-control eForm-control" name="meeting_id" value="{{ old('meeting_id', $liveClass->meeting_id) }}">
+            </div>
 
-        <div class="col-md-4 mt-3">
-            <label class="eForm-label">{{ get_phrase('Meeting Password') }}</label>
-            <input type="password" class="form-control eForm-control" name="meeting_password" value="{{ old('meeting_password', $liveClass->meeting_password) }}">
-        </div>
+            <div class="col-md-4 mt-3">
+                <label class="eForm-label">{{ get_phrase('Meeting Password') }}</label>
+                <input type="password" class="form-control eForm-control" name="meeting_password" value="{{ old('meeting_password', $liveClass->meeting_password) }}">
+            </div>
 
-        <div class="col-md-4 mt-3">
-            <label class="eForm-label">{{ get_phrase('Recording URL') }}</label>
-            <input type="url" class="form-control eForm-control" name="recording_url" value="{{ old('recording_url', $liveClass->recording_url) }}" placeholder="https://...">
-        </div>
+            <div class="col-md-4 mt-3">
+                <label class="eForm-label">{{ get_phrase('Recording URL') }}</label>
+                <input type="url" class="form-control eForm-control" name="recording_url" value="{{ old('recording_url', $liveClass->recording_url) }}" placeholder="https://...">
+            </div>
+        @endif
 
         <div class="col-12 mt-4 d-flex gap-4">
             <div class="form-check">

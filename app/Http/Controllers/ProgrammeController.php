@@ -48,6 +48,8 @@ class ProgrammeController extends Controller
             ->get();
 
         $departments = Department::where('school_id', $this->school_id)->orderBy('name')->get();
+        $schoolType = \Illuminate\Support\Facades\DB::table('schools')->where('id', $this->school_id)->value('school_type') ?: 'k12';
+        $canSeeProgrammes = $schoolType !== 'k12';
 
         // Every configured faculty gets a section even when it currently has
         // no programmes — an empty faculty is exactly when an admin most
@@ -75,7 +77,7 @@ class ProgrammeController extends Controller
             $groups = $groups->filter(fn ($group) => $group['programmes']->isNotEmpty())->values();
         }
 
-        return view('admin.programme.list', compact('groups', 'departments', 'search', 'departmentId'))
+        return view('admin.programme.list', compact('groups', 'departments', 'search', 'departmentId', 'canSeeProgrammes'))
             ->with('totalCount', $programmes->count());
     }
 

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use DomainException;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
@@ -23,6 +24,7 @@ class LiveClass extends Model
         'title',
         'description',
         'subject_id',
+        'course_offering_id',
         'class_id',
         'programme_id',
         'academic_session_id',
@@ -46,6 +48,7 @@ class LiveClass extends Model
     ];
 
     protected $casts = [
+        'course_offering_id' => 'integer',
         'scheduled_at' => 'datetime',
         'ends_at'      => 'datetime',
         'start_date'   => 'date',
@@ -60,9 +63,70 @@ class LiveClass extends Model
         'can_join',
     ];
 
+    public function toArray(): array
+    {
+        $data = parent::toArray();
+        if ($this->course_offering_id !== null) {
+            unset($data['meeting_url'], $data['meeting_id'], $data['meeting_password'], $data['recording_url']);
+        }
+        return $data;
+    }
+
+    protected static function booted(): void
+    {
+        static::saving(function (self $liveClass): void {
+            $offeringId = $liveClass->course_offering_id;
+            $previousOfferingId = $liveClass->getOriginal('course_offering_id');
+
+            if ($offeringId === null || $offeringId === '') {
+                if ($previousOfferingId !== null && $previousOfferingId !== '') {
+                    throw new DomainException('An Offering-backed Live Class cannot be detached from its Course Offering.');
+                }
+
+                return;
+            }
+
+            if ($previousOfferingId !== null && (int) $previousOfferingId !== (int) $offeringId) {
+                throw new DomainException('An Offering-backed Live Class cannot be reassigned to another Course Offering.');
+            }
+
+            $offering = CourseOffering::query()->whereKey($offeringId)->first();
+            if (! $offering) {
+                throw new DomainException('The selected Course Offering does not exist.');
+            }
+
+            if ((int) $liveClass->school_id !== (int) $offering->school_id) {
+                throw new DomainException('The Live Class and Course Offering must belong to the same tenant.');
+            }
+
+            if (! Subject::query()->where('school_id', $offering->school_id)->whereKey($offering->subject_id)->exists()) {
+                throw new DomainException('The Course Offering subject does not belong to the Offering tenant.');
+            }
+
+            if ((int) $liveClass->subject_id !== (int) $offering->subject_id) {
+                throw new DomainException('The Live Class subject must match the Course Offering subject.');
+            }
+
+            if ($liveClass->isDirty('course_offering_id') && ! in_array($offering->status, [CourseOffering::STATUS_OPEN, CourseOffering::STATUS_IN_PROGRESS], true)) {
+                throw new DomainException('A new operational Live Class requires an open or in-progress Course Offering.');
+            }
+        });
+
+        static::deleting(function (self $liveClass): void {
+            if ($liveClass->course_offering_id !== null) {
+                throw new DomainException('Offering-backed Live Classes cannot be deleted; cancel them to preserve history.');
+            }
+        });
+    }
+
     public function subject()
     {
         return $this->belongsTo(Subject::class, 'subject_id');
+    }
+
+    public function courseOffering()
+    {
+        return $this->belongsTo(CourseOffering::class, 'course_offering_id');
     }
 
     public function course()
@@ -280,6 +344,10 @@ class LiveClass extends Model
         $parts = parse_url($url);
         if (!isset($parts['scheme']) || strtolower($parts['scheme']) !== 'https') {
             return null;
+        }
+
+        if ($this->course_offering_id !== null) {
+            return route('live_classes.recording.access', ['liveClass' => $this->id]);
         }
 
         return $url;

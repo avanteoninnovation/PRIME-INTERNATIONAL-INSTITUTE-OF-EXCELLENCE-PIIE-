@@ -32,6 +32,16 @@ class Subject extends Model
         return $this->belongsTo(Programme::class, 'programme_id');
     }
 
+    public function curriculumMemberships()
+    {
+        return $this->hasMany(CurriculumMembership::class, 'subject_id');
+    }
+
+    public function courseOfferings()
+    {
+        return $this->hasMany(CourseOffering::class, 'subject_id')->where('school_id', $this->school_id);
+    }
+
     public function classes()
     {
         return $this->belongsTo(Classes::class, 'class_id');

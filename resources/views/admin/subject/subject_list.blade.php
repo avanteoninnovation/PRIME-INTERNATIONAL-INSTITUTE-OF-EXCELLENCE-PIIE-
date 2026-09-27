@@ -1,106 +1,142 @@
-<?php use App\Models\Classes; use App\Models\Programme; ?>
-
 @extends('admin.navigation')
-   
-@section('content')
-<div class="mainSection-title">
-    <div class="row">
-      <div class="col-12">
-        <div
-          class="d-flex justify-content-between align-items-center flex-wrap gr-15"
-        >
-          <div class="d-flex flex-column">
-            <h4>{{ academic_term('subjects', auth()->user()->school_id) }}</h4>
-            <ul class="d-flex align-items-center eBreadcrumb-2">
-              <li><a href="#">{{ get_phrase('Home') }}</a></li>
-              <li><a href="#">{{ get_phrase('Academic') }}</a></li>
-              <li><a href="#">{{ academic_term('subjects', auth()->user()->school_id) }}</a></li>
-            </ul>
-          </div>
-          <div class="export-btn-area">
-            <a href="javascript:;" class="export_btn" onclick="rightModal('{{ route('admin.subject.open_modal') }}', '{{ get_phrase('Create Subject') }}')"><i class="bi bi-plus"></i>{{ get_phrase('Add subject') }}</a>
-          </div>
-        </div>
-      </div>
-    </div>
-</div>
-<div class="row">
-    <div class="col-lg-8 col-md-8 col-sm-8 col-12 offset-md-2">
-        <div class="eSection-wrap">
-            <form method="GET" class="d-block ajaxForm" action="{{ route('admin.subject_list') }}">
-                <div class="row mt-3 d-flex justify-content-between">
-                    
-                    <div class="col-lg-6 col-md-6 col-sm-6 col-6">
-                        <select name="class_id" id="class_id" class="form-select eForm-select eChoice-multiple-with-remove" required onchange="classWiseSection(this.value)">
-                            <option value="">{{ get_phrase('Select a class') }}</option>
-                            @foreach($classes as $class)
-                                <option value="{{ $class->id }}" {{ $class_id == $class->id ?  'selected':'' }}>{{ $class->name }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="col-lg-6 col-md-6 col-sm-6 col-6 d-flex justify-content-end">
-                        <button class="eBtn eBtn btn-secondary" type="submit" id = "filter_routine">{{ get_phrase('Filter') }}</button>
-                    </div>
-                </div>
-            </form>
 
-            @if(count($subjects) > 0)
-            <div class="table-responsive">
-                <table class="table eTable">
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>{{ get_phrase('Name') }}</th>
-                            <th>{{ academic_term('class', auth()->user()->school_id) }}</th>
-                            <th>{{ academic_term('programme', auth()->user()->school_id) }}</th>
-                            <th class="text-end">{{ get_phrase('Action') }}</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach($subjects as $key => $subject)
-                            <?php $class = $subject->class_id ? Classes::find($subject->class_id) : null; ?>
-                            <?php $programme = $subject->programme_id ? Programme::find($subject->programme_id) : null; ?>
-                             <tr>
-                                <td>{{ $subjects->firstItem() + $key }}</td>
-                                <td>{{ $subject->name }}</td>
-                                <td>{{ $class->name ?? '-' }}</td>
-                                <td>{{ $programme->name ?? '-' }}</td>
-                                <td class="text-start">
-                                    <div class="adminTable-action">
-                                        <button
-                                          type="button"
-                                          class="eBtn eBtn-black dropdown-toggle table-action-btn-2"
-                                          data-bs-toggle="dropdown"
-                                          aria-expanded="false"
-                                        >
-                                          {{ get_phrase('Actions') }}
-                                        </button>
-                                        <ul
-                                          class="dropdown-menu dropdown-menu-end eDropdown-menu-2 eDropdown-table-action"
-                                        >
-                                          <li>
-                                            <a class="dropdown-item" href="javascript:;" onclick="rightModal('{{ route('admin.edit.subject', ['id' => $subject->id]) }}', '{{ get_phrase('Edit Subject') }}')">{{ get_phrase('Edit') }}</a>
-                                          </li>
-                                          <li>
-                                            <a class="dropdown-item" href="javascript:;" onclick="confirmModal('{{ route('admin.subject.delete', ['id' => $subject->id]) }}', 'undefined');">{{ get_phrase('Delete') }}</a>
-                                          </li>
-                                        </ul>
-                                    </div>
-                                </td>
-                            </tr>
-                        @endforeach
-                    </tbody>
-                </table>
-                {!! $subjects->appends(request()->all())->links() !!}
-            </div>
-            @else
-            <div class="empty_box center">
-              <img class="mb-3" width="150px" src="{{ asset('assets/images/empty_box.png') }}" />
-              <br>
-              <span class="">{{ get_phrase('No data found') }}</span>
-            </div>
+@section('content')
+@php
+    $pageLabel = $isHigherEducation ? 'Course Units' : ($isMixed ? 'Subjects / Course Units' : 'Subjects');
+    $createLabel = $isHigherEducation ? 'Create Course Unit' : ($isMixed ? 'Create Subject / Course Unit' : 'Create Subject');
+@endphp
+<div class="mainSection-title">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+        <div>
+            <h4>{{ get_phrase($pageLabel) }}</h4>
+            <ul class="d-flex align-items-center eBreadcrumb-2">
+                <li><a href="#">{{ get_phrase('Home') }}</a></li>
+                <li><a href="#">{{ get_phrase('Academic') }}</a></li>
+                <li aria-current="page">{{ get_phrase($pageLabel) }}</li>
+            </ul>
+            @if($isHigherEducation)
+                <p class="text-muted mb-0">{{ get_phrase("Maintain the institution's Course Unit catalogue. Course Units can then be placed into Programme Study Plans by stage and credit value.") }}</p>
+            @elseif($isMixed)
+                <p class="text-muted mb-0">{{ get_phrase('Maintain the shared catalogue. Choose a Class for a school subject or a Programme for a higher-education Course Unit.') }}</p>
             @endif
         </div>
+        <div class="export-btn-area">
+            <a href="javascript:;" class="export_btn" onclick="rightModal('{{ route('admin.subject.open_modal') }}', '{{ get_phrase($createLabel) }}')"><span class="me-1" aria-hidden="true">+</span>{{ get_phrase($createLabel) }}</a>
+        </div>
     </div>
+</div>
+
+<div class="eSection-wrap mt-3">
+    <form method="GET" class="row g-3 align-items-end" action="{{ route('admin.subject_list') }}" aria-label="{{ get_phrase('Filter catalogue') }}">
+        <div class="col-12 col-md-6 {{ $isHigherEducation ? 'col-lg-6' : 'col-lg-5' }}">
+            <label for="catalogue-search" class="form-label">{{ get_phrase($isHigherEducation ? 'Search Course Units' : 'Search Subjects / Course Units') }}</label>
+            <input type="search" name="search" id="catalogue-search" class="form-control" value="{{ $search }}" placeholder="{{ get_phrase('Search by name or code') }}">
+        </div>
+        @if($isHigherEducation || $isMixed)
+            <div class="col-12 col-md-6 col-lg-3">
+                <label for="catalogue-programme" class="form-label">{{ get_phrase('Programme') }}</label>
+                <select name="programme_id" id="catalogue-programme" class="form-select">
+                    <option value="">{{ get_phrase('All Programmes') }}</option>
+                    @foreach($programmes as $programme)
+                        <option value="{{ $programme->id }}" @selected((string)$programmeId === (string)$programme->id)>{{ $programme->code }} — {{ $programme->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+        @endif
+        @if(!$isHigherEducation)
+            <div class="col-12 col-md-6 col-lg-3">
+                <label for="catalogue-class" class="form-label">{{ get_phrase('Class') }}</label>
+                <select name="class_id" id="catalogue-class" class="form-select">
+                    <option value="">{{ get_phrase('All Classes') }}</option>
+                    @foreach($classes as $class)
+                        <option value="{{ $class->id }}" @selected((string)$classId === (string)$class->id)>{{ $class->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+        @endif
+        <div class="col-12 col-md-6 col-lg-auto">
+            <button class="eBtn eBtn-primary" type="submit">{{ get_phrase('Apply filters') }}</button>
+        </div>
+    </form>
+</div>
+
+<div class="eSection-wrap mt-3">
+    @if($subjects->count() > 0)
+        <div class="table-responsive">
+            <table class="table eTable align-middle">
+                <thead>
+                    <tr>
+                        <th scope="col">{{ get_phrase('Code') }}</th>
+                        <th scope="col">{{ get_phrase($isHigherEducation ? 'Course Unit' : ($isMixed ? 'Subject / Course Unit' : 'Subject')) }}</th>
+                        @if($isHigherEducation)
+                            <th scope="col">{{ get_phrase('Programme / Catalogue Association') }}</th>
+                        @elseif($isMixed)
+                            <th scope="col">{{ get_phrase('Catalogue Association') }}</th>
+                        @else
+                            <th scope="col">{{ get_phrase('Class') }}</th>
+                        @endif
+                        <th scope="col" class="text-end">{{ get_phrase('Actions') }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($subjects as $subject)
+                        <tr>
+                            <td class="text-nowrap">{{ $subject->code ?: '—' }}</td>
+                            <td>{{ $subject->name }}</td>
+                            @if($isHigherEducation)
+                                <td>
+                                    @if($subject->programme)
+                                        {{ $subject->programme->code }} — {{ $subject->programme->name }}
+                                    @elseif($subject->classes)
+                                        <span class="text-muted">{{ get_phrase('Legacy Class association') }}:</span> {{ $subject->classes->name }}
+                                    @else
+                                        <span class="text-muted">{{ get_phrase('No catalogue association') }}</span>
+                                    @endif
+                                </td>
+                            @elseif($isMixed)
+                                <td>
+                                    @if($subject->programme)
+                                        {{ get_phrase('Programme') }}: {{ $subject->programme->code }} — {{ $subject->programme->name }}
+                                    @elseif($subject->classes)
+                                        {{ get_phrase('Class') }}: {{ $subject->classes->name }}
+                                    @else
+                                        <span class="text-muted">—</span>
+                                    @endif
+                                </td>
+                            @else
+                                <td>{{ $subject->classes->name ?? '—' }}</td>
+                            @endif
+                            <td class="text-end">
+                                <div class="adminTable-action">
+                                    <button type="button" class="eBtn eBtn-black dropdown-toggle table-action-btn-2" data-bs-toggle="dropdown" aria-expanded="false" aria-label="{{ get_phrase('Actions for') }} {{ $subject->name }}">{{ get_phrase('Actions') }}</button>
+                                    <ul class="dropdown-menu dropdown-menu-end eDropdown-menu-2 eDropdown-table-action">
+                                        <li><a class="dropdown-item" href="javascript:;" onclick="rightModal('{{ route('admin.edit.subject', ['id' => $subject->id]) }}', '{{ get_phrase($isHigherEducation ? 'Edit Course Unit' : 'Edit Subject') }}')">{{ get_phrase('Edit') }}</a></li>
+                                        <li><a class="dropdown-item" href="javascript:;" onclick="confirmModal('{{ route('admin.subject.delete', ['id' => $subject->id]) }}', 'undefined');">{{ get_phrase('Delete') }}</a></li>
+                                    </ul>
+                                </div>
+                            </td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+        {!! $subjects->links() !!}
+    @else
+        <div class="text-center py-5" role="status">
+            <h5>{{ get_phrase($search || $classId || $programmeId ? 'No matching catalogue records' : 'No catalogue records yet') }}</h5>
+            @if($isHigherEducation)
+                <p class="text-muted mx-auto" style="max-width: 42rem">{{ get_phrase('Create Course Units here, then add each one to the appropriate Programme Study Plan stage and define its credits and classification there.') }}</p>
+            @elseif($isMixed)
+                <p class="text-muted">{{ get_phrase('Create a Subject for a Class or a Course Unit for a Programme.') }}</p>
+            @else
+                <p class="text-muted">{{ get_phrase('Create a Subject and associate it with a Class to make it available in the existing school workflow.') }}</p>
+            @endif
+            @if($search || $classId || $programmeId)
+                <a class="btn btn-outline-secondary" href="{{ route('admin.subject_list') }}">{{ get_phrase('Clear filters') }}</a>
+            @else
+                <a href="javascript:;" class="eBtn eBtn-primary" onclick="rightModal('{{ route('admin.subject.open_modal') }}', '{{ get_phrase($createLabel) }}')">{{ get_phrase($createLabel) }}</a>
+            @endif
+        </div>
+    @endif
 </div>
 @endsection

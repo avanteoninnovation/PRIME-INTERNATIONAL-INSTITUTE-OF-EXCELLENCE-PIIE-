@@ -39,7 +39,7 @@ class StaffProvisioningService
     public const DUPLICATE_EMAIL_ERROR = 'Email was already taken.';
 
     /** The base roles that have a staff creation workflow (role_id => key). */
-    public const BASE_ROLES = [2 => 'admin', 3 => 'teacher', 4 => 'accountant', 5 => 'librarian', 10 => 'warden'];
+    public const BASE_ROLES = [2 => 'admin', 3 => 'teacher', 4 => 'accountant', 5 => 'librarian', 10 => 'warden', 20 => 'staff'];
 
     private const SCHOOL_ADMIN = 2;
 
@@ -115,7 +115,9 @@ class StaffProvisioningService
                 'user_information' => json_encode($info),
                 'status' => 1,
                 'code' => staff_code(),
-                'staff_status' => StaffStatus::ACTIVE,
+                'staff_status' => $roleId === \App\Support\Roles\SystemRole::GENERIC_STAFF
+                    ? ($data['staff_status'] ?? StaffStatus::ACTIVE)
+                    : StaffStatus::ACTIVE,
                 'force_password_change' => $password['force_change'],
             ]));
 

@@ -3821,66 +3821,86 @@ class AdminController extends Controller
      */
     public function subjectList(Request $request)
     {
-        $classes = Classes::where('school_id', auth()->user()->school_id)->get();
+        $schoolId = (int) $request->user()->school_id;
+        $educationLevel = academic_education_level($schoolId);
+        $isHigherEducation = in_array($educationLevel, ['tertiary', 'vocational'], true);
+        $isMixed = $educationLevel === 'mixed';
+        $classes = Classes::where('school_id', $schoolId)->orderBy('name')->get();
+        $programmes = Programme::where('school_id', $schoolId)->orderBy('name')->get();
+        $search = trim((string) $request->query('search', ''));
+        $classId = $request->query('class_id', '');
+        $programmeId = $request->query('programme_id', '');
 
-        if (count($request->all()) > 0 && $request->class_id != '') {
+        $query = Subject::query()->where('school_id', $schoolId)
+            ->with([
+                'programme' => fn ($q) => $q->where('school_id', $schoolId),
+                'classes' => fn ($q) => $q->where('school_id', $schoolId),
+            ]);
 
-            $data     = $request->all();
-            $class_id = $data['class_id'] ?? '';
-            $subjects = Subject::where('school_id', auth()->user()->school_id)->where('class_id', $class_id)->paginate(10);
-        } else {
-            $subjects = Subject::where('school_id', auth()->user()->school_id)->paginate(10);
-
-            $class_id = '';
+        if ($search !== '') {
+            $query->where(fn ($q) => $q->where('name', 'like', '%'.$search.'%')
+                ->orWhere('code', 'like', '%'.$search.'%'));
+        }
+        if ($isHigherEducation && $request->filled('programme_id')) {
+            $query->where('programme_id', $programmeId);
+        } elseif (! $isHigherEducation && ! $isMixed && $request->filled('class_id')) {
+            $query->where('class_id', $classId);
+        } elseif ($isMixed) {
+            if ($request->filled('class_id')) {
+                $query->where('class_id', $classId);
+            }
+            if ($request->filled('programme_id')) {
+                $query->where('programme_id', $programmeId);
+            }
         }
 
-        return view('admin.subject.subject_list', compact('subjects', 'classes', 'class_id'));
+        $subjects = $query->orderBy('name')->paginate(15)->appends($request->query());
+
+        return view('admin.subject.subject_list', compact(
+            'subjects', 'classes', 'programmes', 'classId', 'programmeId', 'search',
+            'isHigherEducation', 'isMixed'
+        ));
     }
 
     public function createSubject()
     {
-        $classes    = Classes::where('school_id', auth()->user()->school_id)->get();
-        $programmes = Programme::where('school_id', auth()->user()->school_id)->where('is_active', 1)->orderBy('name')->get();
-        return view('admin.subject.add_subject', ['classes' => $classes, 'programmes' => $programmes]);
+        $schoolId = (int) auth()->user()->school_id;
+        $educationLevel = academic_education_level($schoolId);
+        $isHigherEducation = in_array($educationLevel, ['tertiary', 'vocational'], true);
+        $isMixed = $educationLevel === 'mixed';
+        $classes = Classes::where('school_id', $schoolId)->orderBy('name')->get();
+        $programmes = Programme::where('school_id', $schoolId)->where('is_active', 1)->orderBy('name')->get();
+
+        return view('admin.subject.add_subject', compact('classes', 'programmes', 'isHigherEducation', 'isMixed'));
     }
 
     public function subjectCreate(Request $request)
     {
-        $data = $request->all();
-
-        $request->validate([
-            'name'         => 'required|string|max:255',
-            'class_id'     => 'nullable|exists:classes,id',
-            'programme_id' => 'nullable|exists:programmes,id,school_id,' . auth()->user()->school_id,
-            'code'         => 'nullable|string|max:30',
-        ]);
-
-        if (empty($data['class_id']) && empty($data['programme_id'])) {
-            return redirect()->back()->with('error', get_phrase('Please select a class or a programme.'));
-        }
-
-        if (! empty($data['class_id']) && ! empty($data['programme_id'])) {
-            return redirect()->back()->with('error', get_phrase('Please select a class OR a programme, not both.'));
-        }
+        $schoolId = (int) $request->user()->school_id;
+        $educationLevel = academic_education_level($schoolId);
+        $isHigherEducation = in_array($educationLevel, ['tertiary', 'vocational'], true);
+        $isMixed = $educationLevel === 'mixed';
+        $data = $request->validate($this->subjectCatalogueRules($schoolId, $isHigherEducation, $isMixed));
+        $this->validateSubjectCatalogueAssociation($data, $isHigherEducation, $isMixed);
 
         $subject_data = [
             'name'      => $data['name'],
-            'school_id' => auth()->user()->school_id,
-            'code'      => $data['code'] ?? null,
+            'school_id' => $schoolId,
+            'code'      => trim($data['code']),
         ];
 
-        if (! empty($data['programme_id'])) {
+        if ($isHigherEducation || ! empty($data['programme_id'])) {
             $subject_data['programme_id'] = $data['programme_id'];
             $subject_data['class_id']     = null;
             $subject_data['session_id']   = null;
         } else {
-            $active_session = get_school_settings(auth()->user()->school_id)->value('running_session');
+            $active_session = get_school_settings($schoolId)->value('running_session');
             if (empty($active_session)) {
-                $active_session = Session::where('school_id', auth()->user()->school_id)->value('id');
+                $active_session = Session::where('school_id', $schoolId)->value('id');
             }
 
             if (empty($active_session)) {
-                return redirect()->back()->with('error', 'Please create or set an active academic session before adding subjects.');
+                return redirect()->back()->with('error', get_phrase('Please create or set an active academic session before adding subjects.'));
             }
 
             $subject_data['class_id']   = $data['class_id'];
@@ -3891,65 +3911,105 @@ class AdminController extends Controller
             Subject::create($subject_data);
         } catch (\Illuminate\Database\QueryException $e) {
             if ($e->getCode() == 23000) {
-                return redirect()->back()->with('error', get_phrase('A subject with this code already exists.'));
+                return redirect()->back()->withErrors(['code' => get_phrase('A Course Unit or Subject with this code already exists in this institution.')])->withInput();
             }
-            throw $e;
+            report($e);
+
+            return redirect()->back()->with('error', get_phrase('The catalogue record could not be saved. Check the Programme or Class selection and try again.'))->withInput();
         }
 
-        return redirect('/admin/subject' . (! empty($data['class_id']) ? '?class_id=' . $data['class_id'] : ''))->with('message', 'You have successfully create subject.');
+        return redirect()->route('admin.subject_list')->with('message', get_phrase('Course Unit or Subject created successfully. Add it separately to the appropriate Programme Study Plan stage if needed.'));
     }
 
     public function editSubject($id)
     {
-        $subject    = Subject::where('school_id', auth()->user()->school_id)->findOrFail($id);
-        $classes    = Classes::where('school_id', auth()->user()->school_id)->get();
-        $programmes = Programme::where('school_id', auth()->user()->school_id)->where('is_active', 1)->orderBy('name')->get();
-        return view('admin.subject.edit_subject', ['subject' => $subject, 'classes' => $classes, 'programmes' => $programmes]);
+        $schoolId = (int) auth()->user()->school_id;
+        $educationLevel = academic_education_level($schoolId);
+        $isHigherEducation = in_array($educationLevel, ['tertiary', 'vocational'], true);
+        $isMixed = $educationLevel === 'mixed';
+        $subject = Subject::where('school_id', $schoolId)->findOrFail($id);
+        $classes = Classes::where('school_id', $schoolId)->orderBy('name')->get();
+        $programmes = Programme::where('school_id', $schoolId)->where('is_active', 1)->orderBy('name')->get();
+
+        return view('admin.subject.edit_subject', compact('subject', 'classes', 'programmes', 'isHigherEducation', 'isMixed'));
     }
 
     public function subjectUpdate(Request $request, $id)
     {
-        $data = $request->all();
-
-        $request->validate([
-            'name'         => 'required|string|max:255',
-            'class_id'     => 'nullable|exists:classes,id',
-            'programme_id' => 'nullable|exists:programmes,id,school_id,' . auth()->user()->school_id,
-            'code'         => 'nullable|string|max:30',
-        ]);
-
-        if (empty($data['class_id']) && empty($data['programme_id'])) {
-            return redirect()->back()->with('error', get_phrase('Please select a class or a programme.'));
-        }
-
-        if (! empty($data['class_id']) && ! empty($data['programme_id'])) {
-            return redirect()->back()->with('error', get_phrase('Please select a class OR a programme, not both.'));
-        }
+        $schoolId = (int) $request->user()->school_id;
+        $educationLevel = academic_education_level($schoolId);
+        $isHigherEducation = in_array($educationLevel, ['tertiary', 'vocational'], true);
+        $isMixed = $educationLevel === 'mixed';
+        $subject = Subject::where('school_id', $schoolId)->findOrFail($id);
+        $data = $request->validate($this->subjectCatalogueRules($schoolId, $isHigherEducation, $isMixed, $subject->id));
+        $this->validateSubjectCatalogueAssociation($data, $isHigherEducation, $isMixed);
 
         $subject_data = [
             'name'      => $data['name'],
-            'school_id' => auth()->user()->school_id,
-            'code'      => $data['code'] ?? null,
+            'school_id' => $schoolId,
+            'code'      => trim($data['code']),
         ];
 
-        if (! empty($data['programme_id'])) {
+        if ($isHigherEducation || ! empty($data['programme_id'])) {
             $subject_data['programme_id'] = $data['programme_id'];
             $subject_data['class_id']     = null;
+            $subject_data['session_id']   = null;
         } else {
             $subject_data['class_id']     = $data['class_id'];
             $subject_data['programme_id'] = null;
         }
 
         try {
-            Subject::where('school_id', auth()->user()->school_id)->where('id', $id)->update($subject_data);
+            $subject->update($subject_data);
         } catch (\Illuminate\Database\QueryException $e) {
             if ($e->getCode() == 23000) {
-                return redirect()->back()->with('error', get_phrase('A subject with this code already exists.'));
+                return redirect()->back()->withErrors(['code' => get_phrase('A Course Unit or Subject with this code already exists in this institution.')])->withInput();
             }
-            throw $e;
+            report($e);
+
+            return redirect()->back()->with('error', get_phrase('The catalogue record could not be saved. Check the Programme or Class selection and try again.'))->withInput();
         }
 
-        return redirect('/admin/subject' . (! empty($data['class_id']) ? '?class_id=' . $data['class_id'] : ''))->with('message', 'You have successfully update subject.');
+        return redirect()->route('admin.subject_list')->with('message', get_phrase('Course Unit or Subject updated successfully.'));
+    }
+
+    private function subjectCatalogueRules(int $schoolId, bool $isHigherEducation, bool $isMixed, ?int $ignoreId = null): array
+    {
+        $codeRule = \Illuminate\Validation\Rule::unique('subjects', 'code')->where('school_id', $schoolId);
+        if ($ignoreId !== null) {
+            $codeRule->ignore($ignoreId);
+        }
+
+        return [
+            'name' => ['required', 'string', 'max:255'],
+            'code' => ['required', 'string', 'max:30', 'regex:/^[A-Za-z0-9][A-Za-z0-9._-]*$/', $codeRule],
+            'class_id' => ['nullable', 'integer', \Illuminate\Validation\Rule::exists('classes', 'id')->where('school_id', $schoolId)],
+            'programme_id' => ['nullable', 'integer', \Illuminate\Validation\Rule::exists('programmes', 'id')->where('school_id', $schoolId)],
+        ];
+    }
+
+    private function validateSubjectCatalogueAssociation(array $data, bool $isHigherEducation, bool $isMixed): void
+    {
+        $hasClass = ! empty($data['class_id']);
+        $hasProgramme = ! empty($data['programme_id']);
+
+        if ($isHigherEducation && (! $hasProgramme || $hasClass)) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'programme_id' => get_phrase('Select a Programme for this Course Unit; Study Plan placement is managed separately.'),
+            ]);
+        }
+
+        if (! $isHigherEducation && ! $isMixed && (! $hasClass || $hasProgramme)) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'class_id' => get_phrase('Select a Class for this Subject.'),
+            ]);
+        }
+
+        if ($isMixed && ($hasClass === $hasProgramme)) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'class_id' => get_phrase('Select exactly one catalogue association: a Class or a Programme.'),
+            ]);
+        }
     }
 
     public function subjectDelete($id)
@@ -7311,7 +7371,7 @@ class AdminController extends Controller
         $class = Classes::where('school_id', auth()->user()->school_id)->findOrFail($data['class_id']);
         $page_data['class_name'] = $class->name;
         $page_data['section_name'] = Section::where('class_id', $class->id)->findOrFail($data['section_id'])->name;
-        $page_data['session_title'] = Session::where('school_id', auth()->user()->school_id)->find($data['session_id'])->session_title;
+        $page_data['session_title'] = Session::where('school_id', auth()->user()->school_id)->findOrFail($data['session_id'])->session_title;
         $admit_cards = AdmitCard::where('school_id', auth()->user()->school_id)->get();
         $classes = Classes::where('school_id', auth()->user()->school_id)->get();
         $sessions = Session::where('school_id', auth()->user()->school_id)->get();

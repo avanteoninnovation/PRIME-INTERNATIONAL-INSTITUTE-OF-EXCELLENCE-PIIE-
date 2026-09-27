@@ -463,6 +463,7 @@ class ParentController extends Controller
 
         if(!empty($request->all())){
             $data = $request->all();
+            $request->validate(['month' => 'required|date_format:M', 'year' => 'required|digits:4', 'student_id' => 'required|integer']);
             $date = '01 '.$data['month'].' '.$data['year'];
             $page_data['attendance_date'] = strtotime($date);
             $page_data['month'] = $data['month'];
@@ -474,7 +475,9 @@ class ParentController extends Controller
             $last_date = date("Y-m-t", strtotime($date));
             $last_date = strtotime($last_date);
 
-            $attendance_of_students = DailyAttendances::whereBetween('timestamp', [$first_date, $last_date])->where(['class_id' => $student_data['class_id'], 'section_id' => $student_data['class_id'], 'student_id' => $student_data['user_id']])->get();
+            $attendance_of_students = DailyAttendances::whereBetween('timestamp', [$first_date, $last_date])
+                ->where(['class_id' => $student_data['class_id'], 'section_id' => $student_data['section_id'], 'student_id' => $student_data['user_id'], 'school_id' => auth()->user()->school_id])
+                ->get();
 
             $no_of_users = DailyAttendances::where(['class_id' => $student_data['class_id'], 'section_id' => $student_data['section_id'], 'student_id' => $student_data['user_id'], 'school_id' => auth()->user()->school_id])->distinct()->count('student_id');
 

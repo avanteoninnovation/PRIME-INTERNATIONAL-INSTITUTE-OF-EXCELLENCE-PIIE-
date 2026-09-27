@@ -451,6 +451,10 @@
                 <div id="academicAssignment" class="{{ $admission->status === \App\Models\Admission::STATUS_ENROLLED ? '' : 'd-none' }} mb-3 p-3" style="background:#f8f9fb; border-radius:8px;">
                     <div class="fw-semibold mb-2" style="font-size:13.5px;">{{ get_phrase('Academic Assignment') }}</div>
 
+                    @if($cohortPlacementPending && $admission->programme_id && $admission->intake_session_id)
+                        <div class="alert alert-info py-2" role="status"><strong>Academic Placement Pending</strong><div>This student has not yet been added to a Programme Cohort. Their admission and student account are in place; no cohort is created automatically.</div>@if(auth()->user()->hasPermission('academic.programme_cohort.view'))<a class="btn btn-sm btn-outline-primary mt-2" href="{{ route('admin.programme_cohorts.index',['programme_id'=>$admission->programme_id,'intake_session_id'=>$admission->intake_session_id]) }}">Find a matching Programme Cohort</a>@endif</div>
+                    @endif
+
                     @if($existingEnrolment)
                         <p class="mb-0" style="font-size:13.5px;">
                             {{ get_phrase('Already enrolled') }}:

@@ -34,13 +34,20 @@ use App\Models\Section;
 use App\Models\StudentFeeManager;
 use App\Support\Admissions\ApplicationDocuments;
 use App\Models\StudentProfile;
+use App\Models\School;
 use App\Models\StudentRequest;
 use App\Models\Subject;
 use App\Models\Syllabus;
 use App\Models\TeacherPermission;
 use App\Models\User;
+use App\Support\CourseRegistration\CourseRegistrationService;
+use App\Support\CourseRegistration\StudentRegistrationConfirmationEligibility;
+use App\Support\CourseRegistration\StudentCourseOfferingDiscovery;
+use App\Support\TenantConfiguration;
 use Carbon\Carbon;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
+use DomainException;
 use PDF;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -243,6 +250,35 @@ class StudentController extends Controller
         $student = auth()->user();
         $schoolId = $student->school_id;
 
+        $path = $this->studentCoursePath($student);
+        if ($path !== 'legacy') {
+            if ($path === 'configuration') {
+                $courseData = [
+                    'state' => 'configuration',
+                    'message' => 'Your academic pathway could not be determined. Contact the academic office.',
+                    'year' => null, 'period' => null, 'offerings' => collect(), 'registrations' => collect(),
+                    'pending' => collect(), 'confirmed' => collect(), 'history' => collect(), 'finance_eligible' => false,
+                ];
+            } else {
+                try {
+                    $courseData = app(StudentCourseOfferingDiscovery::class)->discover($student);
+                } catch (DomainException) {
+                    $courseData = [
+                        'state' => 'integrity_review',
+                        'message' => 'Your academic registration record needs review. Contact the academic office.',
+                        'year' => null, 'period' => null, 'offerings' => collect(), 'registrations' => collect(),
+                        'pending' => collect(), 'confirmed' => collect(), 'history' => collect(), 'finance_eligible' => false,
+                    ];
+                }
+            }
+            $school = School::query()->whereKey($schoolId)->first();
+            $terminology = app(TenantConfiguration::class)->terminology($school);
+            return view('student.my_courses', $courseData + [
+                'workflow' => 'hei',
+                'courseUnitLabel' => $terminology['course_unit'] ?? 'Course Unit',
+            ]);
+        }
+
         $enrollment = Enrollment::where('user_id', $student->id)->where('school_id', $schoolId)->first();
         $studentProfile = StudentProfile::where('user_id', $student->id)->first();
         $programme = $studentProfile?->programme_id ? Programme::find($studentProfile->programme_id) : null;
@@ -277,9 +313,34 @@ class StudentController extends Controller
         $student = auth()->user();
         $schoolId = $student->school_id;
 
+        $path = $this->studentCoursePath($student);
+        if ($path === 'configuration') {
+            return redirect()->route('student.my_courses')->with('error', 'Your academic pathway could not be determined. Contact the academic office.');
+        }
+        if ($path === 'hei') {
+            $validated = $request->validate(['course_offering_id' => ['required', 'integer', 'min:1']]);
+            try {
+                $discovery = app(StudentCourseOfferingDiscovery::class);
+                $membershipId = $discovery->assignmentMembershipForOffering($student, (int) $validated['course_offering_id']);
+                if ($membershipId === null) {
+                    return redirect()->route('student.my_courses')->with('error', 'That Course Offering is no longer available for your current academic context. Refresh the page or contact the academic office.');
+                }
+                app(CourseRegistrationService::class)->registerStudentForOffering(
+                    (int) $schoolId,
+                    (int) $student->id,
+                    (int) $validated['course_offering_id'],
+                    $membershipId,
+                    (int) $student->id,
+                );
+                return redirect()->route('student.my_courses')->with('message', 'Course registration saved. Confirm it after your financial eligibility is cleared.');
+            } catch (DomainException) {
+                return redirect()->route('student.my_courses')->with('error', 'The Course Offering could not be registered. Refresh the page or contact the academic office.');
+            }
+        }
+
         $validated = $request->validate([
             'subject_ids' => ['required', 'array', 'min:1'],
-            'subject_ids.*' => ['integer', 'exists:subjects,id'],
+            'subject_ids.*' => ['integer', Rule::exists('subjects', 'id')->where(fn ($query) => $query->where('school_id', $schoolId))],
         ]);
 
         $sessionId = get_school_settings($schoolId)->value('running_session') ?: null;
@@ -297,12 +358,20 @@ class StudentController extends Controller
     public function confirmCourse($id)
     {
         $student = auth()->user();
-        $registration = CourseRegistration::forStudent($student->id)->findOrFail((int) $id);
+        $registration = CourseRegistration::forStudent($student->id)->where('school_id', $student->school_id)->findOrFail((int) $id);
 
-        $feeInvoices = StudentFeeManager::where('student_id', $student->id)->where('school_id', $student->school_id)->get();
-        $totalDue = (float) $feeInvoices->sum(fn ($f) => max(0, (float) $f->total_amount - (float) $f->paid_amount));
+        if ($registration->isOfferingBacked()) {
+            try {
+                app(CourseRegistrationService::class)->confirmRegistration((int) $student->school_id, (int) $registration->id, (int) $student->id);
+                return redirect()->back()->with('message', get_phrase('Course confirmed.'));
+            } catch (ValidationException) {
+                return redirect()->back()->with('error', 'Registration is saved, but confirmation is currently unavailable until your outstanding balance is resolved.');
+            } catch (DomainException) {
+                return redirect()->back()->with('error', 'Registration could not be confirmed. Contact the academic office if the problem continues.');
+            }
+        }
 
-        if ($totalDue > 0) {
+        if (! app(StudentRegistrationConfirmationEligibility::class)->allows($student)) {
             return redirect()->back()->with('error', get_phrase('You must clear your fee balance before confirming course registration.'));
         }
 
@@ -314,10 +383,43 @@ class StudentController extends Controller
     public function dropCourse($id)
     {
         $student = auth()->user();
-        $registration = CourseRegistration::forStudent($student->id)->findOrFail((int) $id);
+        $registration = CourseRegistration::forStudent($student->id)->where('school_id', $student->school_id)->findOrFail((int) $id);
+        if ($registration->isOfferingBacked()) {
+            $offering = $registration->courseOffering()->first();
+            if (! $offering) abort(404);
+            if ($offering->status === \App\Models\CourseOffering::STATUS_IN_PROGRESS) {
+                return redirect()->back()->with('error', 'Withdrawal from an in-progress Course Offering requires Academic Office assistance.');
+            }
+            try {
+                app(CourseRegistrationService::class)->dropRegistration((int) $student->school_id, (int) $registration->id, (int) $student->id);
+                return redirect()->back()->with('message', get_phrase('Course dropped.'));
+            } catch (DomainException) {
+                return redirect()->back()->with('error', 'This registration cannot be dropped in its current state. Contact the academic office for assistance.');
+            }
+        }
         $registration->update(['status' => CourseRegistration::STATUS_DROPPED]);
 
         return redirect()->back()->with('message', get_phrase('Course dropped.'));
+    }
+
+    private function studentCoursePath(User $student): string
+    {
+        $schoolId = (int) $student->school_id;
+        $school = School::query()->whereKey($schoolId)->first();
+        if (! $school) return 'configuration';
+        $structure = $school->academicStructure();
+        if ($structure === 'class_based') return 'legacy';
+        if ($structure === 'programme_based') return 'hei';
+
+        $profile = StudentProfile::query()->where('school_id', $schoolId)->where('user_id', $student->id)->first();
+        if ($profile?->programme_id !== null || \App\Models\StudentCurriculumAssignment::query()
+            ->where('school_id', $schoolId)->where('student_id', $student->id)->exists()) {
+            return 'hei';
+        }
+        $enrollment = Enrollment::query()->where('school_id', $schoolId)->where('user_id', $student->id)->first();
+        if ($enrollment && (int) $enrollment->class_id > 0) return 'legacy';
+
+        return 'configuration';
     }
 
     /**

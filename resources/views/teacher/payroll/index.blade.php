@@ -17,9 +17,9 @@
             <tr>
                 <td>{{ $i+1 }}</td>
                 <td>{{ $p->pay_period?->format('F Y') }}</td>
-                <td>{{ number_format($p->gross_salary,2) }}</td>
-                <td class="text-danger">{{ number_format($p->total_deductions,2) }}</td>
-                <td><strong>{{ number_format($p->net_salary,2) }}</strong></td>
+                <td>{{ number_format((float) $p->basic_salary + (float) $p->allowances, 2) }}</td>
+                <td class="text-danger">{{ number_format((float) $p->deductions + (float) $p->tax + (float) $p->nssf, 2) }}</td>
+                <td><strong>{{ number_format((float) $p->net_pay, 2) }}</strong></td>
                 <td><span class="badge bg-{{ $p->status=='paid'?'success':($p->status=='approved'?'primary':'warning') }}">{{ ucfirst($p->status) }}</span></td>
                 <td>
                     @if($p->status=='paid')

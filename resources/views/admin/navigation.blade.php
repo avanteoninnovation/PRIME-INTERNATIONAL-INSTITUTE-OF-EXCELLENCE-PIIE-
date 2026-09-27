@@ -129,6 +129,10 @@
     $navCan = function (string $routeName) use ($rbacPermissions, $user): bool {
         $required = $rbacPermissions->routePermission($routeName);
 
+        if ((int) $user->role_id === \App\Support\Roles\SystemRole::GENERIC_STAFF && $required === null) {
+            return false;
+        }
+
         return $required === null || $rbacPermissions->allows($user, $required);
     };
     $navCanAny = fn (array $routeNames): bool => collect($routeNames)->contains(fn ($routeName) => $navCan($routeName));
@@ -219,22 +223,13 @@
 
             <!-- Staff -->
             @php
-                // Each Staff child keeps exactly its own visibility rule (legacy menu_permission key where it
-                // had one, plus the RBAC route check / launcher guard). The parent is shown only when at least
-                // one child is — never an empty menu, and never hidden while a child (e.g. an HR Manager's
-                // Add Staff) is available. Visibility only: the backend guards still decide access.
-                $staffLegacyKey = fn (string $key): bool => empty($user->menu_permission) || in_array($key, $menu_permission);
+                // The consolidated Staff menu contains only the directory,
+                // launcher and access management entry points. Legacy pages
+                // remain routable directly under their existing guards.
                 $staffNav = [
                     'directory'   => $navCan('admin.rbac.staff.index'),
                     'add'         => (bool) \App\Http\Controllers\Admin\StaffLauncherController::creatableTypes($user),
                     'roles'       => $rbacPermissions->allows($user, 'roles.view'),
-                    'admin'       => $staffLegacyKey('admin.admin') && $navCan('admin.admin'),
-                    'teacher'     => $staffLegacyKey('admin.teacher') && $navCan('admin.teacher'),
-                    'accountant'  => $staffLegacyKey('admin.accountant') && $navCan('admin.accountant'),
-                    'librarian'   => $staffLegacyKey('admin.librarian') && $navCan('admin.librarian'),
-                    'warden'      => $staffLegacyKey('admin.warden') && $navCan('admin.warden'),
-                    'permission'  => $staffLegacyKey('admin.permission') && $navCan('admin.teacher.permission'),
-                    'designation' => $staffLegacyKey('admin.designation_list') && $navCan('admin.designation_list'),
                 ];
             @endphp
             @if(in_array(true, $staffNav, true))
@@ -258,8 +253,7 @@
                     </span>
                 </div>
                 <ul class="sub-menu">
-                    {{-- Staff Directory / Roles & Permissions reuse the RBAC screens; Add Staff launches the existing
-                         per-role create forms. Each item is shown only when its backend guard would admit the user. --}}
+                    {{-- Staff Directory, Add Staff and Roles & Permissions are the primary staff entry points. --}}
                     @if($staffNav['directory'])
                     <li><a class="{{ request()->is('admin/roles-permissions/staff*') ? 'active' : '' }}" href="{{ route('admin.rbac.staff.index') }}"><span>{{ get_phrase('Staff Directory') }}</span></a></li>
                     @endif
@@ -268,27 +262,6 @@
                     @endif
                     @if($staffNav['roles'])
                     <li><a class="{{ request()->is('admin/roles-permissions') || request()->is('admin/roles-permissions/roles*') ? 'active' : '' }}" href="{{ route('admin.rbac.roles.index') }}"><span>{{ get_phrase('Roles & Permissions') }}</span></a></li>
-                    @endif
-                    @if($staffNav['admin'])
-                    <li><a class="{{ request()->is('admin/admin*') ? 'active' : '' }}" href="{{ route('admin.admin') }}"><span>{{ get_phrase('Admin') }}</span></a></li>
-                    @endif
-                    @if($staffNav['teacher'])
-                    <li><a class="{{ request()->is('admin/teacher*') ? 'active' : '' }}" href="{{ route('admin.teacher') }}"><span>{{ get_phrase('Teacher') }}</span></a></li>
-                    @endif
-                    @if($staffNav['accountant'])
-                    <li><a class="{{ request()->is('admin/accountant*') ? 'active' : '' }}" href="{{ route('admin.accountant') }}"><span>{{ get_phrase('Accountant') }}</span></a></li>
-                    @endif
-                    @if($staffNav['librarian'])
-                    <li><a class="{{ request()->is('admin/librarian*') ? 'active' : '' }}" href="{{ route('admin.librarian') }}"><span>{{ get_phrase('Librarian') }}</span></a></li>
-                    @endif
-                    @if($staffNav['warden'])
-                    <li><a class="{{ request()->is('admin/warden*') ? 'active' : '' }}" href="{{ route('admin.warden') }}"><span>{{ get_phrase('Warden') }}</span></a></li>
-                    @endif
-                    @if($staffNav['permission'])
-                    <li><a class="{{ request()->is('admin/permission*') ? 'active' : '' }}" href="{{ route('admin.teacher.permission') }}"><span>{{ get_phrase('Teacher Permission') }}</span></a></li>
-                    @endif
-                    @if($staffNav['designation'])
-                    <li><a class="{{ request()->is('admin/designation*') ? 'active' : '' }}" href="{{ route('admin.designation_list') }}"><span>{{ get_phrase('Designation') }}</span></a></li>
                     @endif
                 </ul>
             </li>
@@ -449,6 +422,42 @@
                 <a href="{{ route('admin.settings.session_manager') }}" class="{{ request()->is('admin/session_manager*') ? 'active' : '' }}">
                     <div class="sidebar_icon"><i class="bi bi-calendar3"></i></div>
                     <span class="link_name">{{ get_phrase('Academic Sessions') }}</span>
+                </a>
+            </li>
+            @endif
+
+            @if((empty($user->menu_permission) || in_array('admin.academic_structure.index', $menu_permission)) && $navCan('admin.academic_structure.index'))
+            <li class="nav-links-li {{ request()->is('admin/academic-structure*') ? 'showMenu' : '' }}">
+                <a href="{{ route('admin.academic_structure.index') }}" class="{{ request()->is('admin/academic-structure*') ? 'active' : '' }}">
+                    <div class="sidebar_icon"><i class="bi bi-calendar-range"></i></div>
+                    <span class="link_name">{{ get_phrase('Academic Years & Periods') }}</span>
+                </a>
+            </li>
+            @endif
+
+            @if($canSeeProgrammes && (empty($user->menu_permission) || in_array('admin.curricula.index', $menu_permission)) && $navCan('admin.curricula.index'))
+            <li class="nav-links-li {{ request()->is('admin/curricula*') ? 'showMenu' : '' }}">
+                <a href="{{ route('admin.curricula.index') }}" class="{{ request()->is('admin/curricula*') ? 'active' : '' }}">
+                    <div class="sidebar_icon"><i class="bi bi-journal-bookmark"></i></div>
+                    <span class="link_name">{{ get_phrase('Programme Study Plans') }}</span>
+                </a>
+            </li>
+            @endif
+
+            @if($schoolType !== 'k12' && (empty($user->menu_permission) || in_array('admin.programme_cohorts.index', $menu_permission)) && $navCan('admin.programme_cohorts.index'))
+            <li class="nav-links-li {{ request()->is('admin/programme-cohorts*') ? 'showMenu' : '' }}">
+                <a href="{{ route('admin.programme_cohorts.index') }}" class="{{ request()->is('admin/programme-cohorts*') ? 'active' : '' }}">
+                    <div class="sidebar_icon"><i class="bi bi-people"></i></div>
+                    <span class="link_name">{{ get_phrase('Programme Cohorts') }}</span>
+                </a>
+            </li>
+            @endif
+
+            @if($canSeeProgrammes && (empty($user->menu_permission) || in_array('admin.course_offerings.index', $menu_permission)) && app(\App\Support\Permissions\PermissionService::class)->allows($user, 'academic.course_offering.view'))
+            <li class="nav-links-li {{ request()->is('admin/course-offerings*') ? 'showMenu' : '' }}">
+                <a href="{{ route('admin.course_offerings.index') }}" class="{{ request()->is('admin/course-offerings*') ? 'active' : '' }}">
+                    <div class="sidebar_icon"><i class="bi bi-journal-check"></i></div>
+                    <span class="link_name">{{ get_phrase('Course Offerings') }}</span>
                 </a>
             </li>
             @endif
@@ -1130,7 +1139,7 @@
                                             </div>
                                             <div class="px-2 text-start">
                                                 <span class="user-name">{{ auth()->user()->name }}</span>
-                                                <span class="user-title">{{ get_phrase('Admin') }}</span>
+                                                <span class="user-title">{{ get_phrase((int) $user->role_id === \App\Support\Roles\SystemRole::GENERIC_STAFF ? 'Staff' : 'Admin') }}</span>
                                             </div>
                                         </button>
                                         <ul class="dropdown-menu dropdown-menu-end eDropdown-menu"
@@ -1144,7 +1153,7 @@
                                                     </div>
                                                     <div class="px-2 text-start">
                                                         <span class="user-name">{{ auth()->user()->name }}</span>
-                                                        <span class="user-title">{{ get_phrase('Admin') }}</span>
+                                                        <span class="user-title">{{ get_phrase((int) $user->role_id === \App\Support\Roles\SystemRole::GENERIC_STAFF ? 'Staff' : 'Admin') }}</span>
                                                     </div>
                                                 </button>
                                             </li>

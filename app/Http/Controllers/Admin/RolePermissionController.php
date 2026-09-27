@@ -10,6 +10,7 @@ use App\Support\Permissions\PermissionService;
 use App\Support\Permissions\RoleManagementException;
 use App\Support\Roles\SystemRole;
 use App\Support\Staff\StaffStatus;
+use App\Support\TenantConfiguration;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -206,6 +207,22 @@ class RolePermissionController extends Controller
         } elseif ($request->query('status') === 'inactive') {
             $query->where(fn ($q) => $q->where('account_status', 'disable')->orWhereIn('staff_status', StaffStatus::BLOCKED));
         }
+        foreach (['department_id', 'designation_id'] as $filter) {
+            if ($request->filled($filter) && ctype_digit((string) $request->query($filter))) {
+                $query->where($filter, (int) $request->query($filter));
+            }
+        }
+        $employmentType = $request->query('employment_type');
+        if (in_array($employmentType, ['Full Time', 'Part Time', 'Casual'], true)) {
+            $query->where('employment_type', $employmentType);
+        }
+
+        $query->addSelect([
+            'department_name' => DB::table('departments')->select('name')
+                ->whereColumn('departments.id', 'users.department_id')->where('departments.school_id', $school)->limit(1),
+            'designation_name' => DB::table('designations')->select('name')
+                ->whereColumn('designations.id', 'users.designation_id')->where('designations.school_id', $school)->limit(1),
+        ]);
 
         $staff = $query->orderBy('name')->paginate(25)->withQueryString();
         $ids = $staff->pluck('id');
@@ -225,8 +242,10 @@ class RolePermissionController extends Controller
             'directCounts' => $directCounts,
             'baseRoles' => $this->baseRoleOptions($school),
             'customRoles' => $this->schoolRoles()->orderBy('name')->get(['id', 'name']),
+            'departments' => DB::table('departments')->where('school_id', $school)->orderBy('name')->get(['id', 'name']),
+            'designations' => DB::table('designations')->where('school_id', $school)->orderBy('name')->get(['id', 'name']),
             'legacyRoles' => self::LEGACY_ROLES,
-            'filters' => $request->only(['q', 'base_role', 'custom_role', 'status']),
+            'filters' => $request->only(['q', 'base_role', 'custom_role', 'status', 'department_id', 'designation_id', 'employment_type']),
         ]);
     }
 
@@ -247,7 +266,11 @@ class RolePermissionController extends Controller
 
         return view('admin.rbac.staff.show', [
             'member' => $member,
-            'baseRole' => SystemRole::name((int) $member->role_id) ?? ('Role ' . $member->role_id),
+            'baseRole' => (int) $member->role_id === SystemRole::TEACHER
+                ? app(TenantConfiguration::class)->terminology()['teacher']
+                : ((int) $member->role_id === SystemRole::GENERIC_STAFF
+                    ? get_phrase('Other Staff')
+                    : (SystemRole::name((int) $member->role_id) ?? ('Role ' . $member->role_id))),
             'isLegacyRole' => in_array((int) $member->role_id, self::LEGACY_ROLES, true),
             'schoolName' => DB::table('schools')->where('id', $school)->value('title'),
             'assigned' => $assigned,
@@ -437,7 +460,11 @@ class RolePermissionController extends Controller
     {
         $options = [];
         foreach (User::where('school_id', $school)->whereNotIn('role_id', self::NOT_STAFF)->distinct()->orderBy('role_id')->pluck('role_id') as $roleId) {
-            $options[(int) $roleId] = SystemRole::name((int) $roleId) ?? ('Role ' . $roleId);
+            $options[(int) $roleId] = (int) $roleId === SystemRole::TEACHER
+                ? app(TenantConfiguration::class)->terminology()['teacher']
+                : ((int) $roleId === SystemRole::GENERIC_STAFF
+                    ? get_phrase('Other Staff')
+                    : (SystemRole::name((int) $roleId) ?? ('Role ' . $roleId)));
         }
 
         return $options;

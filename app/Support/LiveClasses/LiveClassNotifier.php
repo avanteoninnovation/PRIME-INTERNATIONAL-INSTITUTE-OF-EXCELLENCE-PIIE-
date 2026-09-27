@@ -43,7 +43,11 @@ class LiveClassNotifier
         $windowLabel = get_phrase(self::WINDOW_LABELS[$type] ?? 'is starting soon');
         $studentIds = LiveClassEligibility::eligibleStudentUserIds($liveClass);
 
-        self::createNotice($liveClass, $windowLabel);
+        // Offering-backed reminders are recipient-scoped below. A shared
+        // Noticeboard item would disclose the class to unrelated students.
+        if ($liveClass->course_offering_id === null) {
+            self::createNotice($liveClass, $windowLabel);
+        }
 
         $joinUrl = route('student.live_classes.join', $liveClass->id);
 
@@ -62,6 +66,7 @@ class LiveClassNotifier
         $sent = 0;
 
         User::whereIn('id', $studentIds)
+            ->where('school_id', $liveClass->school_id)
             ->where('role_id', 7)
             ->whereNotNull('email')
             ->chunkById(100, function ($students) use ($liveClass, $windowLabel, $joinUrl, &$sent) {

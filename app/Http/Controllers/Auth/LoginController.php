@@ -58,12 +58,26 @@ class LoginController extends Controller
         if (school_status_check($input['email']) == 1 || user_role_check($input['email']) == 1 || user_role_check($input['email']) == 2) {
 
             if (auth()->attempt(['email' => $input['email'], 'password' => $input['password']])) {
+                if ((int) auth()->user()->role_id === \App\Support\Roles\SystemRole::GENERIC_STAFF
+                    && (auth()->user()->account_status === 'disable' || auth()->user()->isStaffPortalBlocked())) {
+                    auth()->logout();
+                    return redirect()->route('login')->with('error', 'This staff account is not currently permitted to log in.');
+                }
+                if ((int) auth()->user()->role_id === \App\Support\Roles\SystemRole::GENERIC_STAFF
+                    && auth()->user()->force_password_change) {
+                    auth()->logout();
+                    return redirect()->route('login')->with('error', 'Set up your password using the link sent to your email before logging in.');
+                }
                 if (auth()->user()->role_id == 1) {
 
                     session(['superadmin_login' => 1]);
                     return redirect()->route('superadmin.dashboard');
 
                 } else {
+                    if ((int) auth()->user()->role_id === \App\Support\Roles\SystemRole::GENERIC_STAFF) {
+                        session(['generic_staff_login' => \App\Support\Roles\SystemRole::GENERIC_STAFF]);
+                        return redirect()->route('staff.dashboard');
+                    }
                     if (auth()->user()->role_id == 2) {
 
                         session(['admin_login' => 2]);

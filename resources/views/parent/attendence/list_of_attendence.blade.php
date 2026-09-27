@@ -133,8 +133,8 @@ use App\Http\Controllers\CommonController;
             <div class="att-report-banner d-flex justify-content-center justify-content-md-between align-items-center flex-wrap">
               <div class="att-report-summary order-1">
                 <h4 class="title">{{ get_phrase('Attendance Report Of').' '.date('F', $page_data['attendance_date']).', '.date('Y', $page_data['attendance_date']) }}</h4>
-                <p class="summary-item">{{ get_phrase('Class') }}: <span>{{ $student_data->class_name }}</span></p>
-                <p class="summary-item">{{ get_phrase('Section') }}: <span>{{ $student_data->section_name }}</span></p>
+                <p class="summary-item">{{ get_phrase('Class') }}: <span>{{ $student_data['class_name'] ?? '' }}</span></p>
+                <p class="summary-item">{{ get_phrase('Section') }}: <span>{{ $student_data['section_name'] ?? '' }}</span></p>
                 <p class="summary-item">
                   {{ get_phrase('Last Update at') }}: 
                   <span>

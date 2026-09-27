@@ -745,6 +745,12 @@ Route::controller(AdminController::class)->middleware('admin', 'auth', 'rbac')->
     Route::post('admin/settings/school', 'schoolUpdate')->name('admin.school.update');
 
     //Session routes
+    Route::get('admin/academic-structure', [\App\Http\Controllers\AcademicStructureController::class, 'index'])->name('admin.academic_structure.index')->middleware('admin_permission');
+    Route::post('admin/academic-structure/years', [\App\Http\Controllers\AcademicStructureController::class, 'storeYear'])->name('admin.academic_structure.years.store')->middleware('admin_permission');
+    Route::post('admin/academic-structure/periods', [\App\Http\Controllers\AcademicStructureController::class, 'storePeriod'])->name('admin.academic_structure.periods.store')->middleware('admin_permission');
+    Route::post('admin/academic-structure/current', [\App\Http\Controllers\AcademicStructureController::class, 'setCurrent'])->name('admin.academic_structure.current')->middleware('admin_permission');
+    Route::post('admin/academic-structure/years/{yearId}/status', [\App\Http\Controllers\AcademicStructureController::class, 'transitionYear'])->name('admin.academic_structure.years.status')->middleware('admin_permission');
+    Route::post('admin/academic-structure/periods/{periodId}/status', [\App\Http\Controllers\AcademicStructureController::class, 'transitionPeriod'])->name('admin.academic_structure.periods.status')->middleware('admin_permission');
     Route::get('admin/session_manager', 'sessionManager')->name('admin.settings.session_manager')->middleware('admin_permission');
     Route::get('admin/session_manager/active_session/{id}', 'activeSession')->name('admin.session_manager.active_session');
     Route::get('admin/session_manager/create', 'createSession')->name('admin.create.session');
@@ -821,6 +827,23 @@ Route::controller(AdminController::class)->middleware('admin', 'auth', 'rbac')->
     Route::get('admin/hostel_fee/offline_payment/reject/{id}', 'rejectOfflinePaymentHostel')->name('admin.reject.offline.payment.hostel');
 });
 //Admin routes end here
+
+// Higher-education Programme Cohort administration. Route permissions are
+// centrally mapped in the staff permission registry; tenant checks remain in
+// the controller and domain service.
+Route::middleware(['auth', 'admin', 'rbac'])->controller(\App\Http\Controllers\ProgrammeCohortController::class)->group(function () {
+    Route::get('admin/programme-cohorts', 'index')->name('admin.programme_cohorts.index');
+    Route::get('admin/programme-cohorts/create', 'create')->name('admin.programme_cohorts.create');
+    Route::post('admin/programme-cohorts', 'store')->name('admin.programme_cohorts.store');
+    Route::get('admin/programme-cohorts/{id}/edit', 'edit')->name('admin.programme_cohorts.edit');
+    Route::put('admin/programme-cohorts/{id}', 'update')->name('admin.programme_cohorts.update');
+    Route::get('admin/programme-cohorts/{id}', 'show')->name('admin.programme_cohorts.show');
+    Route::post('admin/programme-cohorts/{id}/lifecycle', 'lifecycle')->name('admin.programme_cohorts.lifecycle');
+    Route::post('admin/programme-cohorts/{id}/members', 'member')->name('admin.programme_cohorts.members.store');
+    Route::post('admin/programme-cohort-memberships/{id}/{action}', 'membershipAction')->whereIn('action', ['defer', 'resume', 'transfer', 'withdraw', 'complete'])->name('admin.programme_cohorts.members.action');
+    Route::get('admin/programme-cohorts/{id}/placement', 'placement')->name('admin.programme_cohorts.placement.index');
+    Route::post('admin/programme-cohorts/{id}/placement/{membershipId}', 'place')->name('admin.programme_cohorts.placement.store');
+});
 
 //Teacher routes are here
 Route::controller(TeacherController::class)->middleware('teacher', 'auth')->group(function () {
@@ -1365,6 +1388,68 @@ Route::controller(ProgrammeController::class)->middleware('auth', 'admin', 'rbac
     Route::get('admin/programmes/toggle/{id}',      'toggleStatus')->name('admin.programmes.toggle');
 });
 
+// ── Governed Programme Curricula ────────────────────────────────
+Route::controller(\App\Http\Controllers\CurriculumController::class)->middleware('auth', 'admin', 'rbac')->prefix('admin/curricula')->name('admin.curricula.')->group(function () {
+    Route::get('/', 'index')->name('index');
+    Route::get('/create', 'create')->name('create');
+    Route::post('/', 'store')->name('store');
+    Route::get('/{id}/subjects/search', 'searchSubjects')->whereNumber('id')->name('subjects.search');
+    Route::get('/{id}', 'show')->whereNumber('id')->name('show');
+    Route::put('/{id}', 'update')->whereNumber('id')->name('update');
+    Route::post('/{id}/stages', 'storeStage')->whereNumber('id')->name('stages.store');
+    Route::put('/{id}/stages/{stageId}', 'updateStage')->whereNumber('id')->whereNumber('stageId')->name('stages.update');
+    Route::post('/{id}/stages/{stageId}/move', 'moveStage')->whereNumber('id')->whereNumber('stageId')->name('stages.move');
+    Route::delete('/{id}/stages/{stageId}', 'destroyStage')->whereNumber('id')->whereNumber('stageId')->name('stages.destroy');
+    Route::post('/{id}/memberships', 'addMemberships')->whereNumber('id')->name('memberships.store');
+    Route::put('/{id}/memberships/{membershipId}', 'updateMembership')->whereNumber('id')->whereNumber('membershipId')->name('memberships.update');
+    Route::delete('/{id}/memberships/{membershipId}', 'destroyMembership')->whereNumber('id')->whereNumber('membershipId')->name('memberships.destroy');
+    Route::post('/{id}/prerequisites', 'addPrerequisite')->whereNumber('id')->name('prerequisites.store');
+    Route::delete('/{id}/prerequisites', 'destroyPrerequisite')->whereNumber('id')->name('prerequisites.destroy');
+    Route::post('/{id}/approve', 'approve')->whereNumber('id')->name('approve');
+    Route::post('/{id}/retire', 'retire')->whereNumber('id')->name('retire');
+    Route::post('/{id}/successor', 'successor')->whereNumber('id')->name('successor');
+});
+
+// Course Offering administration (delivery instances; distinct from the Subject catalogue).
+Route::controller(\App\Http\Controllers\CourseOfferingController::class)->middleware('auth', 'admin', 'rbac')->prefix('admin/course-offerings')->name('admin.course_offerings.')->group(function () {
+    Route::get('/', 'index')->name('index');
+    Route::get('/create', 'create')->name('create');
+    Route::post('/', 'store')->name('store');
+    Route::post('/{id}/applicability', 'addApplicability')->whereNumber('id')->name('applicability.store');
+    Route::delete('/{id}/applicability/{membershipId}', 'removeApplicability')->whereNumber('id')->whereNumber('membershipId')->name('applicability.destroy');
+    Route::post('/{id}/open', 'lifecycle')->defaults('action', 'open')->whereNumber('id')->name('open');
+    Route::post('/{id}/start', 'lifecycle')->defaults('action', 'start')->whereNumber('id')->name('start');
+    Route::post('/{id}/complete', 'lifecycle')->defaults('action', 'complete')->whereNumber('id')->name('complete');
+    Route::post('/{id}/cancel', 'lifecycle')->defaults('action', 'cancel')->whereNumber('id')->name('cancel');
+    Route::get('/{id}/eligible-students', 'eligibleStudents')->whereNumber('id')->name('eligible_students');
+    Route::get('/{id}/registrations', 'registeredStudents')->whereNumber('id')->name('registrations');
+    Route::post('/{id}/registrations', 'registerStudent')->whereNumber('id')->name('registrations.store');
+    Route::post('/{id}/registrations/{registration}/drop', 'dropStudent')->whereNumber('id')->whereNumber('registration')->name('registrations.drop');
+    Route::controller(\App\Http\Controllers\CourseOfferingLecturerController::class)->prefix('/{offering}/lecturers')->name('lecturers.')->group(function () {
+        Route::get('/', 'index')->whereNumber('offering')->name('index');
+        Route::get('/history', 'history')->whereNumber('offering')->name('history');
+        Route::get('/create', 'create')->whereNumber('offering')->name('create');
+        Route::post('/', 'store')->whereNumber('offering')->name('store');
+        Route::put('/{allocation}', 'update')->whereNumber('offering')->whereNumber('allocation')->name('update');
+        Route::post('/{allocation}/activate', 'activate')->whereNumber('offering')->whereNumber('allocation')->name('activate');
+        Route::post('/{allocation}/end', 'end')->whereNumber('offering')->whereNumber('allocation')->name('end');
+        Route::post('/{allocation}/cancel', 'cancel')->whereNumber('offering')->whereNumber('allocation')->name('cancel');
+        Route::post('/{allocation}/replace', 'replace')->whereNumber('offering')->whereNumber('allocation')->name('replace');
+    });
+    Route::put('/{id}', 'update')->whereNumber('id')->name('update');
+    Route::get('/{id}', 'show')->whereNumber('id')->name('show');
+});
+
+// Offering-contextual Live Class creation. The Offering ID is route context,
+// never a client-supplied field on the legacy K12 creation endpoints.
+Route::controller(LiveClassController::class)->middleware('auth', 'admin', 'rbac')
+    ->prefix('admin/course-offerings/{courseOffering}/live-classes')
+    ->name('admin.course_offerings.live_classes.')
+    ->group(function () {
+        Route::get('/create', 'createForOffering')->whereNumber('courseOffering')->name('create');
+        Route::post('/', 'storeForOffering')->whereNumber('courseOffering')->name('store');
+    });
+
 // ── Admissions ────────────────────────────────────────────────
 Route::controller(AdmissionsController::class)->middleware('auth', 'admin', 'rbac')->group(function () {
     // Applications
@@ -1591,6 +1676,11 @@ Route::controller(AssignmentController::class)->middleware('auth', 'student')->g
 });
 
 // ── Live Classes ──────────────────────────────────────────────
+Route::controller(LiveClassController::class)->middleware('auth')->group(function () {
+    Route::get('live-classes/{liveClass}/materials/{material}/access', 'accessMaterial')->name('live_classes.materials.access');
+    Route::get('live-classes/{liveClass}/recording/access', 'accessRecording')->name('live_classes.recording.access');
+});
+
 Route::controller(LiveClassController::class)->middleware('auth', 'admin', 'rbac')->group(function () {
     Route::get('admin/live-classes',                   'index')->name('admin.live_classes.index');
     Route::get('admin/live-classes/create',            'create')->name('admin.live_classes.create');
@@ -1803,6 +1893,8 @@ Route::middleware(['auth', 'admin', 'rbac'])->controller(\App\Http\Controllers\A
 
     Route::get('admin/roles-permissions/staff', 'staffIndex')->name('admin.rbac.staff.index');
     Route::get('admin/roles-permissions/staff/{id}', 'staffShow')->name('admin.rbac.staff.show');
+    Route::get('admin/roles-permissions/staff/{id}/account-access', [\App\Http\Controllers\Admin\GenericStaffAccountAccessController::class, 'show'])->name('admin.rbac.staff.account-access');
+    Route::post('admin/roles-permissions/staff/{id}/account-access/setup-link', [\App\Http\Controllers\Admin\GenericStaffAccountAccessController::class, 'sendSetupLink'])->name('admin.rbac.staff.account-access.send');
     Route::post('admin/roles-permissions/staff/{id}/roles', 'staffAssignRole')->name('admin.rbac.staff.roles.assign');
     Route::delete('admin/roles-permissions/staff/{id}/roles/{roleId}', 'staffRemoveRole')->name('admin.rbac.staff.roles.remove');
     Route::post('admin/roles-permissions/staff/{id}/permissions', 'staffGrant')->name('admin.rbac.staff.permissions.grant');
@@ -1814,7 +1906,14 @@ Route::middleware(['auth', 'admin', 'rbac'])->controller(\App\Http\Controllers\A
 // its own). Same 'school_admin:hr' guard as the create routes it opens.
 Route::middleware(['auth', 'admin', 'rbac', 'school_admin:hr'])->group(function () {
     Route::get('admin/staff/add', [\App\Http\Controllers\Admin\StaffLauncherController::class, 'index'])->name('admin.staff.add');
+    Route::get('admin/staff/add/other', [\App\Http\Controllers\Admin\OtherStaffController::class, 'create'])->name('admin.staff.other.create');
+    Route::post('admin/staff/add/other', [\App\Http\Controllers\Admin\OtherStaffController::class, 'store'])->name('admin.staff.other.store');
+    Route::get('admin/staff/other/{id}/edit', [\App\Http\Controllers\Admin\OtherStaffController::class, 'edit'])->name('admin.staff.other.edit');
+    Route::put('admin/staff/other/{id}', [\App\Http\Controllers\Admin\OtherStaffController::class, 'update'])->name('admin.staff.other.update');
 });
+
+Route::get('staff/dashboard', \App\Http\Controllers\GenericStaffDashboardController::class)
+    ->middleware(['auth', 'generic_staff'])->name('staff.dashboard');
 
 // Protected staff documents: served by database id only (staff.documents.view, own school; 404 otherwise).
 Route::middleware(['auth', 'admin', 'rbac'])->group(function () {

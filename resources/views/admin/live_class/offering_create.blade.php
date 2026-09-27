@@ -1,0 +1,24 @@
+@extends('admin.navigation')
+@section('content')
+<div class="mainSection-title"><div class="d-flex justify-content-between align-items-center flex-wrap gap-2"><div><h4>{{ get_phrase('Schedule Live Class') }}</h4><p class="text-muted mb-0">{{ $offering->reference ?: '#'.$offering->id }} · {{ $offering->subject->name ?? get_phrase('Course Offering') }}</p></div><a class="btn btn-outline-secondary" href="{{ route('admin.course_offerings.show', $offering->id) }}">{{ get_phrase('Back to Offering') }}</a></div></div>
+@if($errors->any())<div class="alert alert-danger"><ul class="mb-0">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
+<section class="eSection-wrap"><form method="POST" action="{{ route('admin.course_offerings.live_classes.store', $offering->id) }}">@csrf
+    <div class="row g-3">
+        <div class="col-md-8"><label class="form-label">{{ get_phrase('Title') }}</label><input class="form-control" name="title" value="{{ old('title') }}" required maxlength="255"></div>
+        <div class="col-md-4"><label class="form-label">{{ get_phrase('Facilitator') }}</label><select class="form-select" name="teacher_id" {{ !$isAdmin ? 'readonly' : '' }} {{ $facilitators->count() === 1 ? 'required' : '' }}><option value="">{{ get_phrase('Select facilitator') }}</option>@foreach($facilitators as $facilitator)<option value="{{ $facilitator->id }}" @selected(old('teacher_id', !$isAdmin ? auth()->id() : null) == $facilitator->id)>{{ $facilitator->name }}</option>@endforeach</select></div>
+        <div class="col-12"><label class="form-label">{{ get_phrase('Description') }}</label><textarea class="form-control" name="description" rows="3">{{ old('description') }}</textarea></div>
+        <div class="col-md-4"><label class="form-label">{{ get_phrase('Platform') }}</label><select class="form-select" name="platform" required>@foreach(['jitsi'=>'Jitsi','google_meet'=>'Google Meet','zoom'=>'Zoom','bigbluebutton'=>'BigBlueButton','custom'=>'Custom'] as $key=>$label)@if($platformStatus[$key] ?? false)<option value="{{ $key }}" @selected(old('platform', $liveClass->platform) === $key)>{{ $label }}</option>@endif @endforeach</select></div>
+        <div class="col-md-4"><label class="form-label">{{ get_phrase('Meeting URL (if supplied)') }}</label><input class="form-control" type="url" name="meeting_url" value="{{ old('meeting_url') }}" placeholder="https://"></div>
+        <div class="col-md-4"><label class="form-label">{{ get_phrase('Meeting ID') }}</label><input class="form-control" name="meeting_id" value="{{ old('meeting_id') }}" maxlength="150"></div>
+        <div class="col-md-4"><label class="form-label">{{ get_phrase('Meeting Password') }}</label><input class="form-control" name="meeting_password" value="{{ old('meeting_password') }}" maxlength="150"></div>
+        <div class="col-md-4"><label class="form-label">{{ get_phrase('Date') }}</label><input class="form-control" type="date" name="start_date" value="{{ old('start_date', now()->toDateString()) }}" required></div>
+        <div class="col-md-2"><label class="form-label">{{ get_phrase('Start time') }}</label><input class="form-control" type="time" name="start_time" value="{{ old('start_time', '09:00') }}" required></div>
+        <div class="col-md-2"><label class="form-label">{{ get_phrase('End time') }}</label><input class="form-control" type="time" name="end_time" value="{{ old('end_time', '10:00') }}" required></div>
+        <div class="col-md-4"><label class="form-label">{{ get_phrase('Timezone') }}</label><input class="form-control" name="timezone" value="{{ old('timezone', config('app.timezone', 'UTC')) }}"></div>
+        <div class="col-md-4"><label class="form-label">{{ get_phrase('Status') }}</label><select class="form-select" name="status"><option value="draft">Draft</option><option value="scheduled">Scheduled</option><option value="live">Live</option></select></div>
+        <div class="col-md-4"><label class="form-label">{{ get_phrase('Recording URL (optional)') }}</label><input class="form-control" type="url" name="recording_url" value="{{ old('recording_url') }}" placeholder="https://"></div>
+        <div class="col-12"><label class="form-check"><input class="form-check-input" type="checkbox" name="attendance_enabled" value="1" @checked(old('attendance_enabled'))><span class="form-check-label">{{ get_phrase('Enable attendance') }}</span></label><label class="form-check"><input class="form-check-input" type="checkbox" name="is_published" value="1" @checked(old('is_published'))><span class="form-check-label">{{ get_phrase('Publish immediately') }}</span></label></div>
+    </div>
+    <div class="mt-4"><button class="btn btn-primary" type="submit">{{ get_phrase('Schedule Live Class') }}</button></div>
+</form></section>
+@endsection

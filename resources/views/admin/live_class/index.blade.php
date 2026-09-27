@@ -157,8 +157,8 @@
                                             <li>
                                                 <a class="dropdown-item" href="javascript:;" onclick="rightModal('{{ route($routePrefix . '.live_classes.materials', $lc->id) }}', '{{ get_phrase('Resources & Recordings') }}')">{{ get_phrase('Resources & Recordings') }}</a>
                                             </li>
-                                            @if($lc->safe_recording_url)
-                                                <li><a class="dropdown-item" href="{{ $lc->safe_recording_url }}" target="_blank">{{ get_phrase('Recording') }}</a></li>
+                                            @if($lc->course_offering_id ? $lc->recording_url : $lc->safe_recording_url)
+                                                <li><a class="dropdown-item" href="{{ $lc->course_offering_id ? route('live_classes.recording.access', $lc->id) : $lc->safe_recording_url }}" target="_blank">{{ get_phrase('Recording') }}</a></li>
                                             @endif
                                             <li><hr class="dropdown-divider"></li>
                                             <li>

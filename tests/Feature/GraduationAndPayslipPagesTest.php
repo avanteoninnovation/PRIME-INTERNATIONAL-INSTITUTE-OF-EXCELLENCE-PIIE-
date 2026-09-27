@@ -53,10 +53,21 @@ class GraduationAndPayslipPagesTest extends TestCase
     public function test_teacher_payslips_render_empty_and_with_payslips(): void
     {
         $teacher = User::factory()->create(['role_id' => 3, 'school_id' => $this->school, 'account_status' => 'active']);
+        $otherTeacher = User::factory()->create(['role_id' => 3, 'school_id' => $this->school, 'account_status' => 'active']);
         $this->actingAs($teacher)->get(route('teacher.payroll.index'))->assertOk();
 
         DB::table('payroll')->insert(['school_id' => $this->school, 'staff_id' => $teacher->id, 'pay_period' => '2026-08-31',
-            'basic_salary' => 1000, 'net_pay' => 950, 'status' => 'paid', 'created_at' => now(), 'updated_at' => now()]);
-        $this->actingAs($teacher)->get(route('teacher.payroll.index'))->assertOk()->assertSee('August 2026')->assertDontSee('No payslips available');
+            'basic_salary' => 1000, 'allowances' => 200, 'deductions' => 25, 'tax' => 50, 'nssf' => 100, 'net_pay' => 1025,
+            'status' => 'paid', 'created_at' => now(), 'updated_at' => now()]);
+        DB::table('payroll')->insert(['school_id' => $this->school, 'staff_id' => $otherTeacher->id, 'pay_period' => '2026-07-01',
+            'basic_salary' => 9000, 'net_pay' => 9000, 'status' => 'paid', 'created_at' => now(), 'updated_at' => now()]);
+        $this->actingAs($teacher)->get(route('teacher.payroll.index'))->assertOk()->assertSee('August 2026')
+            ->assertSee('1,200.00')->assertSee('175.00')->assertSee('1,025.00')
+            ->assertDontSee('9,000.00')->assertDontSee('No payslips available');
+
+        DB::table('payroll')->insert(['school_id' => $this->school, 'staff_id' => $teacher->id, 'pay_period' => '2026-06-01',
+            'basic_salary' => 0, 'allowances' => 0, 'deductions' => 0, 'tax' => 0, 'nssf' => 0, 'net_pay' => 0,
+            'status' => 'paid', 'created_at' => now(), 'updated_at' => now()]);
+        $this->actingAs($teacher)->get(route('teacher.payroll.index'))->assertOk()->assertSee('0.00');
     }
 }

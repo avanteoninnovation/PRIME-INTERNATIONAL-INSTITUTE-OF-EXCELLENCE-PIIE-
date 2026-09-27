@@ -85,8 +85,8 @@
                     <a href="javascript:;" class="eBtn eBtn-sm eBtn-dark w-100 mt-2" onclick="rightModal('{{ route('student.live_classes.materials', $lc->id) }}', '{{ get_phrase('Resources & Recordings') }}')">
                         <i class="bi bi-paperclip"></i> {{ get_phrase('Resources & Recordings') }}
                     </a>
-                    @if($lc->computed_status === \App\Models\LiveClass::STATUS_ENDED && $lc->safe_recording_url)
-                        <a href="{{ $lc->safe_recording_url }}" target="_blank" class="eBtn eBtn-sm eBtn-dark w-100 mt-2">{{ get_phrase('View Recording') }}</a>
+                    @if($lc->computed_status === \App\Models\LiveClass::STATUS_ENDED && ($lc->course_offering_id ? $lc->recording_url : $lc->safe_recording_url))
+                        <a href="{{ $lc->course_offering_id ? route('live_classes.recording.access', $lc->id) : $lc->safe_recording_url }}" target="_blank" class="eBtn eBtn-sm eBtn-dark w-100 mt-2">{{ get_phrase('View Recording') }}</a>
                     @endif
                 </div>
             </div>

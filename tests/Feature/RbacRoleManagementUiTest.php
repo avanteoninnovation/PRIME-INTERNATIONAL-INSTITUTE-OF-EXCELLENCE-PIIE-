@@ -417,10 +417,10 @@ class RbacRoleManagementUiTest extends TestCase
         $this->assign->grant($this->adminA, $this->teacherA, 'live_classes.create');
 
         $page = $this->actingAs($this->adminA)->get(route('admin.rbac.staff.index'))->assertOk();
-        $page->assertSee('John Teacher')->assertSee('STF-001')->assertSee('Teacher / Lecturer')->assertSee('Examinations Officer')
+        $page->assertSee('John Teacher')->assertSee('STF-001')->assertSee('Teacher')->assertSee('Examinations Officer')
             ->assertSee('Lara Librarian')->assertSee('Sam Suspended')
             ->assertDontSee('Stu Student')->assertDontSee('Pat Parent')->assertDontSee('Bea Teacher')->assertSee('Manage access');
-        foreach (['Name', 'Staff ID', 'Base role', 'Custom roles', 'Direct permissions', 'Status'] as $column) {
+        foreach (['Name', 'Staff ID', 'Staff type', 'Access roles', 'Direct permissions', 'Status'] as $column) {
             $page->assertSee($column);
         }
 

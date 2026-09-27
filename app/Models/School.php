@@ -16,7 +16,12 @@ class School extends Model
      */
     protected $fillable = [
         'title', 'email', 'phone', 'address', 'school_info', 'status','school_currency','currency_position',
-        'school_type', 'education_level',
+        'school_type', 'education_level', 'primary_locale', 'country_code', 'timezone',
+        'academic_calendar_pattern', 'terminology_overrides',
+    ];
+
+    protected $casts = [
+        'terminology_overrides' => 'array',
     ];
 
     /**
@@ -39,5 +44,35 @@ class School extends Model
     public function academicStructure(): string
     {
         return self::ACADEMIC_STRUCTURE_MAP[$this->school_type] ?? 'class_based';
+    }
+
+    public function academicYears()
+    {
+        return $this->hasMany(AcademicYear::class);
+    }
+
+    public function courseOfferings()
+    {
+        return $this->hasMany(CourseOffering::class, 'school_id');
+    }
+
+    public function curricula()
+    {
+        return $this->hasMany(Curriculum::class, 'school_id');
+    }
+
+    public function programmeCohorts()
+    {
+        return $this->hasMany(ProgrammeCohort::class, 'school_id');
+    }
+
+    public function currentAcademicYear()
+    {
+        return $this->belongsTo(AcademicYear::class, 'current_academic_year_id');
+    }
+
+    public function currentAcademicPeriod()
+    {
+        return $this->belongsTo(AcademicPeriod::class, 'current_academic_period_id');
     }
 }

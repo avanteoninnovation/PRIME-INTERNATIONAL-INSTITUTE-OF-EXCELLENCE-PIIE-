@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Support\Permissions\PortalAccessDenial;
+use App\Support\Permissions\PermissionService;
 use Closure;
 use Illuminate\Http\Request;
 
@@ -18,6 +19,18 @@ class AdminMiddleware
     public function handle(Request $request, Closure $next)
     {
         $user = auth()->user();
+
+        // Generic Staff may enter only explicitly mapped RBAC routes. They do
+        // not join the compatibility allowlist used by legacy staff accounts.
+        if ($user && (int) $user->role_id === \App\Support\Roles\SystemRole::GENERIC_STAFF) {
+            $route = $request->route();
+            $permission = app(PermissionService::class)->routePermission($route?->getName());
+            if ($permission !== null && app(PermissionService::class)->allows($user, $permission)) {
+                return $next($request);
+            }
+
+            return PortalAccessDenial::redirect($user);
+        }
 
         // 9 = Registrar (RegistrarMiddleware) — added so logging in doesn't
         // dead-end at admin.dashboard; no Registrar-specific view exists

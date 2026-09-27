@@ -60,7 +60,7 @@
 					                <input class="form-control eForm-control-file" type="file" id="school_logo" name="school_logo" accept="image/*">
 					            </div>
 								<div class="fpb-7">
-					                <label for="education_level" class="eForm-label">{{ get_phrase('Education Level') }}</label>
+                                    <label for="education_level" class="eForm-label">{{ get_phrase('Education Level') }}</label>
 					                <select name="education_level" id="education_level" class="form-select eForm-select eChoice-multiple-with-remove">
 					                    <option value="">{{ get_phrase('Select an education level') }}</option>
 					                    <option value="primary">{{ get_phrase('Primary School') }}</option>
@@ -72,14 +72,53 @@
 					                <small class="text-muted">{{ get_phrase('Descriptive only — does not change application behavior.') }}</small>
 					            </div>
 								<div class="fpb-7">
-					                <label for="school_type" class="eForm-label">{{ get_phrase('Academic Structure') }}</label>
+                                    <label for="school_type" class="eForm-label">{{ get_phrase('Institution Type') }}</label>
 					                <select name="school_type" id="school_type" class="form-select eForm-select eChoice-multiple-with-remove">
 					                    <option value="k12">{{ get_phrase('Class-Based (K-12)') }}</option>
 					                    <option value="higher_ed">{{ get_phrase('Programme-Based (Higher Education)') }}</option>
 					                    <option value="mixed">{{ get_phrase('Mixed (both structures)') }}</option>
 					                </select>
-					                <small class="text-muted">{{ get_phrase('Controls which academic modules (Classes vs Programmes/Courses) this school sees.') }}</small>
-					            </div>
+                                    <small class="text-muted">{{ get_phrase('Controls which academic modules (Classes vs Programmes/Courses) this school sees.') }}</small>
+                                </div>
+                                <div class="fpb-7">
+                                    <label for="primary_locale" class="eForm-label">{{ get_phrase('Primary Language') }}</label>
+                                    <select name="primary_locale" id="primary_locale" class="form-select eForm-select">
+                                        <option value="">{{ get_phrase('Use platform default') }}</option>
+                                        <option value="en">English (en)</option><option value="fr">Français (fr)</option><option value="sw">Kiswahili (sw)</option>
+                                    </select>
+                                </div>
+                                <div class="fpb-7">
+                                    <label for="country_code" class="eForm-label">{{ get_phrase('Country') }}</label>
+                                    <select name="country_code" id="country_code" class="form-select eForm-select">
+                                        <option value="">{{ get_phrase('Select country') }}</option>
+                                        @foreach($countryCodes as $countryCode)<option value="{{ $countryCode }}">{{ $countryCode }}</option>@endforeach
+                                    </select>
+                                </div>
+                                <div class="fpb-7">
+                                    <label for="timezone" class="eForm-label">{{ get_phrase('Timezone') }}</label>
+                                    <input type="text" class="form-control eForm-control" id="timezone" name="timezone" placeholder="Africa/Kampala">
+                                </div>
+                                <div class="fpb-7">
+                                    <label for="school_currency" class="eForm-label">{{ get_phrase('Currency') }}</label>
+                                    <select name="school_currency" id="school_currency" class="form-select eForm-select">
+                                        <option value="">{{ get_phrase('Use existing/default currency') }}</option>
+                                        @foreach($currencies as $currency)<option value="{{ $currency->code }}">{{ $currency->name }} ({{ $currency->code }} — {{ $currency->symbol }})</option>@endforeach
+                                    </select>
+                                </div>
+                                <div class="fpb-7">
+                                    <label for="currency_position" class="eForm-label">{{ get_phrase('Currency Position') }}</label>
+                                    <select name="currency_position" id="currency_position" class="form-select eForm-select">
+                                        @foreach(['left' => 'Left', 'right' => 'Right', 'left-space' => 'Left with a space', 'right-space' => 'Right with a space'] as $position => $label)
+                                            <option value="{{ $position }}" {{ $position === 'left' ? 'selected' : '' }}>{{ get_phrase($label) }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div class="fpb-7">
+                                    <label for="academic_calendar_pattern" class="eForm-label">{{ get_phrase('Academic Calendar Pattern') }}</label>
+                                    <select name="academic_calendar_pattern" id="academic_calendar_pattern" class="form-select eForm-select">
+                                        <option value="term">{{ get_phrase('Term') }}</option><option value="semester">{{ get_phrase('Semester') }}</option>
+                                    </select>
+                                </div>
 							</div>
 						</div>
 						<div class="col-md-6 pb-3">

@@ -114,6 +114,12 @@
                                                         @endif
                                                     </td>
                                                     <td class="d-flex flex-wrap gap-1">
+                                                        @if($canSeeProgrammes && auth()->user()->hasPermission('academic.curriculum.view'))
+                                                            <a href="{{ route('admin.curricula.index', ['programme_id' => $prog->id]) }}" class="eBtn eBtn-sm eBtn-info" title="{{ get_phrase('Manage Programme Study Plans') }}">{{ get_phrase('Study Plans') }}</a>
+                                                        @endif
+                                                        @if($canSeeProgrammes && app(\App\Support\Permissions\PermissionService::class)->allows(auth()->user(), 'academic.course_offering.view'))
+                                                            <a href="{{ route('admin.course_offerings.index', ['programme_id' => $prog->id]) }}" class="eBtn eBtn-sm eBtn-info">{{ get_phrase('Offerings') }}</a>
+                                                        @endif
                                                         <a href="javascript:;" class="eBtn eBtn-sm eBtn-primary" title="{{ get_phrase('Edit') }}" onclick="rightModal('{{ route('admin.programmes.open_modal', ['id' => $prog->id]) }}', '{{ get_phrase('Edit Programme') }}')"><i class="bi bi-pencil"></i></a>
                                                         <a href="{{ route('admin.programmes.toggle', $prog->id) }}" class="eBtn eBtn-sm eBtn-warning" title="{{ $prog->is_active ? get_phrase('Deactivate') : get_phrase('Activate') }}"><i class="bi bi-toggle-on"></i></a>
                                                         <a href="{{ route('admin.programmes.destroy', $prog->id) }}" class="eBtn eBtn-sm eBtn-danger" title="{{ get_phrase('Delete') }}" onclick="return confirm('{{ get_phrase('Delete this programme? This only works if it has no applications or students linked to it.') }}')"><i class="bi bi-trash"></i></a>

@@ -90,6 +90,16 @@ class User extends Authenticatable
         return $this->hasOne(StudentProfile::class, 'user_id');
     }
 
+    public function curriculumAssignments()
+    {
+        return $this->hasMany(StudentCurriculumAssignment::class, 'student_id')->where('school_id', $this->school_id);
+    }
+
+    public function programmeCohortMemberships()
+    {
+        return $this->hasMany(ProgrammeCohortMembership::class, 'student_id');
+    }
+
     // Staff professional records (all optional: historical staff have none).
 
     public function staffProfile()
@@ -147,6 +157,12 @@ class User extends Authenticatable
         public function liveClassesAsLecturer()
         {
             return $this->hasMany(LiveClass::class, 'teacher_id');
+        }
+
+        public function courseOfferingAllocations()
+        {
+            return $this->hasMany(CourseOfferingLecturerAllocation::class, 'user_id')
+                ->where('school_id', $this->school_id);
         }
 
         public function createdLiveClasses()

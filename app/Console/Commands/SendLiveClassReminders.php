@@ -50,7 +50,7 @@ class SendLiveClassReminders extends Command
 
         $classes = LiveClass::query()
             ->where('is_published', 1)
-            ->where('status', '!=', LiveClass::STATUS_CANCELLED)
+            ->where('status', LiveClass::STATUS_SCHEDULED)
             ->whereNotNull('scheduled_at')
             ->whereBetween('scheduled_at', [$windowStart, $windowEnd])
             ->whereDoesntHave('notifications', fn ($q) => $q->where('type', $type))

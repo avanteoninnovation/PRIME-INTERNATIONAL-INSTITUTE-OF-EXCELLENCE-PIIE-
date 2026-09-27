@@ -80,9 +80,13 @@
     <div class="col-lg-4">
         <div class="eSection-wrap">
             <h6>{{ get_phrase('Meeting') }}</h6>
-            <p class="mb-2"><strong>{{ get_phrase('URL') }}:</strong><br>{{ $liveClass->safe_meeting_url ?: '—' }}</p>
-            @if($liveClass->safe_recording_url)
-                <a href="{{ $liveClass->safe_recording_url }}" target="_blank" class="eBtn eBtn-dark w-100 mb-2">{{ get_phrase('View Recording') }}</a>
+            @if($liveClass->course_offering_id)
+                <p class="mb-2">{{ get_phrase('Provider details are disclosed only through the authorized join action.') }}</p>
+            @else
+                <p class="mb-2"><strong>{{ get_phrase('URL') }}:</strong><br>{{ $liveClass->safe_meeting_url ?: '—' }}</p>
+            @endif
+            @if($liveClass->course_offering_id ? $liveClass->recording_url : $liveClass->safe_recording_url)
+                <a href="{{ $liveClass->course_offering_id ? route('live_classes.recording.access', $liveClass->id) : $liveClass->safe_recording_url }}" target="_blank" class="eBtn eBtn-dark w-100 mb-2">{{ get_phrase('View Recording') }}</a>
             @endif
             <form method="POST" action="{{ route($routePrefix . '.live_classes.publish', $liveClass->id) }}" class="mb-2">
                 @csrf

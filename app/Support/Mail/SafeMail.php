@@ -6,6 +6,7 @@ use Illuminate\Mail\Mailable;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
+use Symfony\Component\Mime\Exception\LogicException as MimeLogicException;
 
 /**
  * Sends a notification e-mail that follows an already-completed business action
@@ -28,15 +29,32 @@ final class SafeMail
 
             return true;
         } catch (TransportExceptionInterface $e) {
-            Log::warning('Mail delivery failed; the completed action was kept', [
-                'purpose' => $purpose,
-                'mailable' => get_class($mailable),
-                'exception' => get_class($e),
-                'user_id' => auth()->id(),
-                'school_id' => auth()->user()->school_id ?? null,
-            ]);
+            self::logFailure($mailable, $purpose, $e);
+
+            return false;
+        } catch (MimeLogicException $e) {
+            // Symfony throws this before transport when neither the mailable nor
+            // mail.from supplies a sender. Treat precisely this known mail-config
+            // failure as undelivered; other MIME logic errors are defects and must
+            // continue through the normal exception handling path.
+            if ($e->getMessage() !== 'An email must have a "From" or a "Sender" header.') {
+                throw $e;
+            }
+
+            self::logFailure($mailable, $purpose, $e);
 
             return false;
         }
+    }
+
+    private static function logFailure(Mailable $mailable, string $purpose, \Throwable $exception): void
+    {
+        Log::warning('Mail delivery failed; the completed action was kept', [
+            'purpose' => $purpose,
+            'mailable' => get_class($mailable),
+            'exception' => get_class($exception),
+            'user_id' => auth()->id(),
+            'school_id' => auth()->user()->school_id ?? null,
+        ]);
     }
 }

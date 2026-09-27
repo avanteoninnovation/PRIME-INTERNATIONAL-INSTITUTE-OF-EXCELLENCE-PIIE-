@@ -1,8 +1,7 @@
 @extends('admin.navigation')
 
 @section('content')
-{{-- Staff → Add Staff: launcher only. Each card opens the EXISTING create form for that base role
-     (same modal as the role's own list page); nothing is created here. --}}
+{{-- Staff entry launcher into the existing staff creation workflows; nothing is created here. --}}
 <style>
     .staff-launcher .sl-intro { color: #475467; font-size: .9rem; margin: 0; }
     .staff-launcher .sl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1rem; }
@@ -22,11 +21,11 @@
         <div class="col-12">
             <div class="d-flex justify-content-between align-items-center flex-wrap gr-15">
                 <div class="d-flex flex-column">
-                    <h4>{{ get_phrase('Add Staff') }}</h4>
+                    <h4>{{ get_phrase('Add Staff Member') }}</h4>
                     <ul class="d-flex align-items-center eBreadcrumb-2">
                         <li><a href="{{ route('admin.dashboard') }}">{{ get_phrase('Home') }}</a></li>
                         <li><a href="#">{{ get_phrase('Staff') }}</a></li>
-                        <li><a href="#">{{ get_phrase('Add Staff') }}</a></li>
+                        <li><a href="#">{{ get_phrase('Add Staff Member') }}</a></li>
                     </ul>
                 </div>
             </div>
@@ -36,7 +35,7 @@
 
 <div class="staff-launcher">
     <div class="eSection-wrap mb-3">
-        <p class="sl-intro">{{ get_phrase('Choose the base role of the new staff member. The base role is their identity in the system (Teacher, Accountant, etc.) and is set by the existing form for that role.') }}</p>
+        <p class="sl-intro">{{ get_phrase("Select the staff member's main responsibility. You can assign additional responsibilities and permissions after creating their profile.") }}</p>
     </div>
 
     <div class="sl-grid mb-3">
@@ -48,11 +47,16 @@
                 </div>
                 <p class="sl-desc">{{ get_phrase($type['description']) }}</p>
                 <div class="sl-actions">
+                    @if ($key === 'other')
+                        <a class="btn btn-primary" href="{{ route($type['form']) }}"><i class="bi bi-plus-lg"></i> {{ get_phrase('+ Add Other Staff') }}</a>
+                        <a href="{{ route($type['list']) }}" class="btn btn-outline-secondary">{{ get_phrase('Staff Directory') }}</a>
+                    @else
                     <button type="button" class="btn btn-primary" data-create-route="{{ route($type['form']) }}"
                             onclick="rightModal('{{ route($type['form']) }}', '{{ get_phrase('Create ' . $type['label']) }}')">
                         <i class="bi bi-plus-lg"></i> {{ get_phrase('Create ' . $type['label']) }}
                     </button>
                     <a href="{{ route($type['list']) }}" class="btn btn-outline-secondary">{{ get_phrase('View list') }}</a>
+                    @endif
                 </div>
             </div>
         @endforeach
@@ -60,12 +64,13 @@
 
     <div class="sl-note">
         <i class="bi bi-info-circle"></i>
-        {{ get_phrase('Extra responsibilities (for example Examinations Officer) are not a base role. After creating the staff member, add them in') }}
+        {{ get_phrase('After creating the profile, use') }}
         @permission('roles.view')
-            <a href="{{ route('admin.rbac.staff.index') }}" class="fw-semibold">{{ get_phrase('Staff Directory') }} → {{ get_phrase('Manage access') }}</a>.
+            <a href="{{ route('admin.rbac.staff.index') }}" class="fw-semibold">{{ get_phrase('Staff Directory') }} → {{ get_phrase('Manage Access') }}</a>
         @else
-            {{ get_phrase('Roles & Permissions (School Administrator).') }}
+            {{ get_phrase('Staff Directory → Manage Access') }}
         @endpermission
+        {{ get_phrase('to assign additional responsibilities such as Examinations Officer, Head of Department, or Programme Coordinator.') }}
     </div>
 </div>
 @endsection

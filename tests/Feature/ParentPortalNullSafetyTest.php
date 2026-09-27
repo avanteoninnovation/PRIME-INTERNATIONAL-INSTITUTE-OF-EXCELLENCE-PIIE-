@@ -58,6 +58,19 @@ class ParentPortalNullSafetyTest extends TestCase
             ->assertOk();
     }
 
+    public function test_attendance_filter_uses_the_childs_actual_section(): void
+    {
+        $class = (int) DB::table('classes')->insertGetId(['name' => 'Attendance Class', 'school_id' => $this->school]);
+        $section = (int) DB::table('sections')->insertGetId(['name' => 'Section B', 'class_id' => $class]);
+        DB::table('enrollment')->insert(['user_id' => $this->child->id, 'class_id' => $class, 'section_id' => $section, 'school_id' => $this->school, 'session_id' => 1]);
+        DB::table('daily_attendances')->insert(['class_id' => $class, 'section_id' => $section, 'student_id' => $this->child->id,
+            'status' => 1, 'session_id' => 1, 'school_id' => $this->school, 'timestamp' => strtotime('2026-01-05'), 'created_at' => now(), 'updated_at' => now()]);
+
+        $this->actingAs($this->parent)
+            ->get(route('parent.list_of_attendence', ['month' => 'Jan', 'year' => '2026', 'student_id' => $this->child->id]))
+            ->assertOk()->assertSee('class="present"', false);
+    }
+
     public function test_pages_still_work_for_an_enrolled_child(): void
     {
         $class = (int) DB::table('classes')->insertGetId(['name' => 'Class One', 'school_id' => $this->school]);

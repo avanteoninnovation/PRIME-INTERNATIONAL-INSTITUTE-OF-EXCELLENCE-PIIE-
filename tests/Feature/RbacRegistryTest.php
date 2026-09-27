@@ -34,8 +34,12 @@ class RbacRegistryTest extends TestCase
     {
         $modules = PermissionRegistry::modules();
         foreach ($this->registry() as $key => $definition) {
-            // module.action, optionally module.resource.action (Staff Management: staff.documents.view, staff.nin.view, …).
-            $this->assertMatchesRegularExpression('/^[a-z_]+(\.[a-z_]+){1,2}$/', $key);
+            // module.action, optionally module.resource.action; Course Offering lecturer permissions use the explicit academic.course_offering.lecturer.action namespace.
+            $this->assertTrue(
+                preg_match('/^[a-z_]+(\.[a-z_]+){1,2}$/', $key) === 1
+                    || preg_match('/^academic\.course_offering\.lecturer\.(view|manage)$/', $key) === 1,
+                "Malformed permission key: {$key}"
+            );
             $this->assertArrayHasKey($definition['module'], $modules, $key);
             $this->assertNotEmpty($definition['label'], $key);
             $this->assertNotEmpty($definition['description'], $key);
@@ -123,5 +127,15 @@ class RbacRegistryTest extends TestCase
         $this->assertSame([1, 2, 3, 10, 12, 14], LiveClassPolicy::CREATE_ROLES);
         $this->assertSame([1, 2, 10, 12, 14], LiveClassPolicy::MANAGE_ALL_ROLES);
         $this->assertSame([1, 2, 14], LiveClassPolicy::PLATFORM_ROLES);
+    }
+
+    public function test_course_registration_permissions_are_declared_and_manage_confirm_depend_on_view(): void
+    {
+        foreach (['academic.course_registration.view', 'academic.course_registration.manage', 'academic.course_registration.confirm'] as $key) {
+            $this->assertArrayHasKey($key, $this->registry());
+        }
+        $dependencies = PermissionRegistry::requires();
+        $this->assertContains('academic.course_registration.view', $dependencies['academic.course_registration.manage']);
+        $this->assertContains('academic.course_registration.view', $dependencies['academic.course_registration.confirm']);
     }
 }

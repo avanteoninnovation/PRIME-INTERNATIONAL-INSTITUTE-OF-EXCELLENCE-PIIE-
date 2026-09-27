@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>Payslip — {{ $payroll->staff->name ?? '' }}</title>
+<title>Payslip — {{ $pay->staff->name ?? '' }}</title>
 <style>
 body { font-family: DejaVu Sans, sans-serif; font-size: 12px; color: #333; }
 .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px; }
@@ -21,19 +21,19 @@ body { font-family: DejaVu Sans, sans-serif; font-size: 12px; color: #333; }
 <div class="header">
     <h2>{{ $school->school_name ?? 'School Name' }}</h2>
     <p>{{ $school->address ?? '' }}</p>
-    <h3 style="margin:10px 0 0">PAYSLIP — {{ $payroll->pay_period?->format('F Y') }}</h3>
+    <h3 style="margin:10px 0 0">PAYSLIP — {{ $pay->pay_period?->format('F Y') }}</h3>
 </div>
 <table class="info-table">
-    <tr><td><strong>Employee:</strong> {{ $payroll->staff->name ?? '—' }}</td><td><strong>Pay Period:</strong> {{ $payroll->pay_period?->format('F Y') }}</td></tr>
-    <tr><td><strong>Role:</strong> {{ optional($payroll->staff->role)->name ?? '—' }}</td><td><strong>Payment Date:</strong> {{ $payroll->paid_at?->format('d M Y') ?? 'Pending' }}</td></tr>
+    <tr><td><strong>Employee:</strong> {{ $pay->staff->name ?? '—' }}</td><td><strong>Pay Period:</strong> {{ $pay->pay_period?->format('F Y') }}</td></tr>
+    <tr><td><strong>Role:</strong> {{ optional($pay->staff->role)->name ?? '—' }}</td><td><strong>Payment Date:</strong> {{ $pay->paid_at?->format('d M Y') ?? 'Pending' }}</td></tr>
 </table>
 <table class="salary-table">
     <thead><tr><th>Earnings</th><th>Amount</th><th>Deductions</th><th>Amount</th></tr></thead>
     <tbody>
-        <tr><td>Basic Salary</td><td>{{ number_format($payroll->basic_salary,2) }}</td><td>NSSF (10%)</td><td>{{ number_format($payroll->nssf_deduction,2) }}</td></tr>
-        <tr><td>Allowances</td><td>{{ number_format($payroll->allowances,2) }}</td><td>Tax (5%)</td><td>{{ number_format($payroll->tax_deduction,2) }}</td></tr>
-        <tr><td>Gross Salary</td><td>{{ number_format($payroll->gross_salary,2) }}</td><td>Total Deductions</td><td>{{ number_format($payroll->total_deductions,2) }}</td></tr>
-        <tr class="total-row"><td colspan="2"></td><td>Net Pay</td><td>{{ number_format($payroll->net_salary,2) }}</td></tr>
+        <tr><td>Basic Salary</td><td>{{ number_format((float) $pay->basic_salary, 2) }}</td><td>NSSF</td><td>{{ number_format((float) $pay->nssf, 2) }}</td></tr>
+        <tr><td>Allowances</td><td>{{ number_format((float) $pay->allowances, 2) }}</td><td>Tax</td><td>{{ number_format((float) $pay->tax, 2) }}</td></tr>
+        <tr><td>Gross Salary</td><td>{{ number_format((float) $pay->basic_salary + (float) $pay->allowances, 2) }}</td><td>Total Deductions</td><td>{{ number_format((float) $pay->deductions + (float) $pay->tax + (float) $pay->nssf, 2) }}</td></tr>
+        <tr class="total-row"><td colspan="2"></td><td>Net Pay</td><td>{{ number_format((float) $pay->net_pay, 2) }}</td></tr>
     </tbody>
 </table>
 <div class="footer">

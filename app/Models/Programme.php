@@ -35,6 +35,21 @@ class Programme extends Model
         return $this->hasMany(Subject::class, 'programme_id');
     }
 
+    public function curricula()
+    {
+        return $this->hasMany(Curriculum::class, 'programme_id');
+    }
+
+    public function programmeCohorts()
+    {
+        return $this->hasMany(ProgrammeCohort::class, 'programme_id');
+    }
+
+    public function studentCurriculumAssignments()
+    {
+        return $this->hasMany(StudentCurriculumAssignment::class, 'programme_id')->where('school_id', $this->school_id);
+    }
+
     public function admissions()
     {
         return $this->hasMany(Admission::class, 'programme_id');

@@ -53,6 +53,7 @@ use PaytmWallet;
 use File;
 use App\Mail\SuperAdminAproved;
 use App\Support\ProfilePhoto;
+use App\Support\TenantConfiguration;
 
 class SuperAdminController extends Controller
 {
@@ -106,33 +107,59 @@ class SuperAdminController extends Controller
 
     public function editSchool($id)
     {
-        $school = School::find($id);
-        return view('superadmin.school.edit_school', ['school' => $school]);
+        $school = School::findOrFail($id);
+        return view('superadmin.school.edit_school', [
+            'school' => $school,
+            'currencies' => Currency::all(),
+            'countryCodes' => config('tenant.country_codes'),
+        ]);
     }
 
     public function schoolUpdate(Request $request, $id)
     {
-        $data = $request->all();
+        $school = School::findOrFail($id);
+        $rules = array_merge(TenantConfiguration::configurationRules(), [
+            'title' => ['sometimes', 'required', 'string', 'max:255'],
+            'address' => ['sometimes', 'required', 'string', 'max:500'],
+            'phone' => ['sometimes', 'required', 'integer'],
+            'school_info' => ['sometimes', 'required', 'string'],
+            'school_currency' => ['nullable', 'string', 'max:20'],
+            'currency_position' => ['nullable', 'in:left,right,left-space,right-space'],
+        ]);
+        $validated = $request->validate($rules);
 
-        unset($data['_token']);
-
-        School::where('id', $id)->update($data);
+        // Update only fields intentionally exposed by this school form. In particular,
+        // request data cannot alter running_session, school_id, or arbitrary columns.
+        $school->fill(TenantConfiguration::schoolUpdateAttributes($validated))->save();
 
         return redirect()->back()->with('message', 'You have successfully update school.');
     }
 
     public function schoolAdd()
     {
-        return view('superadmin.school.add_school');
+        return view('superadmin.school.add_school', [
+            'currencies' => Currency::all(),
+            'countryCodes' => config('tenant.country_codes'),
+        ]);
     }
 
     public function createSchool(Request $request)
     {
         // Uploads are checked before anything is created (a failed/invalid file must not leave a half-created school).
-        $request->validate([
+        $request->validate(array_merge(TenantConfiguration::configurationRules(), [
+            'school_name' => ['required', 'string', 'max:255'],
+            'school_email' => ['required', 'email', 'max:255'],
+            'school_phone' => ['required', 'integer'],
+            'school_address' => ['required', 'string', 'max:500'],
+            'school_info' => ['required', 'string'],
+            'school_currency' => ['nullable', 'string', 'max:20'],
+            'currency_position' => ['nullable', 'in:left,right,left-space,right-space'],
+            'admin_name' => ['required', 'string', 'max:255'],
+            'admin_email' => ['required', 'email', 'max:255'],
+            'admin_password' => ['required', 'string', 'min:8'],
             'school_logo' => ['nullable', 'file', 'mimes:png,jpg,jpeg,gif,webp', 'max:4096'],
             'photo' => ['nullable', 'file', 'mimes:png,jpg,jpeg', 'max:4096'],
-        ]);
+        ]));
         $data = $request->all();
         $school_email = $data['school_email'];
         $admin_email = $data['admin_email'];
@@ -149,6 +176,12 @@ class SuperAdminController extends Controller
             'status' => '2',
             'education_level' => $data['education_level'] ?? null,
             'school_type' => $data['school_type'] ?? 'k12',
+            'primary_locale' => $data['primary_locale'] ?? null,
+            'country_code' => $data['country_code'] ?? null,
+            'timezone' => $data['timezone'] ?? null,
+            'academic_calendar_pattern' => $data['academic_calendar_pattern'] ?? (($data['school_type'] ?? 'k12') === 'higher_ed' ? 'semester' : 'term'),
+            'school_currency' => $data['school_currency'] ?? null,
+            'currency_position' => $data['currency_position'] ?? null,
         ]);
         
         if($request->school_logo){

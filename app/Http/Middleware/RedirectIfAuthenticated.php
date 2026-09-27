@@ -23,6 +23,9 @@ class RedirectIfAuthenticated
 
         foreach ($guards as $guard) {
             if (Auth::guard($guard)->check()) {
+                if ((int) Auth::guard($guard)->user()->role_id === \App\Support\Roles\SystemRole::GENERIC_STAFF) {
+                    return redirect()->route('staff.dashboard');
+                }
                 if (auth()->user()->role_id =='1') {
                     return redirect('/superadmin/dashboard');
                 }elseif(auth()->user()->role_id =='2'){

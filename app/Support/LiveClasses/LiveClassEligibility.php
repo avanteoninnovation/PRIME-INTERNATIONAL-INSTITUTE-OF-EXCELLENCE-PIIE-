@@ -3,6 +3,8 @@
 namespace App\Support\LiveClasses;
 
 use App\Models\Enrollment;
+use App\Models\CourseRegistration;
+use App\Models\CourseOffering;
 use App\Models\LiveClass;
 use App\Models\Subject;
 use Illuminate\Support\Collection;
@@ -25,6 +27,35 @@ class LiveClassEligibility
 {
     public static function eligibleStudentUserIds(LiveClass $liveClass): Collection
     {
+        if ($liveClass->course_offering_id !== null) {
+            $operationalOffering = CourseOffering::query()
+                ->where('school_id', $liveClass->school_id)
+                ->whereKey($liveClass->course_offering_id)
+                ->whereIn('status', [CourseOffering::STATUS_OPEN, CourseOffering::STATUS_IN_PROGRESS])
+                ->exists();
+            if (! $operationalOffering || ! $liveClass->is_published || $liveClass->status === LiveClass::STATUS_CANCELLED) {
+                return collect();
+            }
+
+            return CourseRegistration::query()
+                ->join('users as eligible_students', function ($join) use ($liveClass): void {
+                    $join->on('eligible_students.id', '=', 'course_registrations.student_id')
+                        ->on('eligible_students.school_id', '=', 'course_registrations.school_id');
+                })
+                ->where('course_registrations.school_id', $liveClass->school_id)
+                ->where('course_registrations.course_offering_id', $liveClass->course_offering_id)
+                ->where('course_registrations.status', CourseRegistration::STATUS_CONFIRMED)
+                ->where('eligible_students.school_id', $liveClass->school_id)
+                ->where('eligible_students.role_id', 7)
+                ->where(function ($query): void {
+                    $query->whereNull('eligible_students.account_status')
+                        ->orWhere('eligible_students.account_status', '!=', 'disable');
+                })
+                ->pluck('eligible_students.id')
+                ->unique()
+                ->values();
+        }
+
         $classId = $liveClass->class_id;
 
         if (!$classId && $liveClass->subject_id) {

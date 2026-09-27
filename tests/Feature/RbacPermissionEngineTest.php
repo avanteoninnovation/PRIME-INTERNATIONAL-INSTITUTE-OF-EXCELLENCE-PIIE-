@@ -3,10 +3,13 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Http\Middleware\EnforceRoutePermission;
 use App\Support\Permissions\OnlineExamPermissionService;
 use App\Support\Permissions\PermissionAssignmentService;
 use App\Support\Permissions\PermissionService;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Http\Request;
+use Illuminate\Routing\Route;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Schema;
@@ -90,6 +93,79 @@ class RbacPermissionEngineTest extends TestCase
         $this->assertTrue($this->perms->allows($this->user(15), 'hr.appraisal'));
         $this->assertFalse($this->perms->allows($this->user(15), 'permissions.assign'));
         $this->assertTrue($this->perms->allows($this->user(14), 'finance.settings'), 'Director keeps payment settings (pre-RBAC cleanup)');
+    }
+
+    public function test_academic_year_period_management_requires_its_explicit_permission(): void
+    {
+        $key = 'academic.structure.manage';
+        $this->assertTrue($this->perms->exists($key));
+        foreach ([3, 4, 5, 10] as $role) {
+            $user = $this->user($role, null, ['menu_permission' => null]);
+            $this->assertFalse($this->perms->allows($user, $key), "role {$role} must not inherit academic structure management");
+        }
+
+        $admin = $this->admin();
+        $this->assertTrue($this->perms->allows($admin, $key), 'School Admin retains the established bypass');
+
+        $this->actingAs($admin);
+        $teacher = $this->user(3, null, ['menu_permission' => null]);
+        $this->assign->grant($admin, $teacher, $key);
+        $this->assertTrue($this->perms->allows($teacher->fresh(), $key), 'an explicit tenant grant authorizes the teacher');
+        $this->assertFalse($this->perms->allows($this->user(3, $this->schoolB), $key), 'a tenant A grant does not authorize a tenant B user');
+
+        foreach ([
+            'admin.academic_structure.index',
+            'admin.academic_structure.years.store',
+            'admin.academic_structure.periods.store',
+            'admin.academic_structure.current',
+            'admin.academic_structure.years.status',
+            'admin.academic_structure.periods.status',
+        ] as $route) {
+            $this->assertSame($key, $this->perms->routePermission($route), $route);
+        }
+    }
+
+    public function test_academic_structure_route_middleware_denies_ungranted_staff_and_allows_authorized_admin(): void
+    {
+        $middleware = app(EnforceRoutePermission::class);
+        $routeNames = [
+            'admin.academic_structure.index',
+            'admin.academic_structure.years.store',
+            'admin.academic_structure.periods.store',
+            'admin.academic_structure.current',
+            'admin.academic_structure.years.status',
+            'admin.academic_structure.periods.status',
+        ];
+
+        foreach ($routeNames as $routeName) {
+            $route = new Route(['GET', 'POST'], '/academic-test', fn () => response('reached'));
+            $route->name($routeName);
+            $request = Request::create('/academic-test', 'POST');
+            $request->setRouteResolver(fn () => $route);
+            $request->setUserResolver(fn () => $this->user(3, null, ['menu_permission' => null]));
+
+            try {
+                $middleware->handle($request, fn () => response('reached'));
+                $this->fail("ungranted staff reached {$routeName}");
+            } catch (\Symfony\Component\HttpKernel\Exception\HttpException $exception) {
+                $this->assertSame(403, $exception->getStatusCode(), $routeName);
+            }
+        }
+
+        $route = new Route(['GET'], '/academic-test', fn () => response('reached'));
+        $route->name('admin.academic_structure.index');
+        $request = Request::create('/academic-test');
+        $request->setRouteResolver(fn () => $route);
+        $request->setUserResolver(fn () => $this->admin());
+        $this->assertSame('reached', $middleware->handle($request, fn () => response('reached'))->getContent());
+
+        $request->setUserResolver(fn () => null);
+        try {
+            $middleware->handle($request, fn () => response('reached'));
+            $this->fail('unauthenticated request reached Academic Structure');
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $exception) {
+            $this->assertSame(403, $exception->getStatusCode());
+        }
     }
 
     public function test_disabled_or_suspended_accounts_and_unknown_keys_are_denied(): void

@@ -294,6 +294,9 @@ class TenantIsolationSweepTest extends TestCase
         $response = $this->actingAs($admin)->get(route('admin.examination.admitCardFilter', ['class_id' => $this->A['class'], 'section_id' => $this->A['section'], 'session_id' => $session, 'admit_card_id' => $card]));
         $response->assertOk();
         $response->assertSee('ClassA');
+
+        $this->actingAs($admin)->get(route('admin.examination.admitCardFilter', ['class_id' => $this->A['class'], 'section_id' => $this->A['section'], 'session_id' => 999999, 'admit_card_id' => $card]))
+            ->assertNotFound();
     }
 
     public function test_attendance_filter_never_renders_another_schools_class(): void

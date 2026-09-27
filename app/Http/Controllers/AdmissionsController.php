@@ -27,7 +27,9 @@ use App\Support\StudentPortalActivation;
 use App\Support\StudentProvisioningService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 use PDF;
 
@@ -136,6 +138,15 @@ class AdmissionsController extends Controller
         // already happened, so this is what actually landed, not a proposal.
         $enrolledStudent   = User::where('school_id', $this->school_id)->where('email', $admission->email)->where('role_id', 7)->first();
         $existingEnrolment = $enrolledStudent ? Enrollment::where('user_id', $enrolledStudent->id)->first() : null;
+        $cohortPlacementPending = false;
+        if ($enrolledStudent && Schema::hasTable('programme_cohort_memberships')) {
+            $cohortPlacementPending = ! DB::table('programme_cohort_memberships')
+                ->where('school_id', $this->school_id)
+                ->where('student_id', $enrolledStudent->id)
+                ->where('admission_id', $admission->id)
+                ->whereNull('ended_at')
+                ->exists();
+        }
 
         $feeAmount = ApplicationFee::amountFor($admission);
         $feePaid   = (float) $admission->payments->whereIn('status', [ApplicationPayment::STATUS_PAID, ApplicationPayment::STATUS_WAIVED])->sum('amount');
@@ -150,6 +161,7 @@ class AdmissionsController extends Controller
             'progress'          => ApplicationProgress::percent($admission),
             'blockers'          => ApplicationProgress::blockers($admission),
             'statuses'          => Admission::STAFF_SETTABLE_STATUSES,
+            'cohortPlacementPending' => $cohortPlacementPending,
             // Step 6 — Admission & Enrollment (academic assignment).
             'classes'           => Classes::where('school_id', $this->school_id)->orderBy('name')->get(),
             'departments'       => Department::where('school_id', $this->school_id)->orderBy('name')->get(),

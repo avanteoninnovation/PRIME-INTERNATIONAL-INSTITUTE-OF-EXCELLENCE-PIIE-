@@ -17,4 +17,9 @@ class IntakeSession extends Model
     {
         return $this->hasMany(Admission::class, 'intake_session_id');
     }
+
+    public function programmeCohorts()
+    {
+        return $this->hasMany(ProgrammeCohort::class, 'intake_session_id');
+    }
 }

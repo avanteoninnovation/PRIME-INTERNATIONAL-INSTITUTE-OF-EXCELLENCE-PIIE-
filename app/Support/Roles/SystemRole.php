@@ -48,6 +48,9 @@ class SystemRole
     public const STORE_KEEPER = 17;
     public const RECEPTIONIST = 18;
     public const EXAMINATIONS_OFFICER = 19;
+    /** Neutral employee identity. Operational access is permission-grant-only. */
+    public const GENERIC_STAFF = 20;
+    public const STAFF = self::GENERIC_STAFF;
 
     public const STATUS_PROTECTED = 'protected';
     public const STATUS_ACTIVE = 'active';
@@ -67,9 +70,7 @@ class SystemRole
     ];
 
     /**
-     * Roles the institution uses that have no safe existing role_id. Every
-     * candidate (9, 10, 11, 12) already carries another meaning, and no new
-     * ID is allocated in this phase.
+     * Roles the institution uses that have no safe existing role_id.
      */
     public const UNALLOCATED = ['registrar'];
 
@@ -103,6 +104,7 @@ class SystemRole
         self::STORE_KEEPER => ['key' => 'store_keeper', 'name' => 'Store Keeper', 'status' => self::STATUS_PLANNED],
         self::RECEPTIONIST => ['key' => 'receptionist', 'name' => 'Receptionist', 'status' => self::STATUS_PLANNED],
         self::EXAMINATIONS_OFFICER => ['key' => 'examinations_officer', 'name' => 'Examinations Officer', 'status' => self::STATUS_PLANNED],
+        self::GENERIC_STAFF => ['key' => 'staff', 'name' => 'Staff', 'status' => self::STATUS_ACTIVE],
     ];
 
     /** @return array<int, array{key: string, name: string, status: string}> */
