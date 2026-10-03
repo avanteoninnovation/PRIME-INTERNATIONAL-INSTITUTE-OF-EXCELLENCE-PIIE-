@@ -14,6 +14,18 @@
 /storage/*.key
 /storage/app/public/*
 !/storage/app/public/.gitignore
+
+# Google OAuth client credentials.
+#
+# storage/app is the writable disk root and is NOT covered by any rule above, so
+# without this the OAuth JSON is trackable and a routine `git add -A` would
+# commit a client secret. Verified with `git status --porcelain` before this rule
+# existed, which reported `?? storage/app/google/` — i.e. untracked, not ignored.
+#
+# The directory, not just the filename, so a rotated or differently-named
+# credentials file is also ignored. There is no reason to ever commit anything
+# in here.
+/storage/app/google/
 /storage/debugbar
 /storage/framework/cache/data
 /storage/framework/sessions
@@ -103,13 +115,59 @@ auth.json
 !/config/filesystems.php
 !/config/hashing.php
 !/config/logging.php
+# Examination integrity POLICY — thresholds and the accommodation allow-list. It holds
+# no credential and no host: every deployment-specific value is read through env(),
+# and the approved accommodation values are validated against THIS list at request
+# time. Versioned deliberately — an integrity control whose policy file is not in the
+# repository is a control that silently reverts to whatever the deployment last wrote.
+!/config/auth.php
+!/config/cache.php
 !/config/mail.php
+!/config/online_exam_integrity.php
 !/config/queue.php
 !/config/religions.php
+!/config/services.php
 !/config/session.php
+!/config/tenant.php
 !/config/view.php
+
+# The four entries added above (auth, cache, services, tenant) were audited on
+# 2026-10-03 before being allowlisted:
+#
+#   auth.php      standard auth config; no credential values
+#   cache.php     env() only, including MEMCACHED_PASSWORD and AWS_SECRET_ACCESS_KEY
+#   services.php  Zoom / Google / Jitsi provider config, every value via env().
+#                 NOT allowlisting this one would strip the meeting-provider
+#                 configuration from every fresh clone and every CI run, which is
+#                 a worse outcome than the rule was protecting against.
+#   tenant.php    static reference data only - ISO country codes, locales, and the
+#                 k12/higher_ed/mixed terminology tables. No env(), no host.
+#                 It was NOT in HEAD and NOT allowlisted, so it would have been
+#                 silently lost on any fresh clone - which would break the tenant
+#                 terminology that the student course catalogue renders.
+#
+# config/config.json stays ignored immediately below: it is written at runtime by
+# set_config() and DOES hold live SMTP credentials.
 
 # Written at runtime by set_config() in app/Helpers/CommonHelper.php —
 # ends up holding live SMTP credentials, so it must never be committed
 # (it was, from the very first commit, until this line was added).
 /config/config.json
+
+# PIIE CI/CD safety rules
+/storage/google/
+/public/assets/uploads/user-images/
+/public/assets/uploads/offline_payment/
+/public/assets/uploads/documents/
+/storage/app/assignment-submissions/
+/storage/app/course-content/
+/storage/app/course-covers/
+/storage/app/live-class-private/
+/storage/tmp-compiled.php
+/bootstrap/cache/*.php
+!/bootstrap/cache/.gitignore
+/client_secret*.json
+/**/client_secret*.json
+
+# Track the Composer lockfile for reproducible CI/CD
+!/composer.lock

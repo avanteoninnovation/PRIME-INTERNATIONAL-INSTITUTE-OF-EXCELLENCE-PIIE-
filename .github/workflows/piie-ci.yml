@@ -1,0 +1,332 @@
+# =============================================================================
+# PIIE — Continuous Integration
+# =============================================================================
+#
+# WHAT THIS DOES
+#   Installs the dependency tree, boots a DISPOSABLE MySQL, and runs the
+#   application's own test suites. It reports Composer security advisories.
+#
+# WHAT THIS DELIBERATELY DOES NOT DO
+#   It contains no SSH host, no SSH key, no production path, and no deploy step.
+#   Production deployment is a separate, manually approved workflow
+#   (piie-deploy.yml), which is intentionally not created as runnable until the
+#   release strategy has been agreed and approved.
+#
+# WHY MYSQL AND NOT SQLITE
+#   31 migrations contain raw MySQL DDL — `ALTER TABLE ... MODIFY ... ENUM(...)`
+#   — which SQLite cannot execute. A SQLite CI job would therefore either skip
+#   migrations or fail on them, and would not be testing the database the
+#   application actually runs on. The suite is additionally NOT SQLite-safe:
+#   several fixtures use `->enum(...)`, which is MySQL-flavoured.
+#
+# WHY THE DATABASE IS A THROWAWAY SERVICE CONTAINER
+#   `phpunit.xml` defines NO `DB_*` override. The suite therefore takes its
+#   connection from whichever `.env` is present. If a developer's `.env` were
+#   copied into CI, the suite would write to that developer's real database.
+#   Rather than trust `.env`, this workflow WRITES a fresh one from scratch with
+#   credentials that exist only inside the job, and never reads a committed
+#   `.env` (none is tracked; only `.env.example` is).
+#
+# THE 14 KNOWN FAILURES
+#   `CourseOfferingAdministrationTest` (10), `MultinationalTimezoneTest` (2),
+#   `LiveClassCertificationTest` (1), `TenantTimezoneTest` (1) fail on the current
+#   branch. They are pre-existing and unrelated to CI. The job reports the
+#   failure list as an artefact and compares the FAILURE COUNT to this documented
+#   baseline rather than pretending the suite is green — so a NEW failure is
+#   visible as a change in count, and a FIXED failure is visible too.
+# =============================================================================
+
+name: PIIE CI
+
+on:
+  push:
+    branches:
+      - 'feature/**'
+      - 'develop'
+      - 'main'
+  pull_request:
+    branches:
+      - 'feature/**'
+      - 'develop'
+      - 'main'
+  workflow_dispatch:
+
+# Cancel superseded runs on the same ref. Saves minutes on rapid pushes and is
+# safe because nothing here has side effects outside the job.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # PHP: dependencies, syntax, and the PHPUnit Feature suite
+  # ---------------------------------------------------------------------------
+  php-tests:
+    name: PHP 8.3 / PHPUnit / MySQL
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+
+    services:
+      # An ephemeral MySQL 8.0. `ci_test` is created and destroyed with the job;
+      # it is not shared with, and cannot reach, any other environment.
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ci-root-only
+          MYSQL_DATABASE: ci_test
+          MYSQL_USER: ci_user
+          MYSQL_PASSWORD: ci-pass-only
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=12
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          # Extensions the application actually exercises. `pdo_mysql` and
+          # `pdo_sqlite` are both present: the suite is MySQL-bound, but
+          # `pdo_sqlite` is required by the migration-compatibility probe.
+          extensions: >-
+            mbstring, openssl, tokenizer, xml, ctype, json, bcmath, fileinfo,
+            curl, gd, zip, intl, pdo_mysql, pdo_sqlite
+          coverage: none
+          tools: composer:v2
+
+      # ---- A .env built here, never copied from the repository --------------
+      # `phpunit.xml` sets no DB_* values, so the suite inherits the connection
+      # from this file. Generating it here means a developer's credentials can
+      # never be picked up, and no committed file can dictate a connection.
+      - name: Create an isolated test environment file
+        run: |
+          {
+            echo "APP_NAME=PIIE"
+            echo "APP_ENV=testing"
+            echo "APP_KEY=base64:$(head -c 32 /dev/urandom | base64)"
+            echo "APP_DEBUG=true"
+            echo "APP_URL=http://localhost"
+            echo "LOG_CHANNEL=stack"
+            echo "LOG_LEVEL=debug"
+            echo "DB_CONNECTION=mysql"
+            echo "DB_HOST=127.0.0.1"
+            echo "DB_PORT=3306"
+            echo "DB_DATABASE=ci_test"
+            echo "DB_USERNAME=ci_user"
+            echo "DB_PASSWORD=ci-pass-only"
+            echo "BROADCAST_DRIVER=log"
+            echo "CACHE_DRIVER=array"
+            echo "FILESYSTEM_DRIVER=local"
+            echo "QUEUE_CONNECTION=sync"
+            echo "SESSION_DRIVER=array"
+            echo "SESSION_SECURE_COOKIE=false"
+            echo "BYPASS_SUBSCRIPTION=1"
+            echo "MAIL_MAILER=array"
+            echo "AWS_ACCESS_KEY_ID="
+            echo "AWS_SECRET_ACCESS_KEY="
+            echo "MIX_PUSHER_APP_KEY="
+            echo "MIX_PUSHER_APP_CLUSTER=mt1"
+            # Meeting providers are deliberately EMPTY. Several Live Class tests
+            # assert the "provider not configured" path, and silently supplying a
+            # credential here would make those tests exercise the wrong branch.
+            echo "ZOOM_ACCOUNT_ID="
+            echo "ZOOM_CLIENT_ID="
+            echo "ZOOM_CLIENT_SECRET="
+            echo "GOOGLE_CLIENT_ID="
+            echo "GOOGLE_CLIENT_SECRET="
+            echo "GOOGLE_REFRESH_TOKEN="
+            echo "GOOGLE_CALENDAR_ID=primary"
+            echo "JITSI_JWT_ALGORITHM="
+            echo "JITSI_APP_ID="
+            echo "JITSI_KID="
+            echo "JITSI_PRIVATE_KEY="
+            echo "JITSI_APP_SECRET="
+          } > .env
+          echo "--- .env created (values not shown) ---"
+          grep -c '^[A-Z_]*=' .env | sed 's/^/keys written: /'
+          # ITEM 2 - assert the isolation rather than trusting it. phpunit.xml
+          # defines no DB_* override, so the whole suite inherits whatever this
+          # file says. A silent fallback to any other value would let the suite
+          # write to a database it was never meant to touch.
+          set -a; . ./.env; set +a
+          if [ "$DB_DATABASE" != "ci_test" ] || [ "$DB_HOST" != "127.0.0.1" ]; then
+            echo "::error::Refusing to run: DB_DATABASE=$DB_DATABASE DB_HOST=$DB_HOST is not the disposable ci_test instance."
+            exit 1
+          fi
+          echo "isolation confirmed: $DB_USERNAME@$DB_HOST/$DB_DATABASE"
+
+      # ---- Dependencies ------------------------------------------------------
+      - name: Validate composer.json and lock are in sync
+        run: composer validate --strict --no-check-publish
+
+      # `composer install` (not `update`) so CI builds exactly the locked tree.
+      # `--no-scripts` stops post-install hooks from running before the test
+      # environment exists.
+      - name: Install PHP dependencies from the lock file
+        run: |
+          if [ -f composer.lock ]; then
+            composer install --no-interaction --prefer-dist --no-progress --no-scripts
+          else
+            # composer.lock is currently untracked. This branch keeps CI green,
+            # but it also means CI is NOT reproducible — the build is resolved
+            # fresh each run rather than reproducing a tested tree. Tracking the
+            # lock file is the fix, and it is listed in the report.
+            echo "::warning::composer.lock is not tracked; installing without it is not reproducible."
+            composer install --no-interaction --prefer-dist --no-progress --no-scripts
+          fi
+
+      - name: Report the installed Laravel version
+        run: php artisan --version || true
+
+      # ---- Schema ------------------------------------------------------------
+      # The suite builds most of its own schema, but several tests assume the
+      # application's tables already exist. Migrations are run so the baseline is
+      # realistic. This touches ONLY the throwaway `ci_test` container.
+      - name: Apply migrations to the disposable database
+        run: php artisan migrate --force --no-interaction
+
+      # ---- PHPUnit -----------------------------------------------------------
+      # `--testdox` is not used: the output is unreadable at this size. Failures
+      # are captured to a file and published as an artefact so the CI summary can
+      # show WHICH tests failed without the log needing scrolling.
+      - name: Run PHPUnit Feature tests
+        run: |
+          set +e
+          php -d memory_limit=2G vendor/bin/phpunit \
+            --testdox-text phpunit-ci.txt \
+            --log-junit junit.xml \
+            > phpunit-ci.log 2>&1
+          STATUS=$?
+          set -e
+
+          echo "----- PHPUnit summary -----"
+          tail -n 8 phpunit-ci.log
+          echo "---------------------------"
+
+          # The documented pre-existing baseline on this branch.
+          EXPECTED_FAILURES=14
+
+          ACTUAL=$(grep -oE 'Failures:[[:space:]]*[0-9]+' phpunit-ci.log | tail -1 | grep -oE '[0-9]+' || echo 0)
+          ERRORS=$(grep -oE 'Errors:[[:space:]]*[0-9]+' phpunit-ci.log | tail -1 | grep -oE '[0-9]+' || echo 0)
+
+          echo "failures=$ACTUAL errors=$ERRORS baseline=$EXPECTED_FAILURES"
+
+          if [ "$ERRORS" != "0" ]; then
+            echo "::error::Suite produced $ERRORS error(s). Baseline has none."
+            exit 1
+          fi
+
+          if [ "$ACTUAL" -gt "$EXPECTED_FAILURES" ]; then
+            echo "::error::Regression: $ACTUAL failures, baseline is $EXPECTED_FAILURES. See the phpunit-ci artefact."
+            exit 1
+          fi
+
+          if [ "$ACTUAL" -lt "$EXPECTED_FAILURES" ]; then
+            echo "::notice::Failure count fell from $EXPECTED_FAILURES to $ACTUAL — a known failure was fixed. Update the baseline deliberately."
+          fi
+
+          # Non-zero only when a regression is present.
+          exit 0
+
+      - name: Run the migration compatibility probe
+        run: php scripts/probe-google-migrations.php
+
+      - name: Upload PHPUnit logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phpunit-report
+          path: |
+            phpunit-ci.log
+            phpunit-ci.txt
+            junit.xml
+          retention-days: 14
+          if-no-files-found: warn
+
+  # ---------------------------------------------------------------------------
+  # JavaScript: node:test suites
+  # ---------------------------------------------------------------------------
+  js-tests:
+    name: Node / browser-logic tests
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      # `npm ci` installs exactly the locked tree. `npm install` would silently
+      # update it, which is the single most common cause of a "worked yesterday"
+      # JavaScript build.
+      - name: Install npm dependencies from the lock file
+        run: npm ci
+
+      - name: Run the JavaScript test suite
+        run: npm run test:browser
+
+      # `tests/online-exam-revisions.test.cjs` sits OUTSIDE the `tests/js/*.test.js`
+      # glob that `npm run test:browser` uses, so it never runs in that script.
+      # It is invoked explicitly here rather than by editing package.json, so
+      # this workflow changes no project file.
+      - name: Run the standalone exam-revision suite
+        run: node --test tests/online-exam-revisions.test.cjs
+
+  # ---------------------------------------------------------------------------
+  # Composer security advisories — reported, not enforced
+  # ---------------------------------------------------------------------------
+  security-audit:
+    name: Composer security audit
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    # Advisory counts must not block every push while the remediation plan is
+    # still being agreed. Flip to `true` once the plan is in progress.
+    continue-on-error: true
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer:v2
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress --no-scripts --no-dev
+
+      - name: Audit against the security advisory database
+        run: |
+          set +e
+          composer audit --format=plain
+          STATUS=$?
+          set -e
+          echo "composer audit exit status: $STATUS (non-zero means advisories were found)"
+          echo "Known advisory set on this branch: 14 advisories across"
+          echo "dompdf/dompdf, firebase/php-jwt, laravel/framework, league/commonmark."
+          echo "Remediation is planned separately; this job reports rather than blocks."
+
+      - name: Publish the audit output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: composer-audit
+          path: composer.lock
+          retention-days: 14
